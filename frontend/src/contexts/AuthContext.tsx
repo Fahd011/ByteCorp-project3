@@ -1,5 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from '../types';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { User } from "../types";
 
 interface AuthContextType {
   user: User | null;
@@ -14,7 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
@@ -25,32 +31,37 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(
+    localStorage.getItem("token")
+  );
 
   useEffect(() => {
     // Check if token exists and is valid
-    const storedToken = localStorage.getItem('token');
-    const storedExpiresAt = localStorage.getItem('tokenExpiresAt');
-    
+    const storedToken = localStorage.getItem("token");
+    const storedExpiresAt = localStorage.getItem("tokenExpiresAt");
+
     if (storedToken && storedExpiresAt) {
       const expiresAt = new Date(storedExpiresAt);
       const now = new Date();
-      
+
       if (expiresAt > now) {
         // Token is still valid
         setToken(storedToken);
-        const storedUser = localStorage.getItem('user');
+        const storedUser = localStorage.getItem("user");
         if (storedUser) {
           setUser(JSON.parse(storedUser));
         }
-        
+
         // Set up automatic logout when token expires
         const timeUntilExpiry = expiresAt.getTime() - now.getTime();
-        const logoutTimer = setTimeout(() => {
-          logout();
-        }, timeUntilExpiry);
-        
-        return () => clearTimeout(logoutTimer);
+
+        if (timeUntilExpiry > 0) {
+          const logoutTimer = setTimeout(() => {
+            logout();
+          }, timeUntilExpiry);
+
+          return () => clearTimeout(logoutTimer);
+        }
       } else {
         // Token has expired, clear it
         logout();
@@ -59,26 +70,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = (newToken: string, userData: User, expiresAt: string) => {
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('tokenExpiresAt', expiresAt);
-    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem("token", newToken);
+    localStorage.setItem("tokenExpiresAt", expiresAt);
+    localStorage.setItem("user", JSON.stringify(userData));
+
     setToken(newToken);
     setUser(userData);
-    
-    // Set up automatic logout
+
+    // Set up automatic logout - use UTC for consistent timezone handling
     const expiresAtDate = new Date(expiresAt);
     const now = new Date();
     const timeUntilExpiry = expiresAtDate.getTime() - now.getTime();
-    
-    setTimeout(() => {
+
+    if (timeUntilExpiry > 0) {
+      setTimeout(() => {
+        logout();
+      }, timeUntilExpiry);
+    } else {
       logout();
-    }, timeUntilExpiry);
+    }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('tokenExpiresAt');
-    localStorage.removeItem('user');
+    localStorage.removeItem("token");
+    localStorage.removeItem("tokenExpiresAt");
+    localStorage.removeItem("user");
     setToken(null);
     setUser(null);
   };

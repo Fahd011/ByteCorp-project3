@@ -1,5 +1,2 @@
-Username,Password
-billing+tema_tbmnc@sagiliti.com,Energy2023!
-billing-pdscarolina@jitservicesinc.com,Energy18!
-billing+tmo_1514@sagiliti.com,Kingston1514!
-billing-dom_804@jitservicesinc.com,Prop804!
+client_name, utility_co_id, utility_co_name, cred_id, cred_username, cred_password
+"RTX-Collins", 704, "Duke Energy 1004", 2811, "billing+rtx@sagiliti.com", "Collins123!!"

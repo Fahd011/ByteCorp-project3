@@ -30,8 +30,8 @@ def login():
 
     token = create_access_token(identity=user.id)
     
-    # Calculate expiration time (1 hour from now)
-    expires_at = datetime.utcnow() + timedelta(hours=1)
+    # Add 1 hour to current time for expiration
+    expires_at = datetime.now() + timedelta(hours=1)
     
     return jsonify({
         "access_token": token,
