@@ -3,7 +3,7 @@ import { Job, JobDetail } from '../types';
 import { jobsAPI } from '../services/api';
 
 const Bills: React.FC = () => {
-  const [completedJobs, setCompletedJobs] = useState<Job[]>([]);
+  const [jobsWithResults, setJobsWithResults] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -16,10 +16,16 @@ const Bills: React.FC = () => {
     setIsLoading(true);
     try {
       const jobsData = await jobsAPI.getAllJobs();
-      const completed = jobsData.filter(job => job.status === 'completed');
-      setCompletedJobs(completed);
+      // Show jobs that have results (completed, stopped, or error status with results)
+      const jobsWithResults = jobsData.filter(job => 
+        job.status === 'completed' || 
+        job.status === 'stopped' || 
+        job.status === 'error' ||
+        job.results_count > 0
+      );
+      setJobsWithResults(jobsWithResults);
     } catch (err: any) {
-      setError('Failed to load completed jobs');
+      setError('Failed to load jobs with results');
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -49,11 +55,104 @@ const Bills: React.FC = () => {
     window.open(fileUrl, '_blank');
   };
 
+  const handleDeleteAllResults = async (jobId: string) => {
+    if (!window.confirm('Are you sure you want to delete all results for this job? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await jobsAPI.deleteAllResults(jobId);
+      // Refresh the job details
+      if (selectedJob && selectedJob.id === jobId) {
+        const updatedJobDetail = await jobsAPI.getJobDetails(jobId);
+        setSelectedJob(updatedJobDetail);
+      }
+      // Refresh the jobs list
+      await loadCompletedJobs();
+      setError('');
+    } catch (err: any) {
+      setError('Failed to delete all results');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteSingleResult = async (jobId: string, resultId: string) => {
+    if (!window.confirm('Are you sure you want to delete this result? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await jobsAPI.deleteSingleResult(jobId, resultId);
+      // Refresh the job details
+      if (selectedJob && selectedJob.id === jobId) {
+        const updatedJobDetail = await jobsAPI.getJobDetails(jobId);
+        setSelectedJob(updatedJobDetail);
+      }
+      setError('');
+    } catch (err: any) {
+      setError('Failed to delete result');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteJob = async (jobId: string) => {
+    if (!window.confirm('Are you sure you want to delete this entire job? This will delete the job and all its results. This action cannot be undone.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await jobsAPI.deleteJob(jobId);
+      // Clear selected job if it was the deleted one
+      if (selectedJob && selectedJob.id === jobId) {
+        setSelectedJob(null);
+      }
+      // Refresh the jobs list
+      await loadCompletedJobs();
+      setError('');
+    } catch (err: any) {
+      setError('Failed to delete job');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteAllJobs = async () => {
+    if (!window.confirm('Are you sure you want to delete ALL completed jobs? This will delete all jobs and their results. This action cannot be undone.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Delete all jobs one by one
+      const deletePromises = jobsWithResults.map(job => jobsAPI.deleteJob(job.id));
+      await Promise.all(deletePromises);
+      
+      // Clear selected job
+      setSelectedJob(null);
+      // Refresh the jobs list
+      await loadCompletedJobs();
+      setError('');
+    } catch (err: any) {
+      setError('Failed to delete all jobs');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div style={styles.container}>
       <h1 style={styles.title}>Bills & Results</h1>
       <p style={styles.description}>
-        View completed jobs and their generated files.
+        View jobs with results and their generated files.
       </p>
 
       {error && (
@@ -69,17 +168,28 @@ const Bills: React.FC = () => {
       )}
 
       {isLoading ? (
-        <div style={styles.loading}>Loading completed jobs...</div>
-      ) : completedJobs.length === 0 ? (
+        <div style={styles.loading}>Loading jobs with results...</div>
+      ) : jobsWithResults.length === 0 ? (
         <div style={styles.empty}>
-          <h3>No completed jobs</h3>
-          <p>Completed jobs will appear here with their generated files.</p>
+          <h3>No jobs with results</h3>
+          <p>Jobs with results will appear here with their generated files.</p>
         </div>
       ) : (
         <div style={styles.content}>
           <div style={styles.jobsList}>
-            <h2 style={styles.sectionTitle}>Completed Jobs</h2>
-            {completedJobs.map(job => (
+            <div style={styles.jobsHeader}>
+              <h2 style={styles.sectionTitle}>Jobs with Results</h2>
+              {jobsWithResults.length > 0 && (
+                <button 
+                  onClick={handleDeleteAllJobs}
+                  style={styles.deleteAllJobsButton}
+                  disabled={isLoading}
+                >
+                  Delete All Jobs
+                </button>
+              )}
+            </div>
+                            {jobsWithResults.map(job => (
               <div key={job.id} style={styles.jobItem}>
                 <div style={styles.jobHeader}>
                   <h3 style={styles.jobTitle}>Job {job.id.slice(0, 8)}...</h3>
@@ -92,12 +202,21 @@ const Bills: React.FC = () => {
                   <p style={styles.jobInfoText}><strong>Billing URL:</strong> {job.billing_url}</p>
                   <p style={styles.jobInfoText}><strong>Results:</strong> {job.results_count} items</p>
                 </div>
-                <button 
-                  onClick={() => handleViewJobDetails(job.id)}
-                  style={styles.viewButton}
-                >
-                  View Results
-                </button>
+                <div style={styles.jobActions}>
+                  <button 
+                    onClick={() => handleViewJobDetails(job.id)}
+                    style={styles.viewButton}
+                  >
+                    View Results
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteJob(job.id)}
+                    style={styles.deleteJobButton}
+                    disabled={isLoading}
+                  >
+                    Delete Job
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -106,12 +225,21 @@ const Bills: React.FC = () => {
             <div style={styles.resultsPanel}>
               <div style={styles.resultsHeader}>
                 <h2>Job Results</h2>
-                <button 
-                  onClick={() => setSelectedJob(null)}
-                  style={styles.closeButton}
-                >
-                  ✕
-                </button>
+                <div style={styles.headerActions}>
+                  <button 
+                    onClick={() => handleDeleteAllResults(selectedJob.id)}
+                    style={styles.deleteAllButton}
+                    disabled={isLoading}
+                  >
+                    Delete All Results
+                  </button>
+                  <button 
+                    onClick={() => setSelectedJob(null)}
+                    style={styles.closeButton}
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               <div style={styles.resultsList}>
                 {selectedJob.output && selectedJob.output.length > 0 ? (
@@ -122,22 +250,31 @@ const Bills: React.FC = () => {
                         <p style={styles.resultInfoText}><strong>Status:</strong> {result.status}</p>
                         {result.error && <p style={styles.resultInfoText}><strong>Error:</strong> {result.error}</p>}
                       </div>
-                      {result.filename && (
-                        <div style={styles.fileActions}>
-                          <button 
-                            onClick={() => handleViewFile(result.filename!)}
-                            style={styles.viewFileButton}
-                          >
-                            View File
-                          </button>
-                          <button 
-                            onClick={() => handleDownloadFile(result.filename!, `result_${index}.pdf`)}
-                            style={styles.downloadButton}
-                          >
-                            Download
-                          </button>
-                        </div>
-                      )}
+                      <div style={styles.resultActions}>
+                        {result.filename && (
+                          <div style={styles.fileActions}>
+                            <button 
+                              onClick={() => handleViewFile(result.filename!)}
+                              style={styles.viewFileButton}
+                            >
+                              View File
+                            </button>
+                            <button 
+                              onClick={() => handleDownloadFile(result.filename!, `result_${index}.pdf`)}
+                              style={styles.downloadButton}
+                            >
+                              Download
+                            </button>
+                          </div>
+                        )}
+                        <button 
+                          onClick={() => handleDeleteSingleResult(selectedJob.id, result.id)}
+                          style={styles.deleteResultButton}
+                          disabled={isLoading}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -155,8 +292,6 @@ const Bills: React.FC = () => {
 const styles = {
   container: {
     padding: '2rem',
-    marginLeft: '250px',
-    marginTop: '80px',
   },
   title: {
     color: '#333',
@@ -196,13 +331,20 @@ const styles = {
   content: {
     display: 'flex',
     gap: '2rem',
+    flexDirection: 'row' as const,
   },
   jobsList: {
     flex: 1,
   },
+  jobsHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '1rem',
+  },
   sectionTitle: {
     color: '#333',
-    marginBottom: '1rem',
+    margin: 0,
   },
   jobItem: {
     backgroundColor: 'white',
@@ -242,6 +384,30 @@ const styles = {
     cursor: 'pointer',
     fontSize: '0.875rem',
   },
+  jobActions: {
+    display: 'flex',
+    gap: '0.5rem',
+    alignItems: 'center',
+  },
+  deleteJobButton: {
+    padding: '0.5rem 1rem',
+    backgroundColor: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+  },
+  deleteAllJobsButton: {
+    padding: '0.5rem 1rem',
+    backgroundColor: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+    fontWeight: 'bold',
+  },
   resultsPanel: {
     flex: 1,
     backgroundColor: 'white',
@@ -260,12 +426,26 @@ const styles = {
     borderBottom: '1px solid #e0e0e0',
     paddingBottom: '1rem',
   },
+  headerActions: {
+    display: 'flex',
+    gap: '0.5rem',
+    alignItems: 'center',
+  },
   closeButton: {
     backgroundColor: 'transparent',
     border: 'none',
     fontSize: '1.5rem',
     cursor: 'pointer',
     color: '#666',
+  },
+  deleteAllButton: {
+    padding: '0.5rem 1rem',
+    backgroundColor: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
   },
   resultsList: {
     display: 'flex',
@@ -285,6 +465,11 @@ const styles = {
     margin: '0.25rem 0',
     color: '#333',
   },
+  resultActions: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   fileActions: {
     display: 'flex',
     gap: '0.5rem',
@@ -301,6 +486,15 @@ const styles = {
   downloadButton: {
     padding: '0.5rem 1rem',
     backgroundColor: '#007bff',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+  },
+  deleteResultButton: {
+    padding: '0.5rem 1rem',
+    backgroundColor: '#dc3545',
     color: 'white',
     border: 'none',
     borderRadius: '4px',

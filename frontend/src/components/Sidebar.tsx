@@ -1,7 +1,11 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  isOpen?: boolean;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ isOpen = true }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -11,7 +15,10 @@ const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside style={styles.sidebar}>
+    <aside style={{
+      ...styles.sidebar,
+      transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
+    }}>
       <nav style={styles.nav}>
         {menuItems.map((item) => (
           <button
@@ -37,10 +44,14 @@ const styles = {
     backgroundColor: '#f8f9fa',
     borderRight: '1px solid #e0e0e0',
     height: '100vh',
+    flexShrink: 0, // Prevent sidebar from shrinking
+    overflow: 'auto',
+    transition: 'transform 0.3s ease',
     position: 'fixed' as const,
-    left: 0,
     top: 0,
-    paddingTop: '80px', // Account for header height
+    left: 0,
+    zIndex: 1001, // Above overlay
+    paddingTop: '80px', // Account for header
   },
   nav: {
     display: 'flex',

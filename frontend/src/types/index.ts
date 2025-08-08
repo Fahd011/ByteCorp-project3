@@ -14,6 +14,7 @@ export interface Job {
 }
 
 export interface JobResult {
+  id: string;
   email: string;
   status: string;
   error?: string;

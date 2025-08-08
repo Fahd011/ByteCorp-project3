@@ -7,6 +7,7 @@ interface JobCardProps {
   onStop: (jobId: string) => void;
   onDelete: (jobId: string) => void;
   onViewResults: (jobId: string) => void;
+  onViewCredentials: (jobId: string) => void;
   isLoading: boolean;
 }
 
@@ -16,6 +17,7 @@ const JobCard: React.FC<JobCardProps> = ({
   onStop, 
   onDelete, 
   onViewResults, 
+  onViewCredentials,
   isLoading 
 }) => {
   const getStatusColor = (status: string) => {
@@ -44,6 +46,11 @@ const JobCard: React.FC<JobCardProps> = ({
       return 'Invalid Date';
     }
   };
+
+  // Determine which buttons to show based on job status
+  const canRun = job.status === 'idle' || job.status === 'stopped' || job.status === 'error';
+  const canStop = job.status === 'running' || job.status === 'completed' || job.status === 'error';
+  const canDelete = job.status === 'stopped' || job.status === 'error';
 
   return (
     <div style={styles.card}>
@@ -78,17 +85,11 @@ const JobCard: React.FC<JobCardProps> = ({
       </div>
       
       <div style={styles.actions}>
-        {(job.status === 'idle' || job.status === 'stopped') && (
+        {canRun && (
           <button 
             onClick={() => {
-              console.log('=== RUN BUTTON CLICKED ===');
-              console.log('Job ID:', job.id);
-              console.log('Job Status:', job.status);
-              console.log('Is Loading:', isLoading);
-              console.log('onRun function:', onRun);
-              console.log('Calling onRun with jobId:', job.id);
+              console.log('Run button clicked for job:', job.id, 'Status:', job.status);
               onRun(job.id);
-              console.log('onRun call completed');
             }}
             disabled={isLoading}
             style={styles.runButton}
@@ -97,21 +98,7 @@ const JobCard: React.FC<JobCardProps> = ({
           </button>
         )}
         
-        {/* Debug: Show Run button for any status that's not running/stopped */}
-        {job.status !== 'idle' && job.status !== 'running' && job.status !== 'stopped' && (
-          <button 
-            onClick={() => {
-              console.log('Run button clicked for job (debug):', job.id, 'Status:', job.status);
-              onRun(job.id);
-            }}
-            disabled={isLoading}
-            style={{...styles.runButton, backgroundColor: '#ff6b6b'}}
-          >
-            Run (Debug - Status: {job.status})
-          </button>
-        )}
-        
-        {job.status === 'running' && (
+        {canStop && (
           <button 
             onClick={() => {
               console.log('Stop button clicked for job:', job.id, 'Status:', job.status);
@@ -124,7 +111,7 @@ const JobCard: React.FC<JobCardProps> = ({
           </button>
         )}
         
-        {job.status === 'stopped' && (
+        {canDelete && (
           <button 
             onClick={() => {
               console.log('Delete button clicked for job:', job.id, 'Status:', job.status);
@@ -137,12 +124,29 @@ const JobCard: React.FC<JobCardProps> = ({
           </button>
         )}
         
-        {/* Debug info */}
-        <div style={{fontSize: '12px', color: '#666', marginTop: '5px'}}>
-          Debug: Status={job.status}, ID={job.id}
-        </div>
+        {job.status === 'completed' && (
+          <button 
+            onClick={() => {
+              console.log('View Results button clicked for job:', job.id);
+              onViewResults(job.id);
+            }}
+            disabled={isLoading}
+            style={styles.viewResultsButton}
+          >
+            View Results
+          </button>
+        )}
         
-        {/* Completed jobs are handled in Bills page, so no action button here */}
+        <button 
+          onClick={() => {
+            console.log('View Credentials button clicked for job:', job.id);
+            onViewCredentials(job.id);
+          }}
+          disabled={isLoading}
+          style={styles.viewCredentialsButton}
+        >
+          View Credentials
+        </button>
       </div>
     </div>
   );
@@ -197,6 +201,7 @@ const styles = {
   actions: {
     display: 'flex',
     gap: '0.5rem',
+    flexWrap: 'wrap' as const,
   },
   runButton: {
     padding: '0.5rem 1rem',
@@ -219,6 +224,24 @@ const styles = {
   deleteButton: {
     padding: '0.5rem 1rem',
     backgroundColor: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+  },
+  viewResultsButton: {
+    padding: '0.5rem 1rem',
+    backgroundColor: '#17a2b8',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+  },
+  viewCredentialsButton: {
+    padding: '0.5rem 1rem',
+    backgroundColor: '#6f42c1',
     color: 'white',
     border: 'none',
     borderRadius: '4px',

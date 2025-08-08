@@ -27,3 +27,10 @@ def download_file_from_supabase(file_url):
     if hasattr(res, 'error') and res.error:
         raise Exception(f"Supabase download error: {res.error}")
     return res
+
+def get_csv_public_url(csv_url):
+    """Get the public URL for a CSV file stored in Supabase"""
+    import urllib.parse
+    parsed = urllib.parse.urlparse(csv_url)
+    path = parsed.path.split(f"/{BUCKET}/")[-1]
+    return supabase.storage.from_(BUCKET).get_public_url(path)

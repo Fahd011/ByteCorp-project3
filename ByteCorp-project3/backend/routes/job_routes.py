@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend.models.models import ImportSession, ImportResult, User
 from backend.db import db
-from backend.supabase_client import upload_csv_to_supabase
+from backend.supabase_client import upload_csv_to_supabase, get_csv_public_url
 from backend.agent_runner import run_agent_for_job, stop_agent_job
 from datetime import datetime
 
@@ -157,6 +157,7 @@ def get_job_details(session_id):
     results = ImportResult.query.filter_by(session_id=session_id).all()
     output = [
         {
+            'id': r.id,
             'email': r.email,
             'status': r.status,
             'error': r.error,
@@ -173,3 +174,71 @@ def get_job_details(session_id):
         'results_count': len(results),
         'output': output
     }), 200
+
+@bp.route('/jobs/<session_id>/results', methods=['DELETE'])
+@jwt_required()
+def delete_all_results(session_id):
+    """Delete all results for a specific job"""
+    session = ImportSession.query.get(session_id)
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    try:
+        # Delete all results for this session
+        deleted_count = ImportResult.query.filter_by(session_id=session_id).delete()
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Successfully deleted {deleted_count} results',
+            'deleted_count': deleted_count
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to delete results: {str(e)}'}), 500
+
+@bp.route('/jobs/<session_id>/results/<result_id>', methods=['DELETE'])
+@jwt_required()
+def delete_single_result(session_id, result_id):
+    """Delete a single result for a specific job"""
+    session = ImportSession.query.get(session_id)
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    result = ImportResult.query.filter_by(id=result_id, session_id=session_id).first()
+    if not result:
+        return jsonify({'error': 'Result not found'}), 404
+    
+    try:
+        # Delete the specific result
+        db.session.delete(result)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Result deleted successfully',
+            'deleted_result_id': result_id
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to delete result: {str(e)}'}), 500
+
+@bp.route('/jobs/<session_id>/credentials', methods=['GET'])
+@jwt_required()
+def get_job_credentials(session_id):
+    """Get the credentials file URL for a specific job"""
+    session = ImportSession.query.get(session_id)
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    if not session.csv_url:
+        return jsonify({'error': 'No credentials file found for this job'}), 404
+    
+    try:
+        # Get the public URL for the CSV file
+        csv_public_url = get_csv_public_url(session.csv_url)
+        
+        return jsonify({
+            'csv_url': csv_public_url,
+            'filename': session.csv_url.split('/')[-1] if session.csv_url else 'credentials.csv'
+        }), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to get credentials URL: {str(e)}'}), 500

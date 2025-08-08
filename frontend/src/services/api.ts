@@ -126,4 +126,19 @@ export const jobsAPI = {
     const response = await api.delete(`/api/jobs/${jobId}`);
     return response.data;
   },
+
+  deleteAllResults: async (jobId: string): Promise<{ message: string; deleted_count: number }> => {
+    const response = await api.delete(`/api/jobs/${jobId}/results`);
+    return response.data;
+  },
+
+  deleteSingleResult: async (jobId: string, resultId: string): Promise<{ message: string; deleted_result_id: string }> => {
+    const response = await api.delete(`/api/jobs/${jobId}/results/${resultId}`);
+    return response.data;
+  },
+
+  getJobCredentials: async (jobId: string): Promise<{ csv_url: string; filename: string }> => {
+    const response = await api.get(`/api/jobs/${jobId}/credentials`);
+    return response.data;
+  },
 };

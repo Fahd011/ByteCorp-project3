@@ -11,7 +11,7 @@ const Dashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState('');
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -147,7 +147,25 @@ const Dashboard: React.FC = () => {
 
   const handleViewResults = (jobId: string) => {
     // Navigate to bills page to view results
-    window.location.href = '/bills';
+    navigate('/bills');
+  };
+
+  const handleViewCredentials = async (jobId: string) => {
+    setIsLoading(true);
+    try {
+      const credentialsData = await jobsAPI.getJobCredentials(jobId);
+      // Open the CSV file in a new tab
+      window.open(credentialsData.csv_url, '_blank');
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        setError('No credentials file found for this job');
+      } else {
+        setError('Failed to load credentials file');
+      }
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -192,6 +210,7 @@ const Dashboard: React.FC = () => {
               onStop={handleStopJob}
               onDelete={handleDeleteJob}
               onViewResults={handleViewResults}
+              onViewCredentials={handleViewCredentials}
               isLoading={isLoading}
             />
           ))}
@@ -211,8 +230,6 @@ const Dashboard: React.FC = () => {
 const styles = {
   container: {
     padding: '2rem',
-    marginLeft: '250px', // Account for sidebar
-    marginTop: '80px', // Account for header
   },
   header: {
     display: 'flex',
@@ -268,7 +285,7 @@ const styles = {
   },
   jobsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
     gap: '1.5rem',
   },
 };
