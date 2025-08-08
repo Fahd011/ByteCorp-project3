@@ -1,0 +1,11 @@
+playwright>=1.40.0
+openai>=1.0.0 
+flask
+flask_cors
+flask_jwt_extended
+sqlalchemy
+psycopg2-binary
+python-dotenv
+supabase
+requests
+flask_sqlalchemy
