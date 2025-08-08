@@ -107,7 +107,7 @@ def run_agent_for_job(session_id):
             f.write(csv_bytes)
 
         # Run browser.py in a subprocess with the necessary parameters
-        browser_script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'browser.py')
+        browser_script_path = os.path.join(os.path.dirname(__file__), 'scripts', 'browser.py')
         env = os.environ.copy()
         env.update({
             'CSV_PATH': temp_csv_path,
