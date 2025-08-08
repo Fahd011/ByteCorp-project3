@@ -4,7 +4,7 @@ from flask_cors import CORS
 from backend.db import db
 from backend.config import Config
 from backend.routes.auth_routes import bp as auth_bp
-from backend.routes.job_routes import bp as jobs_bp, set_flask_app
+from backend.routes.job_routes import bp as jobs_bp
 from backend.agent_runner import cleanup_orphaned_processes, running_processes
 import signal
 import sys
@@ -17,9 +17,6 @@ jwt = JWTManager(app)
 
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(jobs_bp, url_prefix='/api')
-
-# Set the Flask app instance for use in background threads
-set_flask_app(app)
 
 def cleanup_on_exit(signum, frame):
     """Clean up all running processes on exit"""

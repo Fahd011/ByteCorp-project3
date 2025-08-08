@@ -8,13 +8,6 @@ from datetime import datetime
 
 bp = Blueprint("jobs", __name__)
 
-# Global variable to store the Flask app instance
-flask_app = None
-
-def set_flask_app(app):
-    """Set the Flask app instance for use in background threads"""
-    global flask_app
-    flask_app = app
 
 @bp.route('/jobs', methods=['GET'])
 @jwt_required()
@@ -70,7 +63,7 @@ def run_job(session_id):
     db.session.commit()
     
     # Start the agent in background
-    run_agent_for_job(session_id, flask_app)
+    run_agent_for_job(session_id)
     
     # Return updated job data
     results = ImportResult.query.filter_by(session_id=session_id).all()
