@@ -47,7 +47,15 @@ def create_job():
     session = ImportSession(user_id=user_id, csv_url=csv_url, login_url=login_url, billing_url=billing_url, status='idle')
     db.session.add(session)
     db.session.commit()
-    return jsonify({'id': session.id, 'csv_url': csv_url, 'login_url': login_url, 'billing_url': billing_url, 'status': session.status}), 201
+    return jsonify({
+        'id': session.id, 
+        'csv_url': csv_url, 
+        'login_url': login_url, 
+        'billing_url': billing_url, 
+        'status': session.status,
+        'created_at': session.created_at.isoformat(),
+        'results_count': 0
+    }), 201
 
 @bp.route('/jobs/<session_id>/run', methods=['POST'])
 @jwt_required()

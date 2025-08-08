@@ -8,7 +8,7 @@ export interface Job {
   csv_url: string;
   login_url: string;
   billing_url: string;
-  status: 'idle' | 'running' | 'completed' | 'stopped' | 'error';
+  status: "idle" | "running" | "completed" | "stopped" | "error";
   created_at: string;
   results_count: number;
 }
