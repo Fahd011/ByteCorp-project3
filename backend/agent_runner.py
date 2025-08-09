@@ -5,9 +5,9 @@ import os
 import signal
 import psutil
 import json
-from backend.supabase_client import download_file_from_supabase, upload_file_to_supabase
-from backend.models.models import ImportSession, ImportResult
-from backend.db import db
+from supabase_client import download_file_from_supabase, upload_file_to_supabase, upload_pdf_to_bills_bucket
+from models.models import ImportSession, ImportResult
+from db import db
 from datetime import datetime
 
 # Dictionary to store running processes
@@ -42,6 +42,19 @@ def stop_agent_job(session_id):
         del running_processes[session_id]
         return True
     return False
+
+def read_real_time_results(temp_dir):
+    """Read real-time results file if it exists"""
+    real_time_file = os.path.join(temp_dir, 'real_time_results.json')
+    if os.path.exists(real_time_file):
+        try:
+            with open(real_time_file, 'r') as f:
+                real_time_data = json.load(f)
+            return real_time_data
+        except Exception as e:
+            print(f"Error reading real-time results: {e}")
+            return None
+    return None
 
 def read_error_file(temp_dir):
     """Read error file if it exists"""
@@ -83,55 +96,103 @@ def read_completion_file(temp_dir):
     return None
 
 def run_agent_for_job(session_id):
+    print(f"=== STARTING JOB {session_id} ===")
     session = ImportSession.query.get(session_id)
     if not session:
+        print(f"ERROR: Session {session_id} not found")
         return None
     
     # Check if already running
     if session_id in running_processes:
+        print(f"ERROR: Job {session_id} is already running")
         return None
+    
+    print(f"Job details:")
+    print(f"  User ID: {session.user_id}")
+    print(f"  Login URL: {session.login_url}")
+    print(f"  Billing URL: {session.billing_url}")
+    print(f"  CSV URL: {session.csv_url}")
     
     # Mark as running
     session.status = 'running'
     db.session.commit()
+    print(f"Job status set to 'running'")
 
     try:
         # Create a unique temporary directory for this job
         temp_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'temp', f'job_{session_id}')
         os.makedirs(temp_dir, exist_ok=True)
+        print(f"Created temp directory: {temp_dir}")
         
         # Download CSV from Supabase and save temporarily with a unique name
+        print(f"Downloading CSV from Supabase: {session.csv_url}")
         csv_bytes = download_file_from_supabase(session.csv_url)
         temp_csv_path = os.path.join(temp_dir, f'credentials_{session_id}.csv')
         with open(temp_csv_path, 'wb') as f:
             f.write(csv_bytes)
+        print(f"CSV downloaded and saved to: {temp_csv_path}")
+        print(f"CSV size: {len(csv_bytes)} bytes")
 
         # Run browser.py in a subprocess with the necessary parameters
         browser_script_path = os.path.join(os.path.dirname(__file__), 'scripts', 'browser.py')
+        print(f"Browser script path: {browser_script_path}")
+        
         env = os.environ.copy()
         env.update({
             'CSV_PATH': temp_csv_path,
             'LOGIN_URL': session.login_url,
-            'BILLING_URL': session.billing_url
+            'BILLING_URL': session.billing_url,
+            'USER_ID': str(session.user_id),
+            'SESSION_ID': session_id
         })
+        print(f"Environment variables set:")
+        print(f"  CSV_PATH: {temp_csv_path}")
+        print(f"  LOGIN_URL: {session.login_url}")
+        print(f"  BILLING_URL: {session.billing_url}")
+        print(f"  USER_ID: {session.user_id}")
+        print(f"  SESSION_ID: {session_id}")
         
-        # Start process in its own process group
+        # Start process with real-time output
         process = subprocess.Popen(['python', browser_script_path],
                                  stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT,  # Redirect stderr to stdout
                                  env=env,
-                                 start_new_session=True)
+                                 start_new_session=True,
+                                 universal_newlines=True,  # Text mode
+                                 bufsize=1)  # Line buffered
         
         # Store the process
         running_processes[session_id] = process
         
+        print(f"Browser process started with PID: {process.pid}")
+        print("=== BROWSER SCRIPT OUTPUT ===")
+        
         # Set a timeout for the process (30 minutes)
         try:
-            stdout, stderr = process.communicate(timeout=1800)  # 30 minutes timeout
+            # Read output in real-time
+            while True:
+                output = process.stdout.readline()
+                if output == '' and process.poll() is not None:
+                    break
+                if output:
+                    print(f"[BROWSER] {output.strip()}")
+            
+            # Get any remaining output
+            stdout, stderr = process.communicate()
+            if stdout:
+                print(f"[BROWSER] {stdout.strip()}")
+            if stderr:
+                print(f"[BROWSER ERROR] {stderr.strip()}")
+                
         except subprocess.TimeoutExpired:
             # Process timed out, kill it
+            print("Browser process timed out after 30 minutes")
             process.kill()
             stdout, stderr = process.communicate()
+            if stdout:
+                print(f"[BROWSER TIMEOUT] {stdout.strip()}")
+            if stderr:
+                print(f"[BROWSER TIMEOUT ERROR] {stderr.strip()}")
             
             # Create timeout error result
             result = ImportResult(
@@ -146,11 +207,51 @@ def run_agent_for_job(session_id):
             db.session.commit()
             return None
 
+        print("=== PROCESSING RESULTS ===")
         # Check for completion and error files
         completion_data = read_completion_file(temp_dir)
         error_data = read_error_file(temp_dir)
         results_data = read_results_file(temp_dir)
+        real_time_results = read_real_time_results(temp_dir)
 
+        print(f"Completion data: {completion_data}")
+        print(f"Error data: {error_data}")
+        print(f"Results data: {results_data}")
+        print(f"Real-time results: {real_time_results}")
+
+        # Process real-time results first (these are already uploaded to Supabase)
+        if real_time_results:
+            print(f"Processing {len(real_time_results)} real-time results")
+            for result_item in real_time_results:
+                print(f"Processing result item: {result_item}")
+                if result_item.get('file_url'):
+                    # Create success result with PDF
+                    result = ImportResult(
+                        session_id=session_id,
+                        email=result_item.get('email'),
+                        status='success',
+                        error=None,
+                        file_url=result_item['file_url']
+                    )
+                    db.session.add(result)
+                    print(f"✅ Added real-time result with PDF: {result_item['file_url']}")
+                else:
+                    # Create success result without PDF
+                    result = ImportResult(
+                        session_id=session_id,
+                        email=result_item.get('email'),
+                        status='success',
+                        error=None,
+                        file_url=None
+                    )
+                    db.session.add(result)
+                    print(f"⚠️ Added real-time result without PDF for email: {result_item.get('email')}")
+        else:
+            print("No real-time results found")
+            
+            # Commit real-time results immediately
+            db.session.commit()
+        
         # Always process completion data if available
         if completion_data:
             print(f"Browser process completed with status: {completion_data.get('status')}")
@@ -179,11 +280,12 @@ def run_agent_for_job(session_id):
                     file_url=None
                 )
                 db.session.add(result)
-                session.status = 'completed'
+                session.status = 'error'
                 db.session.commit()
                 return None
 
         if error_data:
+            print(f"❌ Processing error data: {error_data}")
             # Handle specific error types
             if error_data.get('type') == 'openai_error':
                 # Create error result for OpenAI token issues
@@ -196,6 +298,7 @@ def run_agent_for_job(session_id):
                 )
                 db.session.add(result)
                 session.status = 'completed'
+                print(f"❌ OpenAI error processed: {error_data['error']}")
                 db.session.commit()
                 return None
             
@@ -229,26 +332,31 @@ def run_agent_for_job(session_id):
                 if results_data and 'results' in results_data:
                     for result_item in results_data['results']:
                         if result_item['status'] == 'success':
-                            # For successful results, check for downloaded PDFs
-                            downloads_path = os.path.expanduser('~/Downloads')
-                            for filename in os.listdir(downloads_path):
-                                if filename.endswith('.pdf'):
-                                    with open(os.path.join(downloads_path, filename), 'rb') as f:
-                                        pdf_bytes = f.read()
-                                    file_url = upload_file_to_supabase(pdf_bytes, filename)
-                                    
-                                    # Create success result
-                                    success_result = ImportResult(
-                                        session_id=session_id,
-                                        email=result_item['email'],
-                                        status='success',
-                                        error=None,
-                                        file_url=file_url
-                                    )
-                                    db.session.add(success_result)
-                                    
-                                    # Clean up downloaded PDF
-                                    os.remove(os.path.join(downloads_path, filename))
+                            # Check if the result already has a file_url from browser script
+                            file_url = result_item.get('file_url')
+                            
+                            if file_url:
+                                # PDF was already uploaded by browser script during automation
+                                success_result = ImportResult(
+                                    session_id=session_id,
+                                    email=result_item['email'],
+                                    status='success',
+                                    error=None,
+                                    file_url=file_url
+                                )
+                                db.session.add(success_result)
+                                print(f"Added success result with PDF: {file_url}")
+                            else:
+                                # No PDF found, create success result without file
+                                success_result = ImportResult(
+                                    session_id=session_id,
+                                    email=result_item['email'],
+                                    status='success',
+                                    error=None,
+                                    file_url=None
+                                )
+                                db.session.add(success_result)
+                                print(f"Added success result without PDF for email: {result_item['email']}")
                 
                 session.status = 'completed'
                 db.session.commit()
@@ -260,26 +368,31 @@ def run_agent_for_job(session_id):
             if results_data and 'results' in results_data:
                 for result_item in results_data['results']:
                     if result_item['status'] == 'success':
-                        # For successful results, check for downloaded PDFs
-                        downloads_path = os.path.expanduser('~/Downloads')
-                        for filename in os.listdir(downloads_path):
-                            if filename.endswith('.pdf'):
-                                with open(os.path.join(downloads_path, filename), 'rb') as f:
-                                    pdf_bytes = f.read()
-                                file_url = upload_file_to_supabase(pdf_bytes, filename)
-                                
-                                # Create success result
-                                result = ImportResult(
-                                    session_id=session_id,
-                                    email=result_item['email'],
-                                    status='success',
-                                    error=None,
-                                    file_url=file_url
-                                )
-                                db.session.add(result)
-                                
-                                # Clean up downloaded PDF
-                                os.remove(os.path.join(downloads_path, filename))
+                        # Check if the result already has a file_url from browser script
+                        file_url = result_item.get('file_url')
+                        
+                        if file_url:
+                            # PDF was already uploaded by browser script during automation
+                            result = ImportResult(
+                                session_id=session_id,
+                                email=result_item['email'],
+                                status='success',
+                                error=None,
+                                file_url=file_url
+                            )
+                            db.session.add(result)
+                            print(f"Added result with PDF: {file_url}")
+                        else:
+                            # No PDF found, create success result without file
+                            result = ImportResult(
+                                session_id=session_id,
+                                email=result_item['email'],
+                                status='success',
+                                error=None,
+                                file_url=None
+                            )
+                            db.session.add(result)
+                            print(f"Added result without PDF for email: {result_item['email']}")
                     elif result_item['status'] == 'error':
                         # Create error result
                         result = ImportResult(
@@ -290,27 +403,11 @@ def run_agent_for_job(session_id):
                             file_url=None
                         )
                         db.session.add(result)
+                        print(f"Added error result for email: {result_item['email']}")
             else:
-                # Fallback to original logic for downloaded PDFs
-                downloads_path = os.path.expanduser('~/Downloads')
-                for filename in os.listdir(downloads_path):
-                    if filename.endswith('.pdf'):
-                        with open(os.path.join(downloads_path, filename), 'rb') as f:
-                            pdf_bytes = f.read()
-                        file_url = upload_file_to_supabase(pdf_bytes, filename)
-                        
-                        # Create success result
-                        result = ImportResult(
-                            session_id=session_id,
-                            email=filename.split('-')[0].replace('_at_', '@'),  # Extract email from filename
-                            status='success',
-                            error=None,
-                            file_url=file_url
-                        )
-                        db.session.add(result)
-                        
-                        # Clean up downloaded PDF
-                        os.remove(os.path.join(downloads_path, filename))
+                # No results found - this means no PDFs were captured from the browser
+                print("No PDF results found in browser output - no bills were captured")
+                # Don't create any results since no bills were found
         else:
             # Create error result for subprocess failure
             error_msg = f'Browser automation failed: {stderr.decode()}'
@@ -337,14 +434,23 @@ def run_agent_for_job(session_id):
     finally:
         # Clean up temporary directory and its contents
         if os.path.exists(temp_dir):
-            for file in os.listdir(temp_dir):
-                os.remove(os.path.join(temp_dir, file))
-            os.rmdir(temp_dir)
+            try:
+                for file in os.listdir(temp_dir):
+                    os.remove(os.path.join(temp_dir, file))
+                os.rmdir(temp_dir)
+                print(f"🧹 Cleaned up temp directory: {temp_dir}")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not clean up temp directory {temp_dir}: {e}")
         
-        # Mark job as completed
-        session.status = 'completed'
+        # Only mark as completed if not already marked as error
+        if session.status != 'error':
+            session.status = 'completed'
+            print(f"✅ Job {session_id} completed successfully")
+        else:
+            print(f"❌ Job {session_id} completed with errors")
         db.session.commit()
 
+        print(f"=== JOB {session_id} FINISHED ===")
     return None
 
 def cleanup_orphaned_processes():

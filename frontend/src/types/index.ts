@@ -19,6 +19,7 @@ export interface JobResult {
   status: string;
   error?: string;
   filename?: string;
+  file_url?: string;
 }
 
 export interface JobDetail extends Job {

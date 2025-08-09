@@ -246,24 +246,25 @@ const Bills: React.FC = () => {
                   selectedJob.output.map((result, index) => (
                     <div key={index} style={styles.resultItem}>
                       <div style={styles.resultInfo}>
-                        <p style={styles.resultInfoText}><strong>Email:</strong> {result.email}</p>
+                        <p style={styles.resultInfoText}><strong>Email:</strong> {result.email || 'N/A'}</p>
                         <p style={styles.resultInfoText}><strong>Status:</strong> {result.status}</p>
                         {result.error && <p style={styles.resultInfoText}><strong>Error:</strong> {result.error}</p>}
+                        {result.file_url && <p style={styles.resultInfoText}><strong>PDF:</strong> Available</p>}
                       </div>
                       <div style={styles.resultActions}>
-                        {result.filename && (
+                        {result.file_url && (
                           <div style={styles.fileActions}>
                             <button 
-                              onClick={() => handleViewFile(result.filename!)}
+                              onClick={() => handleViewFile(result.file_url!)}
                               style={styles.viewFileButton}
                             >
-                              View File
+                              View PDF
                             </button>
                             <button 
-                              onClick={() => handleDownloadFile(result.filename!, `result_${index}.pdf`)}
+                              onClick={() => handleDownloadFile(result.file_url!, `bill_${result.email || index}.pdf`)}
                               style={styles.downloadButton}
                             >
-                              Download
+                              Download PDF
                             </button>
                           </div>
                         )}

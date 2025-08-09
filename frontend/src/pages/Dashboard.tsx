@@ -84,27 +84,41 @@ const Dashboard: React.FC = () => {
   }, []);
 
   // Refresh running jobs status every 5 seconds
-  // useEffect(() => {
-  //   const runningJobs = jobs.filter(job => job.status === 'running');
-  //   console.log('Running jobs found:', runningJobs.length, runningJobs.map(j => j.id));
+  useEffect(() => {
+    const runningJobs = jobs.filter(job => job.status === 'running');
+    console.log('Running jobs found:', runningJobs.length, runningJobs.map(j => j.id));
 
-  //   if (runningJobs.length === 0) return;
+    if (runningJobs.length === 0) return;
 
-  //   const interval = setInterval(() => {
-  //     console.log('Refreshing job statuses...');
-  //     runningJobs.forEach(job => {
-  //       refreshJobStatus(job.id);
-  //     });
-  //   }, 5000);
+    const interval = setInterval(async () => {
+      console.log('Refreshing job statuses...');
+      for (const job of runningJobs) {
+        try {
+          const realtimeData = await jobsAPI.getJobRealtimeStatus(job.id);
+          console.log('Realtime data for job:', job.id, realtimeData);
+          
+          // Update job with real-time data
+          setJobs(prevJobs => 
+            prevJobs.map(j => 
+              j.id === job.id 
+                ? { ...j, results_count: realtimeData.results_count }
+                : j
+            )
+          );
+        } catch (err: any) {
+          console.error('Failed to get real-time status for job:', job.id, err);
+        }
+      }
+    }, 5000);
 
-  //   return () => clearInterval(interval);
-  // }, [jobs]);
+    return () => clearInterval(interval);
+  }, [jobs]);
 
   const loadJobs = async () => {
     setIsLoading(true);
     try {
       const jobsData = await jobsAPI.getAllJobs();
-      // Filter out completed jobs - they should only appear in bills
+      // Filter out only completed jobs - keep error jobs in dashboard
       const activeJobs = jobsData.filter((job) => job.status !== "completed");
       setJobs(activeJobs);
     } catch (err: any) {

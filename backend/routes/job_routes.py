@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from backend.models.models import ImportSession, ImportResult, User
-from backend.db import db
-from backend.supabase_client import upload_csv_to_supabase, get_csv_public_url
-from backend.agent_runner import run_agent_for_job, stop_agent_job
+from models.models import ImportSession, ImportResult, User
+from db import db
+from supabase_client import upload_csv_to_supabase, get_csv_public_url
+from agent_runner import run_agent_for_job, stop_agent_job
 from datetime import datetime
 
 bp = Blueprint("jobs", __name__)
@@ -250,3 +250,49 @@ def get_job_credentials(session_id):
         }), 200
     except Exception as e:
         return jsonify({'error': f'Failed to get credentials URL: {str(e)}'}), 500
+
+@bp.route('/jobs/<session_id>/realtime', methods=['GET'])
+@jwt_required()
+def get_job_realtime_status(session_id):
+    """Get real-time status and results for a job"""
+    session = ImportSession.query.get(session_id)
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    try:
+        # Get current results
+        results = ImportResult.query.filter_by(session_id=session_id).all()
+        
+        # Check for real-time results file if job is running
+        real_time_results = []
+        if session.status == 'running':
+            import os
+            import json
+            temp_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'temp', f'job_{session_id}')
+            real_time_file = os.path.join(temp_dir, 'real_time_results.json')
+            
+            if os.path.exists(real_time_file):
+                try:
+                    with open(real_time_file, 'r') as f:
+                        real_time_results = json.load(f)
+                except Exception as e:
+                    print(f"Error reading real-time results: {e}")
+        
+        return jsonify({
+            'id': session.id,
+            'status': session.status,
+            'created_at': session.created_at.isoformat(),
+            'results_count': len(results),
+            'real_time_results': real_time_results,
+            'current_results': [
+                {
+                    'id': r.id,
+                    'email': r.email,
+                    'status': r.status,
+                    'error': r.error,
+                    'file_url': r.file_url
+                } for r in results
+            ]
+        }), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to get real-time status: {str(e)}'}), 500

@@ -121,4 +121,9 @@ export const jobsAPI = {
     const response = await api.get(`/api/jobs/${jobId}/credentials`);
     return response.data;
   },
+
+  getJobRealtimeStatus: async (jobId: string): Promise<any> => {
+    const response = await api.get(`/api/jobs/${jobId}/realtime`);
+    return response.data;
+  },
 };
