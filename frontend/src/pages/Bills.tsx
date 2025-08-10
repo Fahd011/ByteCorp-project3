@@ -42,17 +42,69 @@ const Bills: React.FC = () => {
     }
   };
 
-  const handleDownloadFile = (fileUrl: string, filename: string) => {
-    const link = document.createElement('a');
-    link.href = fileUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadFile = async (fileUrl: string, filename: string) => {
+    try {
+      console.log('Downloading from Supabase URL:', fileUrl);
+      
+      // Download the file from Supabase and create a blob with correct MIME type
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = filename;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the blob URL after a delay
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000); // 1 minute
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      setError('Failed to download PDF file');
+    }
   };
 
-  const handleViewFile = (fileUrl: string) => {
-    window.open(fileUrl, '_blank');
+  const handleViewFile = async (fileUrl: string) => {
+    try {
+      console.log('Opening Supabase URL:', fileUrl);
+      
+      // Since we fixed the MIME type in upload, we can try direct opening first
+      // If that fails, fall back to the blob method
+      try {
+        // Try direct opening first
+        window.open(fileUrl, '_blank');
+      } catch (directError) {
+        console.log('Direct opening failed, using blob method:', directError);
+        
+        // Fallback: Download and create blob with correct MIME type
+        const response = await fetch(fileUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+        }
+        
+        const blob = await response.blob();
+        const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        
+        // Open the PDF in a new tab
+        window.open(pdfUrl, '_blank');
+        
+        // Clean up the blob URL after a delay
+        setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000); // 1 minute
+      }
+    } catch (error) {
+      console.error('Error opening file:', error);
+      setError('Failed to open PDF file');
+    }
   };
 
   const handleDeleteAllResults = async (jobId: string) => {

@@ -163,15 +163,19 @@ def get_job_details(session_id):
     if not session:
         return jsonify({'error': 'Session not found'}), 404
     results = ImportResult.query.filter_by(session_id=session_id).all()
-    output = [
-        {
+    output = []
+    for r in results:
+        result_data = {
             'id': r.id,
             'email': r.email,
             'status': r.status,
             'error': r.error,
-            'filename': r.file_url
-        } for r in results
-    ]
+            'file_url': r.file_url
+        }
+        # Add proxy URL for successful results with file URLs
+        if r.status == 'success' and r.file_url:
+            result_data['proxy_url'] = f"/jobs/{session_id}/bills/{r.id}/view"
+        output.append(result_data)
     return jsonify({
         'id': session.id,
         'csv_url': session.csv_url,
@@ -259,40 +263,129 @@ def get_job_realtime_status(session_id):
     if not session:
         return jsonify({'error': 'Session not found'}), 404
     
+    # Get results from database
+    results = ImportResult.query.filter_by(session_id=session_id).all()
+    
+    # Format results for frontend
+    output = []
+    for r in results:
+        result_data = {
+            'id': r.id,
+            'email': r.email,
+            'status': r.status,
+            'error': r.error,
+            'file_url': r.file_url
+        }
+        # Add proxy URL for successful results with file URLs
+        if r.status == 'success' and r.file_url:
+            result_data['proxy_url'] = f"/jobs/{session_id}/bills/{r.id}/view"
+        output.append(result_data)
+    
+    return jsonify({
+        'id': session.id,
+        'status': session.status,
+        'results_count': len(results),
+        'output': output
+    }), 200
+
+@bp.route('/jobs/<session_id>/bills', methods=['GET'])
+@jwt_required()
+def get_job_bills(session_id):
+    """Get all bills (PDFs) for a specific job"""
+    user_id = get_jwt_identity()
+    session = ImportSession.query.get(session_id)
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    # Get all successful results with file URLs
+    results = ImportResult.query.filter_by(
+        session_id=session_id, 
+        status='success'
+    ).filter(ImportResult.file_url.isnot(None)).all()
+    
+    bills = []
+    for result in results:
+        if result.file_url:
+            # Create a proxy URL for better PDF viewing
+            proxy_url = f"/jobs/{session_id}/bills/{result.id}/view"
+            bills.append({
+                'id': result.id,
+                'email': result.email,
+                'file_url': result.file_url,
+                'proxy_url': proxy_url,  # Add proxy URL for better viewing
+                'created_at': result.created_at.isoformat() if result.created_at else None
+            })
+    
+    return jsonify({
+        'session_id': session_id,
+        'total_bills': len(bills),
+        'bills': bills
+    }), 200
+
+@bp.route('/jobs/<session_id>/bills/<result_id>/view', methods=['GET'])
+@jwt_required()
+def view_bill_pdf(session_id, result_id):
+    """Proxy endpoint to serve PDF with proper headers for browser viewing"""
+    user_id = get_jwt_identity()
+    session = ImportSession.query.get(session_id)
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    result = ImportResult.query.filter_by(
+        id=result_id, 
+        session_id=session_id,
+        status='success'
+    ).first()
+    
+    if not result or not result.file_url:
+        return jsonify({'error': 'Bill not found'}), 404
+    
+    print(f"[PROXY] Serving PDF for result {result_id}, file_url: {result.file_url}")
+    
     try:
-        # Get current results
-        results = ImportResult.query.filter_by(session_id=session_id).all()
+        # Download the PDF from Supabase
+        from supabase_client import supabase
+        import urllib.parse
         
-        # Check for real-time results file if job is running
-        real_time_results = []
-        if session.status == 'running':
-            import os
-            import json
-            temp_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'temp', f'job_{session_id}')
-            real_time_file = os.path.join(temp_dir, 'real_time_results.json')
-            
-            if os.path.exists(real_time_file):
-                try:
-                    with open(real_time_file, 'r') as f:
-                        real_time_results = json.load(f)
-                except Exception as e:
-                    print(f"Error reading real-time results: {e}")
+        # Extract the file path from the Supabase URL
+        parsed = urllib.parse.urlparse(result.file_url)
+        path_parts = parsed.path.split('/')
         
-        return jsonify({
-            'id': session.id,
-            'status': session.status,
-            'created_at': session.created_at.isoformat(),
-            'results_count': len(results),
-            'real_time_results': real_time_results,
-            'current_results': [
-                {
-                    'id': r.id,
-                    'email': r.email,
-                    'status': r.status,
-                    'error': r.error,
-                    'file_url': r.file_url
-                } for r in results
-            ]
-        }), 200
+        print(f"[PROXY] Parsed URL path parts: {path_parts}")
+        
+        # Find the bills bucket path
+        bills_index = path_parts.index('bills') if 'bills' in path_parts else -1
+        if bills_index == -1:
+            print(f"[PROXY] Error: 'bills' not found in path parts")
+            return jsonify({'error': 'Invalid file URL'}), 400
+        
+        # Get the file path after 'bills'
+        file_path = '/'.join(path_parts[bills_index + 1:])
+        print(f"[PROXY] Extracted file path: {file_path}")
+        
+        # Download the file from Supabase
+        print(f"[PROXY] Downloading from Supabase bills bucket...")
+        response = supabase.storage.from_('bills').download(file_path)
+        
+        if hasattr(response, 'error') and response.error:
+            print(f"[PROXY] Supabase download error: {response.error}")
+            return jsonify({'error': f'Failed to download file: {response.error}'}), 500
+        
+        print(f"[PROXY] Successfully downloaded PDF, size: {len(response) if response else 'unknown'} bytes")
+        
+        # Return the PDF with proper headers for browser viewing
+        from flask import Response
+        return Response(
+            response,
+            mimetype='application/pdf',
+            headers={
+                'Content-Disposition': 'inline; filename=bill.pdf',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        )
+        
     except Exception as e:
-        return jsonify({'error': f'Failed to get real-time status: {str(e)}'}), 500
+        print(f"[PROXY] Exception occurred: {str(e)}")
+        return jsonify({'error': f'Failed to serve PDF: {str(e)}'}), 500

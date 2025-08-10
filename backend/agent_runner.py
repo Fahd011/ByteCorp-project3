@@ -46,14 +46,18 @@ def stop_agent_job(session_id):
 def read_real_time_results(temp_dir):
     """Read real-time results file if it exists"""
     real_time_file = os.path.join(temp_dir, 'real_time_results.json')
+    print(f"[DEBUG] Looking for real-time results at: {real_time_file}")
     if os.path.exists(real_time_file):
         try:
             with open(real_time_file, 'r') as f:
                 real_time_data = json.load(f)
+            print(f"[DEBUG] Found real-time results: {real_time_data}")
             return real_time_data
         except Exception as e:
-            print(f"Error reading real-time results: {e}")
+            print(f"[DEBUG] Error reading real-time results: {e}")
             return None
+    else:
+        print(f"[DEBUG] Real-time results file not found")
     return None
 
 def read_error_file(temp_dir):
@@ -74,25 +78,35 @@ def read_error_file(temp_dir):
 def read_results_file(temp_dir):
     """Read results file if it exists"""
     results_file = os.path.join(temp_dir, 'browser_results.json')
+    print(f"[DEBUG] Looking for results file at: {results_file}")
     if os.path.exists(results_file):
         try:
             with open(results_file, 'r') as f:
                 results_data = json.load(f)
+            print(f"[DEBUG] Found results data: {results_data}")
             return results_data
         except Exception as e:
+            print(f"[DEBUG] Error reading results file: {e}")
             return None
+    else:
+        print(f"[DEBUG] Results file not found")
     return None
 
 def read_completion_file(temp_dir):
     """Read completion file if it exists"""
     completion_file = os.path.join(temp_dir, 'browser_completion.json')
+    print(f"[DEBUG] Looking for completion file at: {completion_file}")
     if os.path.exists(completion_file):
         try:
             with open(completion_file, 'r') as f:
                 completion_data = json.load(f)
+            print(f"[DEBUG] Found completion data: {completion_data}")
             return completion_data
         except Exception as e:
+            print(f"[DEBUG] Error reading completion file: {e}")
             return None
+    else:
+        print(f"[DEBUG] Completion file not found")
     return None
 
 def run_agent_for_job(session_id):
@@ -159,6 +173,8 @@ def run_agent_for_job(session_id):
                                  env=env,
                                  start_new_session=True,
                                  universal_newlines=True,  # Text mode
+                                 encoding='utf-8',  # Explicit UTF-8 encoding
+                                 errors='replace',  # Replace invalid characters
                                  bufsize=1)  # Line buffered
         
         # Store the process
@@ -208,6 +224,18 @@ def run_agent_for_job(session_id):
             return None
 
         print("=== PROCESSING RESULTS ===")
+        
+        # Debug: List all files in temp directory
+        print(f"[DEBUG] Files in temp directory {temp_dir}:")
+        if os.path.exists(temp_dir):
+            for file in os.listdir(temp_dir):
+                file_path = os.path.join(temp_dir, file)
+                if os.path.isfile(file_path):
+                    file_size = os.path.getsize(file_path)
+                    print(f"[DEBUG]  {file} ({file_size} bytes)")
+        else:
+            print(f"[DEBUG] Temp directory does not exist: {temp_dir}")
+        
         # Check for completion and error files
         completion_data = read_completion_file(temp_dir)
         error_data = read_error_file(temp_dir)
@@ -234,7 +262,7 @@ def run_agent_for_job(session_id):
                         file_url=result_item['file_url']
                     )
                     db.session.add(result)
-                    print(f"✅ Added real-time result with PDF: {result_item['file_url']}")
+                    print(f"[OK] Added real-time result with PDF: {result_item['file_url']}")
                 else:
                     # Create success result without PDF
                     result = ImportResult(
@@ -245,12 +273,21 @@ def run_agent_for_job(session_id):
                         file_url=None
                     )
                     db.session.add(result)
-                    print(f"⚠️ Added real-time result without PDF for email: {result_item.get('email')}")
-        else:
-            print("No real-time results found")
+                    print(f"[WARN] Added real-time result without PDF for email: {result_item.get('email')}")
             
             # Commit real-time results immediately
             db.session.commit()
+        else:
+            print("No real-time results found - checking if any results were already saved to database")
+            
+            # Check if any results already exist in database for this session
+            existing_results = ImportResult.query.filter_by(session_id=session_id).all()
+            if existing_results:
+                print(f"Found {len(existing_results)} existing results in database")
+                for result in existing_results:
+                    print(f"  - Email: {result.email}, Status: {result.status}, File: {result.file_url}")
+            else:
+                print("No existing results found in database either")
         
         # Always process completion data if available
         if completion_data:
@@ -285,7 +322,7 @@ def run_agent_for_job(session_id):
                 return None
 
         if error_data:
-            print(f"❌ Processing error data: {error_data}")
+            print(f"[ERROR] Processing error data: {error_data}")
             # Handle specific error types
             if error_data.get('type') == 'openai_error':
                 # Create error result for OpenAI token issues
@@ -298,7 +335,7 @@ def run_agent_for_job(session_id):
                 )
                 db.session.add(result)
                 session.status = 'completed'
-                print(f"❌ OpenAI error processed: {error_data['error']}")
+                print(f"[ERROR] OpenAI error processed: {error_data['error']}")
                 db.session.commit()
                 return None
             
@@ -410,7 +447,14 @@ def run_agent_for_job(session_id):
                 # Don't create any results since no bills were found
         else:
             # Create error result for subprocess failure
-            error_msg = f'Browser automation failed: {stderr.decode()}'
+            try:
+                if stderr:
+                    stderr_content = stderr.decode('utf-8', errors='replace')
+                else:
+                    stderr_content = "No error output available"
+            except Exception as decode_error:
+                stderr_content = f"Error decoding stderr: {decode_error}"
+            error_msg = f'Browser automation failed: {stderr_content}'
             result = ImportResult(
                 session_id=session_id,
                 email=None,
@@ -419,6 +463,10 @@ def run_agent_for_job(session_id):
                 file_url=None
             )
             db.session.add(result)
+        
+        # Commit all results to database
+        db.session.commit()
+        print(f"[COMMIT] Committed all results to database")
 
     except Exception as e:
         # Handle any exceptions
@@ -438,16 +486,16 @@ def run_agent_for_job(session_id):
                 for file in os.listdir(temp_dir):
                     os.remove(os.path.join(temp_dir, file))
                 os.rmdir(temp_dir)
-                print(f"🧹 Cleaned up temp directory: {temp_dir}")
+                print(f"[CLEANUP] Cleaned up temp directory: {temp_dir}")
             except Exception as e:
-                print(f"⚠️ Warning: Could not clean up temp directory {temp_dir}: {e}")
+                print(f"[WARN] Warning: Could not clean up temp directory {temp_dir}: {e}")
         
         # Only mark as completed if not already marked as error
         if session.status != 'error':
             session.status = 'completed'
-            print(f"✅ Job {session_id} completed successfully")
+            print(f"[OK] Job {session_id} completed successfully")
         else:
-            print(f"❌ Job {session_id} completed with errors")
+            print(f"[ERROR] Job {session_id} completed with errors")
         db.session.commit()
 
         print(f"=== JOB {session_id} FINISHED ===")
@@ -481,10 +529,10 @@ def cleanup_orphaned_processes():
                         os.remove(os.path.join(item_path, file))
                     # Remove the directory
                     os.rmdir(item_path)
-                    print(f"✓ Cleaned up temp directory: {item}")
+                    print(f"[OK] Cleaned up temp directory: {item}")
             # Remove the temp root directory if it's empty
             if not os.listdir(temp_root):
                 os.rmdir(temp_root)
-                print("✓ Removed empty temp root directory")
+                print("[OK] Removed empty temp root directory")
         except Exception as e:
             print(f"Warning: Could not clean up temp directories: {e}")

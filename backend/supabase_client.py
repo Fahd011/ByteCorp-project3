@@ -25,7 +25,15 @@ def upload_pdf_to_bills_bucket(file_bytes, filename, user_id):
     # Create user-specific folder structure: {user_id}/{filename}
     user_filename = f"{user_id}/{filename}"
     
-    res = supabase.storage.from_(BILLS_BUCKET).upload(user_filename, file_bytes)
+    # Upload with explicit content type for PDF
+    res = supabase.storage.from_(BILLS_BUCKET).upload(
+        user_filename, 
+        file_bytes,
+        {
+            "content-type": "application/pdf",
+            "upsert": "true"
+        }
+    )
     
     if hasattr(res, 'error') and res.error:
         raise Exception(f"Supabase bills upload error: {res.error}")

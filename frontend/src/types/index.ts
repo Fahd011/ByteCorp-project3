@@ -20,6 +20,7 @@ export interface JobResult {
   error?: string;
   filename?: string;
   file_url?: string;
+  proxy_url?: string;
 }
 
 export interface JobDetail extends Job {
