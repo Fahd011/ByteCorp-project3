@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.models import ImportSession, ImportResult, User
 from db import db
-from supabase_client import upload_csv_to_supabase, get_csv_public_url
+from supabase_client import upload_csv_to_supabase, get_csv_public_url, supabase
 from agent_runner import run_agent_for_job, stop_agent_job
 from datetime import datetime
 
@@ -306,15 +306,47 @@ def get_job_bills(session_id):
     bills = []
     for result in results:
         if result.file_url:
-            # Create a proxy URL for better PDF viewing
-            proxy_url = f"/jobs/{session_id}/bills/{result.id}/view"
-            bills.append({
-                'id': result.id,
-                'email': result.email,
-                'file_url': result.file_url,
-                'proxy_url': proxy_url,  # Add proxy URL for better viewing
-                'created_at': result.created_at.isoformat() if result.created_at else None
-            })
+            # Extract filename from the file_url for display
+            import urllib.parse
+            parsed = urllib.parse.urlparse(result.file_url)
+            path_parts = parsed.path.split('/')
+            
+            # Find the bills bucket path and extract filename
+            bills_index = path_parts.index('bills') if 'bills' in path_parts else -1
+            if bills_index != -1:
+                filename = '/'.join(path_parts[bills_index + 1:])
+            else:
+                filename = result.file_url.split('/')[-1]  # Fallback
+            
+            # Generate download URL from Supabase storage
+            try:
+                # Extract the file path from the Supabase URL
+                file_path = '/'.join(path_parts[bills_index + 1:]) if bills_index != -1 else filename
+                download_url = supabase.storage.from_('bills').get_public_url(file_path)
+                
+                bill_data = {
+                    'id': result.id,
+                    'filename': filename,
+                    'email': result.email,
+                    'uploaded_at': result.created_at.isoformat() if result.created_at else None,
+                    'file_size': None,  # Not stored in ImportResult
+                    'status': 'uploaded',
+                    'download_url': download_url
+                }
+                bills.append(bill_data)
+            except Exception as e:
+                print(f"Error generating download URL for {filename}: {e}")
+                # Add bill without download URL
+                bill_data = {
+                    'id': result.id,
+                    'filename': filename,
+                    'email': result.email,
+                    'uploaded_at': result.created_at.isoformat() if result.created_at else None,
+                    'file_size': None,
+                    'status': 'uploaded',
+                    'download_url': None
+                }
+                bills.append(bill_data)
     
     return jsonify({
         'session_id': session_id,

@@ -277,6 +277,7 @@ def run_agent_for_job(session_id):
             
             # Commit real-time results immediately
             db.session.commit()
+            print("Real-time results processed and committed - skipping main results processing to avoid duplicates")
         else:
             print("No real-time results found - checking if any results were already saved to database")
             
@@ -365,86 +366,16 @@ def run_agent_for_job(session_id):
                 )
                 db.session.add(result)
                 
-                # If we have results data, process successful ones
-                if results_data and 'results' in results_data:
-                    for result_item in results_data['results']:
-                        if result_item['status'] == 'success':
-                            # Check if the result already has a file_url from browser script
-                            file_url = result_item.get('file_url')
-                            
-                            if file_url:
-                                # PDF was already uploaded by browser script during automation
-                                success_result = ImportResult(
-                                    session_id=session_id,
-                                    email=result_item['email'],
-                                    status='success',
-                                    error=None,
-                                    file_url=file_url
-                                )
-                                db.session.add(success_result)
-                                print(f"Added success result with PDF: {file_url}")
-                            else:
-                                # No PDF found, create success result without file
-                                success_result = ImportResult(
-                                    session_id=session_id,
-                                    email=result_item['email'],
-                                    status='success',
-                                    error=None,
-                                    file_url=None
-                                )
-                                db.session.add(success_result)
-                                print(f"Added success result without PDF for email: {result_item['email']}")
+                # No need to process results_data here since real-time results are already handled
+                print("Skipping results processing in error handler - real-time results already processed")
                 
                 session.status = 'completed'
                 db.session.commit()
                 return None
 
-        # Process results if no error files found
+        # No need for main results processing since real-time results are already handled
         if process.returncode == 0:
-            # Check if we have results data
-            if results_data and 'results' in results_data:
-                for result_item in results_data['results']:
-                    if result_item['status'] == 'success':
-                        # Check if the result already has a file_url from browser script
-                        file_url = result_item.get('file_url')
-                        
-                        if file_url:
-                            # PDF was already uploaded by browser script during automation
-                            result = ImportResult(
-                                session_id=session_id,
-                                email=result_item['email'],
-                                status='success',
-                                error=None,
-                                file_url=file_url
-                            )
-                            db.session.add(result)
-                            print(f"Added result with PDF: {file_url}")
-                        else:
-                            # No PDF found, create success result without file
-                            result = ImportResult(
-                                session_id=session_id,
-                                email=result_item['email'],
-                                status='success',
-                                error=None,
-                                file_url=None
-                            )
-                            db.session.add(result)
-                            print(f"Added result without PDF for email: {result_item['email']}")
-                    elif result_item['status'] == 'error':
-                        # Create error result
-                        result = ImportResult(
-                            session_id=session_id,
-                            email=result_item['email'],
-                            status='error',
-                            error=result_item['error'],
-                            file_url=None
-                        )
-                        db.session.add(result)
-                        print(f"Added error result for email: {result_item['email']}")
-            else:
-                # No results found - this means no PDFs were captured from the browser
-                print("No PDF results found in browser output - no bills were captured")
-                # Don't create any results since no bills were found
+            print("Skipping main results processing - real-time results already processed")
         else:
             # Create error result for subprocess failure
             try:

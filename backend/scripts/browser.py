@@ -161,36 +161,28 @@ async def process_single_email(email, password, user_id, login_url, billing_url,
         # Create agent for bill download
         agent = Agent(
             task=f"""
-You are automating the process of downloading a billing document from a user's account on a website.
-
-Steps:
-1. Open the login page: {login_url}
-2. Sign in using:
-   - Username/Email: {email}
+1. Go to {login_url}.
+2. Log in using:
+   - Email: {email}
    - Password: {password}
-3. After successful login, navigate to the billing section of the site:
-   - Go to {billing_url}
-   - If billing url dosen't work then navigate to billing page manually
-4. On the billing page:
-   - Locate the most recent or topmost bill available.
-   - Click the associated download button (PDF download expected).
-   - The download may occur silently.
-   - Wait at least 5 seconds after clicking to allow the download to complete.
-5. After downloading:
-   - Locate the user menu (typically a profile icon or username).
-   - Click it and select the option to log out or sign out.
-6. Confirm that the logout was successful:
-   - You should be redirected to the homepage or login screen.
-7. Stop the task if any error page appears (like “Something went wrong”).
+3. Then go to this url: {billing_url}
+4. On the billing history page:
+   - download only download the first bill
+5. Wait at least 5 seconds after clicking to ensure the download is triggered.
+6. Now, go to the top right corner of the page.
+   - Click the user icon (showing {email}).
+   - Select "Sign out" from the dropdown.
+7. Confirm that you are signed out:
+   - You should be redirected to the **main homepage**.
+   - After reaching the homepage and confirming logout, do not click or navigate anywhere. 
+     The task is finished. Do not revisit any links or pages after logout. Do not open new tabs.
+8. If you see a page that says "Something went wrong", stop the task.
 
-Rules:
-- Do NOT download more than one bill per user.
-- Do NOT navigate to payment or other pages.
-- Do NOT interact with any element after logout.
-- If an element is unclickable or loading, wait a few seconds before retrying.
-- If logout fails or cannot be confirmed, stop the task.
-
-Behave like a careful, responsible human user. Avoid clicking suspicious or irrelevant elements. Do not open new tabs.
+Important:
+- Do not revisit the billing history page after logout.
+- Do not click on "Pay My Bill" or similar options.
+- If no elements are interactable, wait 5 seconds — the page might still be loading. Repeat until page has loaded
+- Only download 1 pdf. Never more than 1
 """,
             llm=ChatOpenAI(model="gpt-4o-mini"),
             browser_session=browser_session,

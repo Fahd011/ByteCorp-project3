@@ -126,4 +126,18 @@ export const jobsAPI = {
     const response = await api.get(`/api/jobs/${jobId}/realtime`);
     return response.data;
   },
+
+  // Bills API endpoints
+  getJobBills: async (jobId: string): Promise<any> => {
+    const response = await api.get(`/api/jobs/${jobId}/bills`);
+    return response.data;
+  },
+
+  deleteJobBill: async (
+    jobId: string,
+    billId: string
+  ): Promise<{ message: string }> => {
+    const response = await api.delete(`/api/jobs/${jobId}/bills/${billId}`);
+    return response.data;
+  },
 };
