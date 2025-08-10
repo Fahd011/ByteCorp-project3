@@ -85,28 +85,32 @@ const Dashboard: React.FC = () => {
 
   // Refresh running jobs status every 5 seconds
   useEffect(() => {
-    const runningJobs = jobs.filter(job => job.status === 'running');
-    console.log('Running jobs found:', runningJobs.length, runningJobs.map(j => j.id));
+    const runningJobs = jobs.filter((job) => job.status === "running");
+    console.log(
+      "Running jobs found:",
+      runningJobs.length,
+      runningJobs.map((j) => j.id)
+    );
 
     if (runningJobs.length === 0) return;
 
     const interval = setInterval(async () => {
-      console.log('Refreshing job statuses...');
+      console.log("Refreshing job statuses...");
       for (const job of runningJobs) {
         try {
           const realtimeData = await jobsAPI.getJobRealtimeStatus(job.id);
-          console.log('Realtime data for job:', job.id, realtimeData);
-          
+          console.log("Realtime data for job:", job.id, realtimeData);
+
           // Update job with real-time data
-          setJobs(prevJobs => 
-            prevJobs.map(j => 
-              j.id === job.id 
+          setJobs((prevJobs) =>
+            prevJobs.map((j) =>
+              j.id === job.id
                 ? { ...j, results_count: realtimeData.results_count }
                 : j
             )
           );
         } catch (err: any) {
-          console.error('Failed to get real-time status for job:', job.id, err);
+          console.error("Failed to get real-time status for job:", job.id, err);
         }
       }
     }, 5000);
@@ -118,9 +122,7 @@ const Dashboard: React.FC = () => {
     setIsLoading(true);
     try {
       const jobsData = await jobsAPI.getAllJobs();
-      // Filter out only completed jobs - keep error jobs in dashboard
-      const activeJobs = jobsData.filter((job) => job.status !== "completed");
-      setJobs(activeJobs);
+      setJobs(jobsData);
     } catch (err: any) {
       setError("Failed to load jobs");
       console.error(err);

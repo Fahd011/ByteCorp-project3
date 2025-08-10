@@ -35,4 +35,4 @@ signal.signal(signal.SIGTERM, cleanup_on_exit)
 cleanup_orphaned_processes()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)

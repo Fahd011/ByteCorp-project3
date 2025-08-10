@@ -149,18 +149,6 @@ async def process_single_email(email, password, user_id, login_url, billing_url,
             browser_profile=BrowserProfile(
                 downloads_path=downloads_folder,
                 user_data_dir=unique_profile_path,
-                args=[
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-web-security',
-                    '--ignore-ssl-errors',
-                    '--ignore-certificate-errors',
-                    '--disable-features=VizDisplayCompositor',
-                    '--disable-gpu',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding'
-                ]
             )
         )
         print(f"[BROWSER] Browser session created successfully")
@@ -181,11 +169,11 @@ Steps:
    - Username/Email: {email}
    - Password: {password}
 3. After successful login, navigate to the billing section of the site:
-   - Open this page: {billing_url}
+   - Go to {billing_url}
    - If billing url dosen't work then navigate to billing page manually
 4. On the billing page:
    - Locate the most recent or topmost bill available.
-   - Click the associated download/view button (PDF download expected).
+   - Click the associated download button (PDF download expected).
    - The download may occur silently.
    - Wait at least 5 seconds after clicking to allow the download to complete.
 5. After downloading:
@@ -329,6 +317,13 @@ Behave like a careful, responsible human user. Avoid clicking suspicious or irre
                 
                 print(f"[SUCCESS] Successfully processed {email}: {file_url}")
                 
+                # Clean up downloaded file after successful upload
+                try:
+                    os.remove(pdf_path)
+                    print(f"[CLEANUP] Successfully deleted downloaded file: {downloaded_file}")
+                except Exception as cleanup_error:
+                    print(f"[CLEANUP] Warning: Could not delete downloaded file {downloaded_file}: {cleanup_error}")
+                
                 results.append({
                     'email': email,
                     'status': 'success',
@@ -396,6 +391,14 @@ Behave like a careful, responsible human user. Avoid clicking suspicious or irre
                         })
                         
                         print(f"[TIMEOUT] Successfully uploaded PDF despite timeout: {file_url}")
+                        
+                        # Clean up downloaded file after successful upload
+                        try:
+                            os.remove(pdf_path)
+                            print(f"[CLEANUP] Successfully deleted downloaded file: {downloaded_file}")
+                        except Exception as cleanup_error:
+                            print(f"[CLEANUP] Warning: Could not delete downloaded file {downloaded_file}: {cleanup_error}")
+                        
                         return True
                         
                     except Exception as upload_error:
@@ -442,7 +445,10 @@ async def main():
     billing_url = os.getenv('BILLING_URL')
     user_id = os.getenv('USER_ID')
     session_id = os.getenv('SESSION_ID', 'unknown')
-    downloads_folder = os.getenv('DOWNLOADS_FOLDER', os.path.expanduser('~/Downloads'))
+    
+    # Create downloads folder in current repository
+    downloads_folder = os.path.join(os.getcwd(), 'downloads')
+    os.makedirs(downloads_folder, exist_ok=True)
     
     if not all([csv_path, login_url, billing_url, user_id]):
         print("[ERROR] Missing required environment variables")
@@ -517,6 +523,24 @@ async def main():
     print(f"\n[COMPLETE] PROCESSING COMPLETE!")
     print(f"[SUCCESS] Successful: {results_summary['successful']}")
     print(f"[ERROR] Failed: {results_summary['failed']}")
+    
+    # Clean up any remaining files in downloads folder
+    try:
+        remaining_files = os.listdir(downloads_folder)
+        if remaining_files:
+            print(f"[CLEANUP] Cleaning up {len(remaining_files)} remaining files in downloads folder...")
+            for filename in remaining_files:
+                file_path = os.path.join(downloads_folder, filename)
+                try:
+                    os.remove(file_path)
+                    print(f"[CLEANUP] Deleted: {filename}")
+                except Exception as e:
+                    print(f"[CLEANUP] Warning: Could not delete {filename}: {e}")
+            print(f"[CLEANUP] Downloads folder cleanup complete")
+        else:
+            print(f"[CLEANUP] Downloads folder is already clean")
+    except Exception as e:
+        print(f"[CLEANUP] Error during downloads folder cleanup: {e}")
 
 # Signal handler for graceful shutdown
 def signal_handler(signum, frame):
