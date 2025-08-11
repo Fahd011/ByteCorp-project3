@@ -2,10 +2,10 @@ import io
 import csv
 import subprocess
 import os
-import signal
 import psutil
 import json
-from supabase_client import download_file_from_supabase, upload_file_to_supabase, upload_pdf_to_bills_bucket
+import threading
+from supabase_client import download_file_from_supabase, upload_pdf_to_bills_bucket
 from models.models import ImportSession, ImportResult
 from db import db
 from datetime import datetime
@@ -431,6 +431,45 @@ def run_agent_for_job(session_id):
 
         print(f"=== JOB {session_id} FINISHED ===")
     return None
+
+def test_simple_async(session_id):
+    """Simple test async function that just sleeps"""
+    print(f"[TEST] Starting simple async test for session {session_id}")
+    
+    def _sleep_task():
+        print(f"[TEST] Sleep task started for session {session_id}")
+        import time
+        time.sleep(5)  # Sleep for 5 seconds
+        print(f"[TEST] Sleep task completed for session {session_id}")
+    
+    # Start the task in a background thread
+    thread = threading.Thread(target=_sleep_task, daemon=True)
+    thread.start()
+    print(f"[TEST] Simple async test started, returning immediately for session {session_id}")
+    return thread
+
+def run_agent_for_job_async(session_id):
+    """Run agent job in background thread - returns immediately"""
+    print(f"[ASYNC] Starting async job for session {session_id}")
+    
+    def _run_job():
+        print(f"[ASYNC] Background thread started for session {session_id}")
+        try:
+            print(f"[ASYNC] About to call run_agent_for_job for session {session_id}")
+            # Import Flask app to get application context
+            from app import app
+            with app.app_context():
+                run_agent_for_job(session_id)
+            print(f"[ASYNC] Background job {session_id} completed")
+        except Exception as e:
+            print(f"[ASYNC] Error in background job {session_id}: {e}")
+    
+    # Start the job in a background thread
+    thread = threading.Thread(target=_run_job, daemon=True)
+    print(f"[ASYNC] Thread created, starting for session {session_id}")
+    thread.start()
+    print(f"[ASYNC] Thread started, returning immediately for session {session_id}")
+    return thread
 
 def cleanup_orphaned_processes():
     """Clean up any orphaned browser processes on server startup"""

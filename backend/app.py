@@ -27,9 +27,15 @@ def cleanup_on_exit(signum, frame):
         stop_agent_job(session_id)
     sys.exit(0)
 
-# Register signal handlers
-signal.signal(signal.SIGINT, cleanup_on_exit)
-signal.signal(signal.SIGTERM, cleanup_on_exit)
+# Only set up signal handlers if we're in the main thread
+try:
+    # Register signal handlers
+    signal.signal(signal.SIGINT, cleanup_on_exit)
+    signal.signal(signal.SIGTERM, cleanup_on_exit)
+    print("[INFO] Signal handlers configured for graceful shutdown")
+except (ValueError, OSError) as e:
+    print(f"[WARN] Could not set up signal handlers (running in background thread): {e}")
+    print("[INFO] Continuing without signal handlers")
 
 # Clean up orphaned processes on startup
 cleanup_orphaned_processes()

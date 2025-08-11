@@ -548,9 +548,15 @@ def signal_handler(signum, frame):
             }, f)
     sys.exit(0)
 
-import signal
-signal.signal(signal.SIGTERM, signal_handler)
-signal.signal(signal.SIGINT, signal_handler)
+# Only set up signal handlers if we're in the main thread
+try:
+    import signal
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    print("[INFO] Signal handlers configured for graceful shutdown")
+except (ValueError, OSError) as e:
+    print(f"[WARN] Could not set up signal handlers (running in background thread): {e}")
+    print("[INFO] Continuing without signal handlers")
 
 # Run the main function
 if __name__ == "__main__":

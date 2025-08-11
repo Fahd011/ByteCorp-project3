@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.models import ImportSession, ImportResult, User
 from db import db
 from supabase_client import upload_csv_to_supabase, get_csv_public_url, supabase
-from agent_runner import run_agent_for_job, stop_agent_job
+from agent_runner import run_agent_for_job_async, stop_agent_job
 from datetime import datetime
 
 bp = Blueprint("jobs", __name__)
@@ -60,19 +60,23 @@ def create_job():
 @bp.route('/jobs/<session_id>/run', methods=['POST'])
 @jwt_required()
 def run_job(session_id):
+    print(f"[ROUTE] Starting run_job for session {session_id}")
     session = ImportSession.query.get(session_id)
     if not session:
         return jsonify({'error': 'Session not found'}), 404
     if session.status == 'running':
         return jsonify({'error': 'Job already running'}), 400
     
+    print(f"[ROUTE] Updating status to running for session {session_id}")
     # Update status to running immediately
     session.status = 'running'
     db.session.commit()
     
+    print(f"[ROUTE] Calling run_agent_for_job_async for session {session_id}")
     # Start the agent in background
-    run_agent_for_job(session_id)
+    run_agent_for_job_async(session_id)
     
+    print(f"[ROUTE] Async function called, preparing response for session {session_id}")
     # Return updated job data
     results = ImportResult.query.filter_by(session_id=session_id).all()
     job_data = {
@@ -84,6 +88,7 @@ def run_job(session_id):
         'created_at': session.created_at.isoformat(),
         'results_count': len(results)
     }
+    print(f"[ROUTE] Returning response for session {session_id}")
     return jsonify(job_data), 200
 
 @bp.route('/jobs/<session_id>/stop', methods=['POST'])
