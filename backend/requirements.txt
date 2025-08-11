@@ -10,3 +10,4 @@ supabase
 requests
 flask_sqlalchemy
 browser-use
+flask-migrate
