@@ -83,32 +83,45 @@ const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Refresh running jobs status every 5 seconds
+  // Refresh job statuses every 5 seconds - ONLY for running jobs
   useEffect(() => {
+    // Only poll jobs that are actively running
+    // This prevents stopped jobs from being changed unexpectedly
     const runningJobs = jobs.filter((job) => job.status === "running");
     console.log(
       "Running jobs found:",
       runningJobs.length,
-      runningJobs.map((j) => j.id)
+      runningJobs.map((j) => ({ id: j.id, status: j.status }))
     );
 
     if (runningJobs.length === 0) return;
 
     const interval = setInterval(async () => {
-      console.log("Refreshing job statuses...");
+      console.log("Refreshing running job statuses...");
       for (const job of runningJobs) {
         try {
           const realtimeData = await jobsAPI.getJobRealtimeStatus(job.id);
           console.log("Realtime data for job:", job.id, realtimeData);
 
-          // Update job with real-time data
+          // Update job with real-time data including status
           setJobs((prevJobs) =>
             prevJobs.map((j) =>
               j.id === job.id
-                ? { ...j, results_count: realtimeData.results_count }
+                ? {
+                    ...j,
+                    results_count: realtimeData.results_count,
+                    status: realtimeData.status,
+                  }
                 : j
             )
           );
+
+          // No more polling needed for this job if it's no longer running
+          if (realtimeData.status !== "running") {
+            console.log(
+              `Job ${job.id} is no longer running, will stop polling`
+            );
+          }
         } catch (err: any) {
           console.error("Failed to get real-time status for job:", job.id, err);
         }
@@ -122,6 +135,7 @@ const Dashboard: React.FC = () => {
     setIsLoading(true);
     try {
       const jobsData = await jobsAPI.getAllJobs();
+      // Keep all jobs including completed ones visible on dashboard
       setJobs(jobsData);
     } catch (err: any) {
       setError("Failed to load jobs");
