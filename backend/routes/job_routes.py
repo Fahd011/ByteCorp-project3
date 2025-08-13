@@ -175,7 +175,10 @@ def get_job_details(session_id):
             'email': r.email,
             'status': r.status,
             'error': r.error,
-            'file_url': r.file_url
+            'file_url': r.file_url,
+            'retry_attempts': r.retry_attempts,
+            'final_error': r.final_error,
+            'created_at': r.created_at.isoformat() if r.created_at else None
         }
         # Add proxy URL for successful results with file URLs
         if r.status == 'success' and r.file_url:
@@ -279,7 +282,9 @@ def get_job_realtime_status(session_id):
             'email': r.email,
             'status': r.status,
             'error': r.error,
-            'file_url': r.file_url
+            'file_url': r.file_url,
+            'retry_attempts': r.retry_attempts,
+            'final_error': r.final_error
         }
         # Add proxy URL for successful results with file URLs
         if r.status == 'success' and r.file_url:
