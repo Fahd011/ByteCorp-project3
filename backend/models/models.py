@@ -27,4 +27,6 @@ class ImportResult(db.Model):
     status = db.Column(db.String)
     error = db.Column(db.String)
     file_url = db.Column(db.String)
+    retry_attempts = db.Column(db.Integer, default=0)  # New field to track retry attempts
+    final_error = db.Column(db.String)  # New field for final error after all retries
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

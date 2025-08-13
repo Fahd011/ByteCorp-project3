@@ -21,11 +21,16 @@ export interface JobResult {
   filename?: string;
   file_url?: string;
   proxy_url?: string;
+  retry_attempts?: number;
+  final_error?: string;
+  created_at?: string;
 }
 
 export interface JobDetail extends Job {
   output: JobResult[];
 }
+
+
 
 export interface LoginCredentials {
   email: string;

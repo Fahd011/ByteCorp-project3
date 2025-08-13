@@ -425,6 +425,113 @@ Important:
             except Exception as e:
                 print(f"[CLEANUP] Error closing browser session: {e}")
 
+async def process_single_email_with_retry(email, password, user_id, login_url, billing_url, downloads_folder, max_retries=5):
+    """Process a single email with retry mechanism"""
+    
+    for attempt in range(1, max_retries + 1):
+        print(f"\n{'='*60}")
+        print(f"[EMAIL] Processing: {email} (Attempt {attempt}/{max_retries})")
+        print(f"{'='*60}")
+        
+        try:
+            success = await process_single_email(email, password, user_id, login_url, billing_url, downloads_folder)
+            if success:
+                print(f"[SUCCESS] Successfully processed {email} on attempt {attempt}")
+                # Find the result in the global results list to get the file_url
+                for result in results:
+                    if result.get('email') == email and result.get('status') == 'success' and result.get('file_url'):
+                        # Write success result with retry info and file_url
+                        result_data = {
+                            'email': email,
+                            'status': 'success',
+                            'error': None,
+                            'file_url': result.get('file_url'),
+                            'filename': result.get('filename'),
+                            'pdf_size': result.get('pdf_size'),
+                            'retry_attempts': attempt,
+                            'final_error': None
+                        }
+                        write_real_time_result(result_data)
+                        return True
+                
+                # Fallback if result not found in global results
+                result_data = {
+                    'email': email,
+                    'status': 'success',
+                    'error': None,
+                    'retry_attempts': attempt,
+                    'final_error': None
+                }
+                write_real_time_result(result_data)
+                return True
+            else:
+                print(f"[RETRY] Failed to process {email} on attempt {attempt}")
+                if attempt < max_retries:
+                    print(f"[RETRY] Waiting 10 seconds before retry...")
+                    await asyncio.sleep(10)
+                else:
+                    print(f"[FAILED] All {max_retries} attempts failed for {email}")
+                    # Write failure result with retry info
+                    result_data = {
+                        'email': email,
+                        'status': 'error',
+                        'error': f'Failed after {max_retries} attempts - check credentials or website availability',
+                        'retry_attempts': max_retries,
+                        'final_error': f'Failed after {max_retries} attempts - check credentials or website availability'
+                    }
+                    write_real_time_result(result_data)
+                    return False
+                    
+        except Exception as e:
+            print(f"[ERROR] Exception on attempt {attempt} for {email}: {e}")
+            if attempt < max_retries:
+                print(f"[RETRY] Waiting 10 seconds before retry...")
+                await asyncio.sleep(10)
+            else:
+                print(f"[FAILED] All {max_retries} attempts failed for {email}")
+                # Write failure result with retry info
+                result_data = {
+                    'email': email,
+                    'status': 'error',
+                    'error': f'Critical error after {max_retries} attempts: {str(e)}',
+                    'retry_attempts': max_retries,
+                    'final_error': f'Critical error after {max_retries} attempts: {str(e)}'
+                }
+                write_real_time_result(result_data)
+                return False
+    
+    return False
+
+def write_real_time_result(result_data):
+    """Write result to real-time results file"""
+    if TEMP_DIR:
+        real_time_file = os.path.join(TEMP_DIR, 'real_time_results.json')
+        existing_results = []
+        if os.path.exists(real_time_file):
+            try:
+                with open(real_time_file, 'r') as f:
+                    existing_results = json.load(f)
+            except:
+                existing_results = []
+        
+        # Check if this email already exists in results
+        existing_index = None
+        for i, result in enumerate(existing_results):
+            if result.get('email') == result_data['email']:
+                existing_index = i
+                break
+        
+        if existing_index is not None:
+            # Update existing result
+            existing_results[existing_index] = result_data
+        else:
+            # Add new result
+            existing_results.append(result_data)
+        
+        with open(real_time_file, 'w') as f:
+            json.dump(existing_results, f, indent=2)
+        print(f"[REALTIME] Wrote real-time result to: {real_time_file}")
+
 async def main():
     """Main execution function"""
     global TEMP_DIR
@@ -481,13 +588,23 @@ async def main():
         print(f"\n[PROGRESS] Processing {i}/{len(usernames)}: {email}")
         
         try:
-            success = await process_single_email(email, password, user_id, login_url, billing_url, downloads_folder)
+            success = await process_single_email_with_retry(email, password, user_id, login_url, billing_url, downloads_folder)
             if success:
                 print(f"[PROGRESS] Successfully processed {email}")
             else:
-                print(f"[PROGRESS] Failed to process {email}")
+                print(f"[PROGRESS] Failed to process {email} after all retries")
+                # Note: Failed results are already written to real-time results by the retry function
         except Exception as e:
             print(f"[ERROR] Critical error processing {email}: {e}")
+            # Write critical error result
+            result_data = {
+                'email': email,
+                'status': 'error',
+                'error': f'Critical error: {str(e)}',
+                'retry_attempts': 0,
+                'final_error': f'Critical error: {str(e)}'
+            }
+            write_real_time_result(result_data)
     
     # Write final results
     results_summary = {

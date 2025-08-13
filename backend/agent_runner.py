@@ -250,8 +250,34 @@ def run_agent_for_job(session_id):
         # Process real-time results first (these are already uploaded to Supabase)
         if real_time_results:
             print(f"Processing {len(real_time_results)} real-time results")
+            
+            # Create a map of real-time results by email for easy lookup
+            real_time_map = {}
+            for result_item in real_time_results:
+                email = result_item.get('email')
+                if email:
+                    real_time_map[email] = result_item
+            
+            # Process main results to get file URLs
+            if results_data and results_data.get('results'):
+                print(f"Processing {len(results_data['results'])} main results to get file URLs")
+                for main_result in results_data['results']:
+                    email = main_result.get('email')
+                    if email and email in real_time_map:
+                        # Update real-time result with file URL from main results
+                        real_time_map[email]['file_url'] = main_result.get('file_url')
+                        real_time_map[email]['filename'] = main_result.get('filename')
+                        real_time_map[email]['pdf_size'] = main_result.get('pdf_size')
+                        print(f"[UPDATE] Added file URL to real-time result for {email}: {main_result.get('file_url')}")
+            
+            # Now process the updated real-time results
             for result_item in real_time_results:
                 print(f"Processing result item: {result_item}")
+                
+                # Extract retry information
+                retry_attempts = result_item.get('retry_attempts', 0)
+                final_error = result_item.get('final_error')
+                
                 if result_item.get('file_url'):
                     # Create success result with PDF
                     result = ImportResult(
@@ -259,25 +285,33 @@ def run_agent_for_job(session_id):
                         email=result_item.get('email'),
                         status='success',
                         error=None,
-                        file_url=result_item['file_url']
+                        file_url=result_item['file_url'],
+                        retry_attempts=retry_attempts,
+                        final_error=final_error
                     )
                     db.session.add(result)
-                    print(f"[OK] Added real-time result with PDF: {result_item['file_url']}")
+                    print(f"[OK] Added real-time result with PDF: {result_item['file_url']} (attempts: {retry_attempts})")
                 else:
-                    # Create success result without PDF
+                    # Create error result
+                    error_msg = result_item.get('error', 'Unknown error')
+                    if final_error:
+                        error_msg = final_error
+                    
                     result = ImportResult(
                         session_id=session_id,
                         email=result_item.get('email'),
-                        status='success',
-                        error=None,
-                        file_url=None
+                        status='error',
+                        error=error_msg,
+                        file_url=None,
+                        retry_attempts=retry_attempts,
+                        final_error=final_error
                     )
                     db.session.add(result)
-                    print(f"[WARN] Added real-time result without PDF for email: {result_item.get('email')}")
+                    print(f"[ERROR] Added error result for email: {result_item.get('email')} - {error_msg} (attempts: {retry_attempts})")
             
             # Commit real-time results immediately
             db.session.commit()
-            print("Real-time results processed and committed - skipping main results processing to avoid duplicates")
+            print("Real-time results processed and committed")
         else:
             print("No real-time results found - checking if any results were already saved to database")
             

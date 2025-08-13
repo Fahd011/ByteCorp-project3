@@ -43,9 +43,66 @@ const Bills: React.FC = () => {
     }
   };
 
-  const handleDownloadFile = async (fileUrl: string, filename: string) => {
+  const generateFilename = (email: string, timestamp?: string): string => {
+    // Clean the email for filename safety
+    const cleanEmail = email.replace(/[^a-zA-Z0-9@._-]/g, '_');
+    
+    // Format timestamp if available
+    let timestampStr = '';
+    if (timestamp) {
+      try {
+        const date = new Date(timestamp);
+        timestampStr = date.toISOString().slice(0, 19).replace(/[:.]/g, '-');
+      } catch (e) {
+        // If timestamp parsing fails, use current timestamp
+        timestampStr = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+      }
+    } else {
+      // Use current timestamp if none provided
+      timestampStr = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+    }
+    
+    const filename = `bill_${cleanEmail}_${timestampStr}.pdf`;
+    console.log('Generated filename:', filename, 'from email:', email, 'timestamp:', timestamp);
+    return filename;
+  };
+
+  const formatDisplayName = (email: string, timestamp?: string, retryAttempts?: number): string => {
+    // Format timestamp for display
+    let timestampStr = '';
+    if (timestamp) {
+      try {
+        const date = new Date(timestamp);
+        timestampStr = date.toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      } catch (e) {
+        timestampStr = 'Unknown time';
+      }
+    } else {
+      timestampStr = 'No timestamp';
+    }
+    
+    // Add retry information if available
+    let retryInfo = '';
+    if (retryAttempts && retryAttempts > 0) {
+      retryInfo = ` (${retryAttempts} attempt${retryAttempts > 1 ? 's' : ''})`;
+    }
+    
+    return `${email} - ${timestampStr}${retryInfo}`;
+  };
+
+  const handleDownloadFile = async (fileUrl: string, email: string, timestamp?: string) => {
     try {
       console.log("Downloading from Supabase URL:", fileUrl);
+
+      // Generate filename with email and timestamp
+      const filename = generateFilename(email, timestamp);
 
       // Download the file from Supabase and create a blob with correct MIME type
       const response = await fetch(fileUrl);
@@ -319,24 +376,33 @@ const Bills: React.FC = () => {
                 {selectedJob.output && selectedJob.output.length > 0 ? (
                   selectedJob.output.map((result, index) => (
                     <div key={index} style={styles.resultItem}>
-                      <div style={styles.resultInfo}>
-                        <p style={styles.resultInfoText}>
-                          <strong>Email:</strong> {result.email || "N/A"}
-                        </p>
-                        <p style={styles.resultInfoText}>
-                          <strong>Status:</strong> {result.status}
-                        </p>
-                        {result.error && (
-                          <p style={styles.resultInfoText}>
-                            <strong>Error:</strong> {result.error}
+                                              <div style={styles.resultInfo}>
+                          <p style={styles.pdfNameText}>
+                            <strong>PDF:</strong> {formatDisplayName(result.email || "Unknown", result.created_at, result.retry_attempts)}
                           </p>
-                        )}
-                        {result.file_url && (
                           <p style={styles.resultInfoText}>
-                            <strong>PDF:</strong> Available
+                            <strong>Status:</strong> 
+                            <span style={{
+                              color: result.status === 'success' ? '#28a745' : '#dc3545',
+                              fontWeight: 'bold'
+                            }}>
+                              {result.status}
+                            </span>
                           </p>
-                        )}
-                      </div>
+                          {result.error && (
+                            <p style={styles.resultInfoText}>
+                              <strong>Error:</strong> 
+                              <span style={{ color: '#dc3545' }}>
+                                {result.error}
+                              </span>
+                            </p>
+                          )}
+                          {result.retry_attempts && result.retry_attempts > 0 && (
+                            <p style={styles.resultInfoText}>
+                              <strong>Retry Attempts:</strong> {result.retry_attempts}
+                            </p>
+                          )}
+                        </div>
                       <div style={styles.resultActions}>
                         {result.file_url && (
                           <div style={styles.fileActions}>
@@ -350,7 +416,8 @@ const Bills: React.FC = () => {
                               onClick={() =>
                                 handleDownloadFile(
                                   result.file_url!,
-                                  `bill_${result.email || index}.pdf`
+                                  result.email || `unknown_${index}`,
+                                  result.created_at
                                 )
                               }
                               style={styles.downloadButton}
@@ -560,6 +627,12 @@ const styles = {
   resultInfoText: {
     margin: "0.25rem 0",
     color: "#333",
+  },
+  pdfNameText: {
+    margin: "0.25rem 0",
+    color: "#333",
+    fontSize: "1rem",
+    fontWeight: "500",
   },
   resultActions: {
     display: "flex",
