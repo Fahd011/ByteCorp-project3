@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.models import ImportSession, ImportResult, User
 from db import db
-from supabase_client import upload_csv_to_supabase, get_csv_public_url, supabase
+from supabase_client import upload_csv_to_supabase, get_csv_public_url, supabase, get_bills_bucket_public_url, download_from_bills_bucket
 from agent_runner import run_agent_for_job_async, stop_agent_job
 from datetime import datetime
 from scheduler import scheduler
@@ -418,7 +418,7 @@ def get_job_bills(session_id):
             try:
                 # Extract the file path from the Supabase URL
                 file_path = '/'.join(path_parts[bills_index + 1:]) if bills_index != -1 else filename
-                download_url = supabase.storage.from_('bills').get_public_url(file_path)
+                download_url = get_bills_bucket_public_url(file_path)
                 
                 bill_data = {
                     'id': result.id,
@@ -472,7 +472,6 @@ def view_bill_pdf(session_id, result_id):
     
     try:
         # Download the PDF from Supabase
-        from supabase_client import supabase
         import urllib.parse
         
         # Extract the file path from the Supabase URL
@@ -493,7 +492,7 @@ def view_bill_pdf(session_id, result_id):
         
         # Download the file from Supabase
         print(f"[PROXY] Downloading from Supabase bills bucket...")
-        response = supabase.storage.from_('bills').download(file_path)
+        response = download_from_bills_bucket(file_path)
         
         if hasattr(response, 'error') and response.error:
             print(f"[PROXY] Supabase download error: {response.error}")

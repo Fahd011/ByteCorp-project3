@@ -98,17 +98,6 @@ load_dotenv()
 TEMP_DIR = None
 results = []
 
-def upload_pdf_to_supabase(pdf_bytes, filename, user_id):
-    """Upload PDF to Supabase with verification"""
-    try:
-        print(f"[UPLOAD] Uploading {filename} to Supabase...")
-        file_url = upload_pdf_to_bills_bucket(pdf_bytes, filename, user_id)
-        print(f"[UPLOAD] Success! File URL: {file_url}")
-        return file_url
-    except Exception as e:
-        print(f"[UPLOAD] Error: {e}")
-        raise
-
 def create_safe_filename(email):
     """Create a safe filename from email"""
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -277,7 +266,7 @@ Important:
             
             try:
                 print(f"[UPLOAD] Attempting to upload {len(pdf_content)} bytes to Supabase...")
-                file_url = upload_pdf_to_supabase(pdf_content, filename, user_id)
+                file_url = upload_pdf_to_bills_bucket(pdf_content, filename, user_id)
                 
                 # Write real-time result
                 result_data = {
@@ -370,7 +359,7 @@ Important:
                     filename = create_safe_filename(email)
                     
                     try:
-                        file_url = upload_pdf_to_supabase(pdf_content, filename, user_id)
+                        file_url = upload_pdf_to_bills_bucket(pdf_content, filename, user_id)
                         
                         results.append({
                             'email': email,

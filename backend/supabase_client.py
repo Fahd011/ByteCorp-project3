@@ -57,3 +57,53 @@ def get_csv_public_url(csv_url):
     parsed = urllib.parse.urlparse(csv_url)
     path = parsed.path.split(f"/{BUCKET}/")[-1]
     return supabase.storage.from_(BUCKET).get_public_url(path)
+
+def get_bills_bucket_public_url(file_path):
+    """Get the public URL for a file stored in the bills bucket"""
+    try:
+        return supabase.storage.from_(BILLS_BUCKET).get_public_url(file_path)
+    except Exception as e:
+        raise Exception(f"Supabase bills bucket public URL error: {e}")
+
+def download_from_bills_bucket(file_path):
+    """Download a file from the bills bucket"""
+    try:
+        response = supabase.storage.from_(BILLS_BUCKET).download(file_path)
+        if hasattr(response, 'error') and response.error:
+            raise Exception(f"Supabase bills download error: {response.error}")
+        return response
+    except Exception as e:
+        raise Exception(f"Supabase bills bucket download error: {e}")
+
+def delete_file_from_bucket(file_path, bucket_name=None):
+    """Delete a file from a specified bucket (defaults to main BUCKET)"""
+    try:
+        bucket = bucket_name or BUCKET
+        res = supabase.storage.from_(bucket).remove([file_path])
+        if hasattr(res, 'error') and res.error:
+            raise Exception(f"Supabase delete error: {res.error}")
+        return True
+    except Exception as e:
+        raise Exception(f"Supabase delete error: {e}")
+
+def list_files_in_bucket(bucket_name=None, folder_path=""):
+    """List files in a specified bucket (defaults to main BUCKET)"""
+    try:
+        bucket = bucket_name or BUCKET
+        res = supabase.storage.from_(bucket).list(folder_path)
+        if hasattr(res, 'error') and res.error:
+            raise Exception(f"Supabase list error: {res.error}")
+        return res
+    except Exception as e:
+        raise Exception(f"Supabase list error: {e}")
+
+def get_file_info(file_path, bucket_name=None):
+    """Get information about a file in a specified bucket"""
+    try:
+        bucket = bucket_name or BUCKET
+        # Note: Supabase doesn't have a direct "get file info" method
+        # This is a placeholder for future implementation
+        # For now, we can try to get the public URL to verify the file exists
+        return supabase.storage.from_(bucket).get_public_url(file_path)
+    except Exception as e:
+        raise Exception(f"Supabase file info error: {e}")
