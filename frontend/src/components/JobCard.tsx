@@ -57,7 +57,7 @@ const JobCard: React.FC<JobCardProps> = ({
   };
 
   // Determine which buttons to show based on job status
-  const canStop = job.status === "running";
+  const canStop = job.status === "running" && !job.is_scheduled;
   const canDelete =
     job.status === "idle" || job.status === "stopped" || job.status === "error";
 
@@ -75,9 +75,7 @@ const JobCard: React.FC<JobCardProps> = ({
           </span>
           {/* Add schedule indicator */}
           {job.is_scheduled && (
-            <span style={styles.scheduleBadge}>
-              📅 Scheduled
-            </span>
+            <span style={styles.scheduleBadge}>📅 Scheduled</span>
           )}
         </div>
         <div style={styles.date}>{formatDate(job.created_at)}</div>
@@ -139,6 +137,21 @@ const JobCard: React.FC<JobCardProps> = ({
           </button>
         )}
 
+        {/* Show disabled stop button for scheduled running jobs */}
+        {job.status === "running" && job.is_scheduled && (
+          <button
+            disabled={true}
+            style={{
+              ...styles.stopButton,
+              opacity: 0.5,
+              cursor: "not-allowed",
+            }}
+            title="Cannot stop scheduled jobs - they will run automatically"
+          >
+            Stop (Disabled)
+          </button>
+        )}
+
         {canDelete && (
           <button
             onClick={() => onDelete(job.id)}
@@ -171,23 +184,39 @@ const JobCard: React.FC<JobCardProps> = ({
   );
 
   function getScheduleDisplay() {
-    if (!job.schedule_config) return 'Not configured';
-    
+    if (!job.schedule_config) return "Not configured";
+
     const { schedule_type, schedule_config } = job;
-    
-    if (schedule_type === 'weekly') {
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    if (schedule_type === "weekly") {
+      const days = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ];
       const dayName = days[schedule_config.day_of_week || 0];
-      const time = `${(schedule_config.hour || 0).toString().padStart(2, '0')}:${(schedule_config.minute || 0).toString().padStart(2, '0')}`;
+      const time = `${(schedule_config.hour || 0)
+        .toString()
+        .padStart(2, "0")}:${(schedule_config.minute || 0)
+        .toString()
+        .padStart(2, "0")}`;
       return `Every ${dayName} at ${time}`;
-    } else if (schedule_type === 'daily') {
-      const time = `${(schedule_config.hour || 0).toString().padStart(2, '0')}:${(schedule_config.minute || 0).toString().padStart(2, '0')}`;
+    } else if (schedule_type === "daily") {
+      const time = `${(schedule_config.hour || 0)
+        .toString()
+        .padStart(2, "0")}:${(schedule_config.minute || 0)
+        .toString()
+        .padStart(2, "0")}`;
       return `Every day at ${time}`;
-    } else if (schedule_type === 'custom') {
+    } else if (schedule_type === "custom") {
       return `Custom: ${schedule_config.cron_expression}`;
     }
-    
-    return 'Unknown schedule';
+
+    return "Unknown schedule";
   }
 };
 
@@ -294,24 +323,24 @@ const styles = {
     opacity: 0.6,
   },
   scheduleBadge: {
-    backgroundColor: '#ff9800',
-    color: 'white',
-    padding: '4px 8px',
-    borderRadius: '12px',
-    fontSize: '12px',
-    marginLeft: '8px',
+    backgroundColor: "#ff9800",
+    color: "white",
+    padding: "4px 8px",
+    borderRadius: "12px",
+    fontSize: "12px",
+    marginLeft: "8px",
   },
   scheduleInfo: {
-    marginTop: '10px',
-    padding: '8px',
-    backgroundColor: '#f0f8ff',
-    borderRadius: '4px',
-    border: '1px solid #d0e7ff',
+    marginTop: "10px",
+    padding: "8px",
+    backgroundColor: "#f0f8ff",
+    borderRadius: "4px",
+    border: "1px solid #d0e7ff",
   },
   nextRun: {
-    marginTop: '5px',
-    fontSize: '12px',
-    color: '#666',
+    marginTop: "5px",
+    fontSize: "12px",
+    color: "#666",
   },
 };
 
