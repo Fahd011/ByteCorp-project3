@@ -13,6 +13,18 @@ from datetime import datetime
 # Dictionary to store running processes
 running_processes = {}
 
+def set_job_status(session, new_status):
+    """Set job status, handling scheduled jobs appropriately"""
+    if new_status == 'completed' and session.is_scheduled:
+        session.status = 'idle'
+        print(f"[INFO] Scheduled job {session.id} completed, setting status to 'idle' for next run")
+    else:
+        session.status = new_status
+        if new_status == 'completed':
+            print(f"[OK] Job {session.id} completed successfully")
+        else:
+            print(f"[INFO] Job {session.id} status set to: {new_status}")
+
 def stop_agent_job(session_id):
     """Stop a running agent job"""
     if session_id in running_processes:
@@ -153,11 +165,11 @@ def run_agent_for_job(session_id):
         
         env = os.environ.copy()
         env.update({
-            'CSV_PATH': temp_csv_path,
-            'LOGIN_URL': session.login_url,
-            'BILLING_URL': session.billing_url,
+            'CSV_PATH': str(temp_csv_path),
+            'LOGIN_URL': str(session.login_url),
+            'BILLING_URL': str(session.billing_url),
             'USER_ID': str(session.user_id),
-            'SESSION_ID': session_id
+            'SESSION_ID': str(session_id)
         })
         print(f"Environment variables set:")
         print(f"  CSV_PATH: {temp_csv_path}")
@@ -219,7 +231,7 @@ def run_agent_for_job(session_id):
                 file_url=None
             )
             db.session.add(result)
-            session.status = 'completed'
+            set_job_status(session, 'completed')
             db.session.commit()
             return None
 
@@ -338,7 +350,7 @@ def run_agent_for_job(session_id):
                     file_url=None
                 )
                 db.session.add(result)
-                session.status = 'completed'
+                set_job_status(session, 'completed')
                 db.session.commit()
                 return None
             elif completion_data.get('status') == 'completed_with_error':
@@ -369,7 +381,7 @@ def run_agent_for_job(session_id):
                     file_url=None
                 )
                 db.session.add(result)
-                session.status = 'completed'
+                set_job_status(session, 'completed')
                 print(f"[ERROR] OpenAI error processed: {error_data['error']}")
                 db.session.commit()
                 return None
@@ -384,7 +396,7 @@ def run_agent_for_job(session_id):
                     file_url=None
                 )
                 db.session.add(result)
-                session.status = 'completed'
+                set_job_status(session, 'completed')
                 db.session.commit()
                 return None
             
@@ -403,7 +415,7 @@ def run_agent_for_job(session_id):
                 # No need to process results_data here since real-time results are already handled
                 print("Skipping results processing in error handler - real-time results already processed")
                 
-                session.status = 'completed'
+                set_job_status(session, 'completed')
                 db.session.commit()
                 return None
 
@@ -455,10 +467,12 @@ def run_agent_for_job(session_id):
             except Exception as e:
                 print(f"[WARN] Warning: Could not clean up temp directory {temp_dir}: {e}")
         
-        # Only mark as completed if not already marked as error
-        if session.status != 'error':
-            session.status = 'completed'
-            print(f"[OK] Job {session_id} completed successfully")
+        # Only mark as completed if not already marked as error or stopped
+        # For scheduled jobs, set status to 'idle' so they can run again
+        if session.status not in ['error', 'stopped']:
+            set_job_status(session, 'completed')
+        elif session.status == 'stopped':
+            print(f"[INFO] Job {session_id} was stopped, keeping status as 'stopped'")
         else:
             print(f"[ERROR] Job {session_id} completed with errors")
         db.session.commit()

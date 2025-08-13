@@ -5,6 +5,8 @@ from db import db
 from supabase_client import upload_csv_to_supabase, get_csv_public_url, supabase
 from agent_runner import run_agent_for_job_async, stop_agent_job
 from datetime import datetime
+from scheduler import scheduler
+from scheduled_jobs import run_scheduled_job
 
 bp = Blueprint("jobs", __name__)
 
@@ -24,7 +26,13 @@ def get_all_jobs():
             'billing_url': session.billing_url,
             'status': session.status,
             'created_at': session.created_at.isoformat(),
-            'results_count': len(results)
+            'results_count': len(results),
+            # Add scheduling information
+            'is_scheduled': session.is_scheduled,
+            'schedule_type': session.schedule_type,
+            'schedule_config': session.schedule_config,
+            'next_run': session.next_run.isoformat() if session.next_run else None,
+            'last_scheduled_run': session.last_scheduled_run.isoformat() if session.last_scheduled_run else None
         }
         jobs.append(job_data)
     return jsonify(jobs), 200
@@ -38,15 +46,89 @@ def create_job():
     csv_file = request.files['csv']
     login_url = request.form.get('login_url')
     billing_url = request.form.get('billing_url')
+    
+    # Get scheduling parameters
+    is_scheduled = request.form.get('is_scheduled', 'false').lower() == 'true'
+    schedule_type = request.form.get('schedule_type')
+    schedule_config = request.form.get('schedule_config')
+    
+    # Debug logging
+    print(f"[DEBUG] Received scheduling data:")
+    print(f"  is_scheduled: {is_scheduled}")
+    print(f"  schedule_type: {schedule_type}")
+    print(f"  schedule_config: {schedule_config}")
+    print(f"  All form data: {dict(request.form)}")
+    
     if not login_url or not billing_url:
         return jsonify({'error': 'login_url and billing_url required'}), 400
+    
     # Create a unique filename using timestamp
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = f"{user_id}/{timestamp}_{csv_file.filename}"
     csv_url = upload_csv_to_supabase(csv_file, filename)
-    session = ImportSession(user_id=user_id, csv_url=csv_url, login_url=login_url, billing_url=billing_url, status='idle')
+    
+    # Parse schedule_config if it's a string
+    if schedule_config and isinstance(schedule_config, str):
+        import json
+        try:
+            schedule_config = json.loads(schedule_config)
+            print(f"[DEBUG] Parsed schedule_config: {schedule_config}")
+        except json.JSONDecodeError:
+            print(f"[DEBUG] Failed to parse schedule_config: {schedule_config}")
+            return jsonify({'error': 'Invalid schedule_config format'}), 400
+    
+    # Create the session with scheduling fields
+    session = ImportSession(
+        user_id=user_id, 
+        csv_url=csv_url, 
+        login_url=login_url, 
+        billing_url=billing_url, 
+        status='idle',
+        is_scheduled=is_scheduled,
+        schedule_type=schedule_type if is_scheduled else None,
+        schedule_config=schedule_config if is_scheduled else None
+    )
+    
+    print(f"[DEBUG] Creating session with scheduling:")
+    print(f"  is_scheduled: {session.is_scheduled}")
+    print(f"  schedule_type: {session.schedule_type}")
+    print(f"  schedule_config: {session.schedule_config}")
+    
     db.session.add(session)
     db.session.commit()
+    
+    # If job is scheduled, add it to the scheduler
+    if is_scheduled and schedule_type and schedule_config:
+        print(f"[DEBUG] Attempting to schedule job {session.id}")
+        
+        # Import the Flask app instance directly to avoid context issues
+        from app import app
+        
+        # Create a wrapper function that passes the app instance directly
+        def run_job_wrapper(job_id):
+            run_scheduled_job(job_id, app)
+        
+        schedule_success = scheduler.schedule_job(session.id, {
+            'schedule_type': schedule_type,
+            'schedule_config': schedule_config
+        }, run_job_wrapper)
+        
+        if schedule_success:
+            print(f"[DEBUG] Job scheduled successfully")
+            # Calculate next run time
+            next_run = scheduler.calculate_next_run(schedule_type, schedule_config)
+            if next_run:
+                session.next_run = next_run
+                db.session.commit()
+                print(f"[DEBUG] Next run time set to: {next_run}")
+        else:
+            print(f"[DEBUG] Failed to schedule job")
+    else:
+        print(f"[DEBUG] Job not scheduled - conditions not met:")
+        print(f"  is_scheduled: {is_scheduled}")
+        print(f"  schedule_type: {schedule_type}")
+        print(f"  schedule_config: {schedule_config}")
+    
     return jsonify({
         'id': session.id, 
         'csv_url': csv_url, 
@@ -54,7 +136,11 @@ def create_job():
         'billing_url': billing_url, 
         'status': session.status,
         'created_at': session.created_at.isoformat(),
-        'results_count': 0
+        'results_count': 0,
+        'is_scheduled': is_scheduled,
+        'schedule_type': schedule_type if is_scheduled else None,
+        'schedule_config': schedule_config if is_scheduled else None,
+        'next_run': session.next_run.isoformat() if session.next_run else None
     }), 201
 
 @bp.route('/jobs/<session_id>/run', methods=['POST'])

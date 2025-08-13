@@ -77,6 +77,20 @@ export const jobsAPI = {
     formData.append("login_url", jobData.login_url);
     formData.append("billing_url", jobData.billing_url);
 
+    // Add scheduling parameters if they exist
+    if (jobData.is_scheduled !== undefined) {
+      formData.append("is_scheduled", jobData.is_scheduled.toString());
+    }
+    if (jobData.schedule_type) {
+      formData.append("schedule_type", jobData.schedule_type);
+    }
+    if (jobData.schedule_config) {
+      formData.append(
+        "schedule_config",
+        JSON.stringify(jobData.schedule_config)
+      );
+    }
+
     const response = await api.post("/api/jobs", formData, {
       headers: {
         "Content-Type": "multipart/form-data",

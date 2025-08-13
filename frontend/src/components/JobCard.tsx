@@ -73,6 +73,12 @@ const JobCard: React.FC<JobCardProps> = ({
           >
             {getStatusText(job.status)}
           </span>
+          {/* Add schedule indicator */}
+          {job.is_scheduled && (
+            <span style={styles.scheduleBadge}>
+              📅 Scheduled
+            </span>
+          )}
         </div>
         <div style={styles.date}>{formatDate(job.created_at)}</div>
       </div>
@@ -89,6 +95,17 @@ const JobCard: React.FC<JobCardProps> = ({
         <div style={styles.results}>
           <strong>Results:</strong> {job.results_count} items
         </div>
+        {/* Add scheduling information */}
+        {job.is_scheduled && job.schedule_config && (
+          <div style={styles.scheduleInfo}>
+            <strong>Schedule:</strong> {getScheduleDisplay()}
+            {job.next_run && (
+              <div style={styles.nextRun}>
+                <strong>Next Run:</strong> {formatDate(job.next_run)}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={styles.actions}>
@@ -152,6 +169,26 @@ const JobCard: React.FC<JobCardProps> = ({
       </div>
     </div>
   );
+
+  function getScheduleDisplay() {
+    if (!job.schedule_config) return 'Not configured';
+    
+    const { schedule_type, schedule_config } = job;
+    
+    if (schedule_type === 'weekly') {
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const dayName = days[schedule_config.day_of_week || 0];
+      const time = `${(schedule_config.hour || 0).toString().padStart(2, '0')}:${(schedule_config.minute || 0).toString().padStart(2, '0')}`;
+      return `Every ${dayName} at ${time}`;
+    } else if (schedule_type === 'daily') {
+      const time = `${(schedule_config.hour || 0).toString().padStart(2, '0')}:${(schedule_config.minute || 0).toString().padStart(2, '0')}`;
+      return `Every day at ${time}`;
+    } else if (schedule_type === 'custom') {
+      return `Custom: ${schedule_config.cron_expression}`;
+    }
+    
+    return 'Unknown schedule';
+  }
 };
 
 const styles = {
@@ -255,6 +292,26 @@ const styles = {
     color: "#fff",
     cursor: "not-allowed",
     opacity: 0.6,
+  },
+  scheduleBadge: {
+    backgroundColor: '#ff9800',
+    color: 'white',
+    padding: '4px 8px',
+    borderRadius: '12px',
+    fontSize: '12px',
+    marginLeft: '8px',
+  },
+  scheduleInfo: {
+    marginTop: '10px',
+    padding: '8px',
+    backgroundColor: '#f0f8ff',
+    borderRadius: '4px',
+    border: '1px solid #d0e7ff',
+  },
+  nextRun: {
+    marginTop: '5px',
+    fontSize: '12px',
+    color: '#666',
   },
 };
 

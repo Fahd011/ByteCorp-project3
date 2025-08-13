@@ -11,6 +11,17 @@ export interface Job {
   status: "idle" | "running" | "completed" | "stopped" | "error";
   created_at: string;
   results_count: number;
+  // New scheduling fields
+  is_scheduled?: boolean;
+  schedule_type?: "weekly" | "daily" | "monthly" | "custom";
+  schedule_config?: {
+    day_of_week?: number; // 0-6 (Sunday-Saturday)
+    hour?: number; // 0-23
+    minute?: number; // 0-59
+    cron_expression?: string; // For custom scheduling
+  };
+  next_run?: string; // ISO string of next scheduled run
+  last_scheduled_run?: string; // ISO string of last scheduled run
 }
 
 export interface JobResult {
@@ -47,4 +58,13 @@ export interface CreateJobData {
   csv: File;
   login_url: string;
   billing_url: string;
+  // New scheduling fields
+  is_scheduled?: boolean;
+  schedule_type?: "weekly" | "daily" | "monthly" | "custom";
+  schedule_config?: {
+    day_of_week?: number;
+    hour?: number;
+    minute?: number;
+    cron_expression?: string;
+  };
 }

@@ -18,6 +18,12 @@ class ImportSession(db.Model):
     billing_url = db.Column(db.String, nullable=False)
     status = db.Column(db.String, default="idle")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # New scheduling fields
+    is_scheduled = db.Column(db.Boolean, default=False)
+    schedule_type = db.Column(db.String)  # 'weekly', 'daily', 'monthly', 'custom'
+    schedule_config = db.Column(db.JSON)  # Store schedule configuration as JSON
+    next_run = db.Column(db.DateTime)  # Next scheduled run time
+    last_scheduled_run = db.Column(db.DateTime)  # Last scheduled run time
 
 class ImportResult(db.Model):
     __tablename__ = 'import_results'
