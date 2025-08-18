@@ -1,4 +1,4 @@
-from db import db
+from db.db import db
 import uuid
 from datetime import datetime
 

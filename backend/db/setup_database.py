@@ -32,8 +32,8 @@ def check_environment():
 def setup_database():
     """Set up the database with all tables."""
     try:
-        from db.db import db
-        from config import Config
+        from .db import db
+        from ..config import Config
         from flask import Flask
         
         # Create a Flask app with the database configuration
@@ -43,7 +43,7 @@ def setup_database():
         
         with app.app_context():
             # Import models to register them with SQLAlchemy
-            from models.models import User, ImportSession, ImportResult
+            from ..models.models import User, ImportSession, ImportResult
             
             # Create all tables
             db.create_all()

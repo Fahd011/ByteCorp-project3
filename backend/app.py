@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
-from db import db
+from db.db import db
 from config import Config
 from routes.auth_routes import bp as auth_bp
 from routes.job_routes import bp as jobs_bp

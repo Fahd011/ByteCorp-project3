@@ -16,7 +16,7 @@ def run_scheduled_job(job_id, app):
         
         # Import here to avoid circular imports
         from models.models import ImportSession
-        from db import db
+        from db.db import db
         
         # Run within Flask application context
         with app.app_context():

@@ -7,7 +7,7 @@ import json
 import threading
 from supabase_client import download_file_from_supabase, upload_pdf_to_bills_bucket
 from models.models import ImportSession, ImportResult
-from db import db
+from db.db import db
 from datetime import datetime
 
 # Dictionary to store running processes

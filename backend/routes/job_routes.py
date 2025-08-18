@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.models import ImportSession, ImportResult, User
-from db import db
+from db.db import db
 from supabase_client import upload_csv_to_supabase, get_csv_public_url, supabase, get_bills_bucket_public_url, download_from_bills_bucket
 from agent_runner import run_agent_for_job_async, stop_agent_job
 from datetime import datetime
