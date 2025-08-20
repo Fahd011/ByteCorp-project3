@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Database setup script for ByteCorp project.
+Database setup script for Sagiliti project.
 Run this script to set up the database locally.
 """
 import os
@@ -86,7 +86,7 @@ def setup_database():
 
 def main():
     """Main setup function."""
-    print("ByteCorp Database Setup")
+    print("Sagiliti Database Setup")
     print("=" * 40)
     
     # Check environment

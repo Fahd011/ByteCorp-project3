@@ -53,7 +53,7 @@ def start_frontend():
         return None
 
 def main():
-    print("🎯 ByteCorp Application Starter")
+    print("🎯 Sagiliti Application Starter")
     print("=" * 40)
     
     # Start backend

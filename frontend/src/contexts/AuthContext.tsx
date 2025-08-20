@@ -77,18 +77,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setToken(newToken);
     setUser(userData);
 
-    // Set up automatic logout - use UTC for consistent timezone handling
-    const expiresAtDate = new Date(expiresAt);
-    const now = new Date();
-    const timeUntilExpiry = expiresAtDate.getTime() - now.getTime();
+    // // Set up automatic logout - use UTC for consistent timezone handling
+    // const expiresAtDate = new Date(expiresAt);
+    // const now = new Date();
+    // const timeUntilExpiry = expiresAtDate.getTime() - now.getTime();
 
-    if (timeUntilExpiry > 0) {
-      setTimeout(() => {
-        logout();
-      }, timeUntilExpiry);
-    } else {
-      logout();
-    }
+    // if (timeUntilExpiry > 0) {
+    //   setTimeout(() => {
+    //     logout();
+    //   }, timeUntilExpiry);
+    // } else {
+    //   logout();
+    // }
   };
 
   const logout = () => {

@@ -1,6 +1,6 @@
-# ByteCorp Frontend
+# Sagiliti Frontend
 
-A React TypeScript frontend for the ByteCorp job management system.
+A React TypeScript frontend for the Sagiliti job management system.
 
 ## Features
 

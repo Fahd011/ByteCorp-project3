@@ -36,7 +36,7 @@ const Login: React.FC = () => {
   return (
     <div style={styles.container}>
       <div style={styles.formContainer}>
-        <h1 style={styles.title}>ByteCorp</h1>
+        <h1 style={styles.title}>Sagiliti</h1>
         <h2 style={styles.subtitle}>{isSignup ? 'Sign Up' : 'Login'}</h2>
         
         <form onSubmit={handleSubmit} style={styles.form}>
