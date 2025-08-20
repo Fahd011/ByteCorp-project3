@@ -45,7 +45,7 @@ frontend/.env.production.local
 .vscode/
 .idea/
 *.swp
-*.swo
+*.swog
 
 # OS
 .DS_Store
