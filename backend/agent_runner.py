@@ -5,7 +5,7 @@ import os
 import psutil
 import json
 import threading
-from supabase_client import download_file_from_supabase, upload_pdf_to_bills_bucket
+from azure_storage_client import download_file_from_azure, upload_pdf_to_bills_folder
 from models.models import ImportSession, ImportResult
 from db.db import db
 from datetime import datetime
@@ -150,9 +150,9 @@ def run_agent_for_job(session_id):
         os.makedirs(temp_dir, exist_ok=True)
         print(f"Created temp directory: {temp_dir}")
         
-        # Download CSV from Supabase and save temporarily with a unique name
-        print(f"Downloading CSV from Supabase: {session.csv_url}")
-        csv_bytes = download_file_from_supabase(session.csv_url)
+        # Download CSV from Azure and save temporarily with a unique name
+        print(f"Downloading CSV from Azure: {session.csv_url}")
+        csv_bytes = download_file_from_azure(session.csv_url)
         temp_csv_path = os.path.join(temp_dir, f'credentials_{session_id}.csv')
         with open(temp_csv_path, 'wb') as f:
             f.write(csv_bytes)

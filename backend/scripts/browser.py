@@ -90,7 +90,7 @@ from datetime import datetime
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from supabase_client import upload_pdf_to_bills_bucket
+from azure_storage_client import upload_pdf_to_bills_folder
 
 load_dotenv()
 
@@ -154,7 +154,7 @@ async def process_single_email(email, password, user_id, login_url, billing_url,
 2. Log in using:
    - Email: {email}
    - Password: {password}
-3. Then go to this url: {billing_url}
+3. Navigate to billings page from the website.
 4. On the billing history page:
    - download only download the first bill
 5. Wait at least 5 seconds after clicking to ensure the download is triggered.
@@ -265,8 +265,8 @@ Important:
             print(f"[FILENAME] User ID: {user_id}")
             
             try:
-                print(f"[UPLOAD] Attempting to upload {len(pdf_content)} bytes to Supabase...")
-                file_url = upload_pdf_to_bills_bucket(pdf_content, filename, user_id)
+                print(f"[UPLOAD] Attempting to upload {len(pdf_content)} bytes to Azure...")
+                file_url = upload_pdf_to_bills_folder(pdf_content, filename, user_id)
                 
                 # Write real-time result
                 result_data = {
@@ -353,13 +353,13 @@ Important:
                     pdf_content = f.read()
                 
                 if pdf_content and pdf_content.startswith(b'%PDF'):
-                    print(f"[TIMEOUT] Valid PDF found, uploading to Supabase")
+                    print(f"[TIMEOUT] Valid PDF found, uploading to Azure")
                     
-                    # Create safe filename and upload to Supabase
+                    # Create safe filename and upload to Azure
                     filename = create_safe_filename(email)
                     
                     try:
-                        file_url = upload_pdf_to_bills_bucket(pdf_content, filename, user_id)
+                        file_url = upload_pdf_to_bills_folder(pdf_content, filename, user_id)
                         
                         results.append({
                             'email': email,

@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.models import ImportSession, ImportResult, User
 from db.db import db
-from supabase_client import upload_csv_to_supabase, get_csv_public_url, supabase, get_bills_bucket_public_url, download_from_bills_bucket
+from azure_storage_client import upload_csv_to_supabase, get_csv_public_url, get_bills_bucket_public_url, download_from_bills_bucket
 from agent_runner import run_agent_for_job_async, stop_agent_job
 from datetime import datetime
 from scheduler import scheduler
@@ -268,7 +268,7 @@ def get_job_details(session_id):
         }
         # Add proxy URL for successful results with file URLs
         if r.status == 'success' and r.file_url:
-            result_data['proxy_url'] = f"/jobs/{session_id}/bills/{r.id}/view"
+            result_data['proxy_url'] = f"/api/jobs/{session_id}/bills/{r.id}/view"
         output.append(result_data)
     return jsonify({
         'id': session.id,
@@ -339,15 +339,59 @@ def get_job_credentials(session_id):
         return jsonify({'error': 'No credentials file found for this job'}), 404
     
     try:
-        # Get the public URL for the CSV file
-        csv_public_url = get_csv_public_url(session.csv_url)
+        # Return proxy URL instead of direct Azure URL since storage is not public
+        proxy_url = f"/api/jobs/{session_id}/credentials/view"
         
         return jsonify({
-            'csv_url': csv_public_url,
+            'csv_url': proxy_url,
             'filename': session.csv_url.split('/')[-1] if session.csv_url else 'credentials.csv'
         }), 200
     except Exception as e:
         return jsonify({'error': f'Failed to get credentials URL: {str(e)}'}), 500
+
+@bp.route('/jobs/<session_id>/credentials/view', methods=['GET'])
+@jwt_required()
+def view_credentials_csv(session_id):
+    """Proxy endpoint to serve CSV with proper headers for browser viewing"""
+    user_id = get_jwt_identity()
+    session = ImportSession.query.get(session_id)
+    if not session:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    if not session.csv_url:
+        return jsonify({'error': 'No credentials file found for this job'}), 404
+    
+    try:
+        # Download the CSV from Azure Storage using the storage key
+        from azure_storage_client import download_file_from_azure
+        
+        print(f"[PROXY] Downloading CSV for session {session_id}")
+        print(f"[PROXY] Azure URL: {session.csv_url}")
+        
+        # Download file content from Azure
+        file_content = download_file_from_azure(session.csv_url)
+        
+        if not file_content:
+            return jsonify({'error': 'Failed to download file from Azure'}), 500
+        
+        print(f"[PROXY] Successfully downloaded CSV, size: {len(file_content)} bytes")
+        
+        # Return the CSV with proper headers for browser viewing
+        from flask import Response
+        return Response(
+            file_content,
+            mimetype='text/csv',
+            headers={
+                'Content-Disposition': 'inline; filename=credentials.csv',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        )
+        
+    except Exception as e:
+        print(f"[PROXY] Error serving CSV: {str(e)}")
+        return jsonify({'error': f'Failed to serve CSV: {str(e)}'}), 500
 
 @bp.route('/jobs/<session_id>/realtime', methods=['GET'])
 @jwt_required()
@@ -374,7 +418,7 @@ def get_job_realtime_status(session_id):
         }
         # Add proxy URL for successful results with file URLs
         if r.status == 'success' and r.file_url:
-            result_data['proxy_url'] = f"/jobs/{session_id}/bills/{r.id}/view"
+            result_data['proxy_url'] = f"/api/jobs/{session_id}/bills/{r.id}/view"
         output.append(result_data)
     
     return jsonify({
@@ -414,11 +458,9 @@ def get_job_bills(session_id):
             else:
                 filename = result.file_url.split('/')[-1]  # Fallback
             
-            # Generate download URL from Supabase storage
+            # Generate proxy URL for secure access
             try:
-                # Extract the file path from the Supabase URL
-                file_path = '/'.join(path_parts[bills_index + 1:]) if bills_index != -1 else filename
-                download_url = get_bills_bucket_public_url(file_path)
+                proxy_url = f"/api/jobs/{session_id}/bills/{result.id}/view"
                 
                 bill_data = {
                     'id': result.id,
@@ -427,11 +469,11 @@ def get_job_bills(session_id):
                     'uploaded_at': result.created_at.isoformat() if result.created_at else None,
                     'file_size': None,  # Not stored in ImportResult
                     'status': 'uploaded',
-                    'download_url': download_url
+                    'download_url': proxy_url
                 }
                 bills.append(bill_data)
             except Exception as e:
-                print(f"Error generating download URL for {filename}: {e}")
+                print(f"Error generating proxy URL for {filename}: {e}")
                 # Add bill without download URL
                 bill_data = {
                     'id': result.id,
@@ -490,13 +532,14 @@ def view_bill_pdf(session_id, result_id):
         file_path = '/'.join(path_parts[bills_index + 1:])
         print(f"[PROXY] Extracted file path: {file_path}")
         
-        # Download the file from Supabase
-        print(f"[PROXY] Downloading from Supabase bills bucket...")
-        response = download_from_bills_bucket(file_path)
+        # Download the file from Azure Storage
+        print(f"[PROXY] Downloading from Azure Storage...")
+        from azure_storage_client import download_file_from_azure
+        response = download_file_from_azure(result.file_url)
         
-        if hasattr(response, 'error') and response.error:
-            print(f"[PROXY] Supabase download error: {response.error}")
-            return jsonify({'error': f'Failed to download file: {response.error}'}), 500
+        if not response:
+            print(f"[PROXY] Azure download returned empty response")
+            return jsonify({'error': 'Failed to download file from Azure'}), 500
         
         print(f"[PROXY] Successfully downloaded PDF, size: {len(response) if response else 'unknown'} bytes")
         

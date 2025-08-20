@@ -99,19 +99,26 @@ const Bills: React.FC = () => {
 
   const handleDownloadFile = async (fileUrl: string, email: string, timestamp?: string) => {
     try {
-      console.log("Downloading from Supabase URL:", fileUrl);
+      console.log("Downloading from proxy URL:", fileUrl);
 
       // Generate filename with email and timestamp
       const filename = generateFilename(email, timestamp);
 
-      // Download the file from Supabase and create a blob with correct MIME type
-      const response = await fetch(fileUrl);
+      // Fetch the PDF content with JWT authentication
+      const token = localStorage.getItem("token");
+      const fullUrl = `${process.env.BACKEND_URL || "http://127.0.0.1:5000"}${fileUrl}`;
+      
+      const response = await fetch(fullUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch PDF: ${response.statusText}`);
       }
 
-      const blob = await response.blob();
-      const pdfBlob = new Blob([blob], { type: "application/pdf" });
+      const pdfBlob = await response.blob();
       const pdfUrl = URL.createObjectURL(pdfBlob);
 
       // Create download link
@@ -133,32 +140,31 @@ const Bills: React.FC = () => {
 
   const handleViewFile = async (fileUrl: string) => {
     try {
-      console.log("Opening Supabase URL:", fileUrl);
+      console.log("Opening proxy URL:", fileUrl);
 
-      // Since we fixed the MIME type in upload, we can try direct opening first
-      // If that fails, fall back to the blob method
-      try {
-        // Try direct opening first
-        window.open(fileUrl, "_blank");
-      } catch (directError) {
-        console.log("Direct opening failed, using blob method:", directError);
-
-        // Fallback: Download and create blob with correct MIME type
-        const response = await fetch(fileUrl);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+      // Fetch the PDF content with JWT authentication
+      const token = localStorage.getItem("token");
+      const fullUrl = `${process.env.BACKEND_URL || "http://127.0.0.1:5000"}${fileUrl}`;
+      
+      const response = await fetch(fullUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-
-        const blob = await response.blob();
-        const pdfBlob = new Blob([blob], { type: "application/pdf" });
-        const pdfUrl = URL.createObjectURL(pdfBlob);
-
-        // Open the PDF in a new tab
-        window.open(pdfUrl, "_blank");
-
-        // Clean up the blob URL after a delay
-        setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000); // 1 minute
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch PDF: ${response.statusText}`);
       }
+
+      const pdfBlob = await response.blob();
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+
+      // Open the PDF in a new tab
+      window.open(pdfUrl, "_blank");
+
+      // Clean up the blob URL after a delay
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000); // 1 minute
+      
     } catch (error) {
       console.error("Error opening file:", error);
       setError("Failed to open PDF file");
@@ -404,10 +410,10 @@ const Bills: React.FC = () => {
                           )}
                         </div>
                       <div style={styles.resultActions}>
-                        {result.file_url && (
+                        {result.proxy_url && (
                           <div style={styles.fileActions}>
                             <button
-                              onClick={() => handleViewFile(result.file_url!)}
+                              onClick={() => handleViewFile(result.proxy_url!)}
                               style={styles.viewFileButton}
                             >
                               View PDF
@@ -415,7 +421,7 @@ const Bills: React.FC = () => {
                             <button
                               onClick={() =>
                                 handleDownloadFile(
-                                  result.file_url!,
+                                  result.proxy_url!,
                                   result.email || `unknown_${index}`,
                                   result.created_at
                                 )

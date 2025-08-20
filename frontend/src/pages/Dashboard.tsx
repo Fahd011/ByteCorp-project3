@@ -251,8 +251,32 @@ const Dashboard: React.FC = () => {
     setLoadingJobs((prev) => new Set(prev).add(jobId));
     try {
       const credentialsData = await jobsAPI.getJobCredentials(jobId);
-      // Open the CSV file in a new tab
-      window.open(credentialsData.csv_url, "_blank");
+      
+      // Fetch the CSV content with JWT authentication
+      const token = localStorage.getItem("token");
+      const fullUrl = `${process.env.BACKEND_URL || "http://127.0.0.1:5000"}${credentialsData.csv_url}`;
+      
+      const response = await fetch(fullUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch CSV: ${response.statusText}`);
+      }
+      
+      const csvContent = await response.text();
+      
+      // Create a blob and open it in a new tab
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const blobUrl = URL.createObjectURL(blob);
+      
+      window.open(blobUrl, "_blank");
+      
+      // Clean up the blob URL after a delay
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000); // 1 minute
+      
     } catch (err: any) {
       if (err.response?.status === 404) {
         setError("No credentials file found for this job");

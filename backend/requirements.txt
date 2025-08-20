@@ -6,7 +6,8 @@ flask_jwt_extended
 sqlalchemy
 psycopg2-binary
 python-dotenv
-supabase
+azure-storage-blob>=12.19.0
+azure-core>=1.29.0
 requests
 flask_sqlalchemy
 browser-use
