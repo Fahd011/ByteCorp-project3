@@ -1,3 +1,4 @@
+import os
 from flask import Flask
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config.from_object(Config)
-CORS(app, origins=['http://localhost:3000', 'http://127.0.0.1:3000'])  # Enable CORS for frontend
+# CORS(app, origins=['http://localhost:3000', 'http://127.0.0.1:3000', ""])  # Enable CORS for frontend #not working for some reason 
 db.init_app(app)
 jwt = JWTManager(app)
 
@@ -27,6 +28,15 @@ scheduler.init_app(app)
 
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(jobs_bp, url_prefix='/api')
+
+@app.route('/')
+def home():
+    """Root endpoint - fixes the 'Not Found' error"""
+    return {
+        'message': 'Flask API is running successfully',
+        'status': 'success',
+        'version': '1.0'
+    }
 
 # Add scheduler status endpoint
 @app.route('/api/scheduler/status', methods=['GET'])
@@ -68,4 +78,6 @@ except (ValueError, OSError) as e:
 cleanup_orphaned_processes()
 
 if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False)
+    from backend import app
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0',debug=True,port=port, use_reloader=False)
