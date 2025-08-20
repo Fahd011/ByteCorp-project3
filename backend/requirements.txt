@@ -12,3 +12,4 @@ flask_sqlalchemy
 browser-use
 flask-migrate
 APScheduler>=3.10.0
+pandas>=2.0.0

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Database setup script for ByteCorp project.
+Database setup script for Sagiliti project.
 Run this script to set up the database locally.
 """
 import os
@@ -32,8 +32,15 @@ def check_environment():
 def setup_database():
     """Set up the database with all tables."""
     try:
-        from .db import db
-        from ..config import Config
+        # Add the backend directory to Python path to enable absolute imports
+        import sys
+        import os
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if backend_dir not in sys.path:
+            sys.path.insert(0, backend_dir)
+        
+        from db.db import db
+        from config import Config
         from flask import Flask
         
         # Create a Flask app with the database configuration
@@ -43,7 +50,7 @@ def setup_database():
         
         with app.app_context():
             # Import models to register them with SQLAlchemy
-            from ..models.models import User, ImportSession, ImportResult
+            from models.models import User, ImportSession, ImportResult
             
             # Create all tables
             db.create_all()
@@ -86,7 +93,7 @@ def setup_database():
 
 def main():
     """Main setup function."""
-    print("ByteCorp Database Setup")
+    print("Sagiliti Database Setup")
     print("=" * 40)
     
     # Check environment
