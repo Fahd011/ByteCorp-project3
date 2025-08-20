@@ -78,6 +78,5 @@ except (ValueError, OSError) as e:
 cleanup_orphaned_processes()
 
 if __name__ == "__main__":
-    from backend import app
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0',debug=True,port=port, use_reloader=False)
