@@ -12,6 +12,7 @@ from scheduled_jobs import run_scheduled_job
 import signal
 import sys
 import logging
+from pyngrok import ngrok
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +20,9 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config.from_object(Config)
-# CORS(app, origins=['http://localhost:3000', 'http://127.0.0.1:3000', ""])  # Enable CORS for frontend #not working for some reason 
+#CORS(app, origins=['http://localhost:3000', 'http://127.0.0.1:3000', 'https://248cfab341a7.ngrok-free.app', ""])  # Enable CORS for frontend #not working for some reason 
+CORS(app, resources={r"/*": {"origins": "*"}})
+
 db.init_app(app)
 jwt = JWTManager(app)
 
@@ -79,4 +82,7 @@ cleanup_orphaned_processes()
 
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
+    # Start ngrok tunnel
+    # public_url = ngrok.connect(port)
+    # print(f"[INFO] ngrok tunnel available at: {public_url}")
     app.run(host='0.0.0.0',debug=True,port=port, use_reloader=False)

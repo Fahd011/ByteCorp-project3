@@ -135,6 +135,7 @@ const Dashboard: React.FC = () => {
     setIsLoading(true);
     try {
       const jobsData = await jobsAPI.getAllJobs();
+      console.log("Jobs API returned:", jobsData);
       // Keep all jobs including completed ones visible on dashboard
       setJobs(jobsData);
     } catch (err: any) {
