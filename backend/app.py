@@ -12,7 +12,6 @@ from scheduled_jobs import run_scheduled_job
 import signal
 import sys
 import logging
-from pyngrok import ngrok
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
