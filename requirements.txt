@@ -1,2 +1,9 @@
-playwright>=1.40.0
-openai>=1.0.0 
+browser-use
+python-dotenv
+pandas
+playwright
+openai
+fastapi
+uvicorn
+python-multipart
+psutil
