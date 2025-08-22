@@ -42,9 +42,15 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+# Add explicit OPTIONS handler for CORS preflight
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    return {"message": "OK"}
 
 # Security
 SECRET_KEY = config.SECRET_KEY
@@ -205,6 +211,70 @@ class UserBillingCredential(Base):
 # Create tables
 Base.metadata.create_all(bind=engine)
 
+# Password hashing functions (moved here before user creation)
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    except (ValueError, TypeError):
+        # Handle invalid hash format
+        return False
+
+# Create default user if it doesn't exist
+def create_default_user():
+    """Create a default user if it doesn't exist in the database"""
+    print("🔍 Starting default user creation check...")
+    try:
+        db = SessionLocal()
+        print("✅ Database session created successfully")
+        
+        # Check if default user already exists
+        default_email = "sagiliti@yopmail.com"
+        print(f"🔍 Checking if user with email '{default_email}' exists...")
+        existing_user = db.query(User).filter(User.email == default_email).first()
+        
+        if not existing_user:
+            print("❌ User not found, creating new user...")
+            # Create default user
+            default_password = "D3x4YR*8{Rx)Tj>"
+            hashed_password = hash_password(default_password)
+            print(f"🔐 Password hashed successfully")
+            
+            new_user = User(
+                id=str(uuid.uuid4()),
+                email=default_email,
+                password_hash=hashed_password
+            )
+            
+            db.add(new_user)
+            db.commit()
+            print("✅ User added to database successfully")
+            
+            print("=" * 60)
+            print("🎉 DEFAULT USER CREATED SUCCESSFULLY!")
+            print("=" * 60)
+            print(f"📧 Email: {default_email}")
+            print(f"🔑 Password: {default_password}")
+            print("=" * 60)
+            print("💡 You can now login with these credentials")
+            print("=" * 60)
+            
+        else:
+            print(f"✅ User '{default_email}' already exists in database")
+            
+        db.close()
+        print("✅ Database session closed")
+        
+    except Exception as e:
+        print(f"❌ Error creating default user: {e}")
+        import traceback
+        traceback.print_exc()
+
+# Create default user
+create_default_user()
+
 # Add missing columns if they don't exist (database migration)
 def add_missing_columns():
     try:
@@ -262,19 +332,8 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         return user_id
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.JWTError:
+    except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
-
-# Password hashing
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-def verify_password(password: str, hashed: str) -> bool:
-    try:
-        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
-    except (ValueError, TypeError):
-        # Handle invalid hash format
-        return False
 
 # Background task for agent simulation
 async def simulate_agent_run(credential_id: str, db: Session):
@@ -847,15 +906,30 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/login", response_model=Token)
 def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
+    print(f"🔍 Login attempt for email: {user_credentials.email}")
+    
     user = db.query(User).filter(User.email == user_credentials.email).first()
     
-    if not user or not verify_password(user_credentials.password, user.password_hash):
+    if not user:
+        print(f"❌ User not found for email: {user_credentials.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    print(f"✅ User found: {user.email}")
+    print(f"🔍 Verifying password...")
+    
+    if not verify_password(user_credentials.password, user.password_hash):
+        print(f"❌ Password verification failed for user: {user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    print(f"✅ Password verified successfully for user: {user.email}")
     access_token = create_access_token(data={"sub": user.id})
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -1146,13 +1220,13 @@ def get_results(
 @app.post("/api/create-test-user")
 def create_test_user(db: Session = Depends(get_db)):
     """Create a test user for development purposes"""
-    test_email = "test@example.com"
-    test_password = "password123"
+    test_email = "sagiliti@yopmail.com"
+    test_password = "D3x4YR*8{Rx)Tj>"
     
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == test_email).first()
     if existing_user:
-        return {"message": "Test user already exists", "email": test_email}
+        return {"message": "Default user already exists", "email": test_email}
     
     # Create new user with hashed password
     hashed_password = hash_password(test_password)
@@ -1166,7 +1240,7 @@ def create_test_user(db: Session = Depends(get_db)):
     db.refresh(new_user)
     
     return {
-        "message": "Test user created successfully",
+        "message": "Default user created successfully",
         "email": test_email,
         "password": test_password,
         "user_id": new_user.id
