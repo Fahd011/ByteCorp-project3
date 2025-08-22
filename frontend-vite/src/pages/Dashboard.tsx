@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { toast } from 'react-hot-toast';
-import { Users, FileText, Clock, CheckCircle, Plus, Play, Square, Upload, X, Trash2, Calendar, Download } from 'lucide-react';
 import { credentialsAPI, schedulingAPI } from '../services/api';
 import { formatDate } from '../utils/helpers';
 
-const Dashboard = () => {
-  const [credentials, setCredentials] = useState([]);
+const Dashboard: React.FC = () => {
+  const [credentials, setCredentials] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
-    csvFile: null,
+    csvFile: null as File | null,
     loginUrl: '',
     billingUrl: '',
   });
@@ -30,8 +29,8 @@ const Dashboard = () => {
     }
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file && file.type === 'text/csv') {
       setFormData({ ...formData, csvFile: file });
     } else {
@@ -39,7 +38,7 @@ const Dashboard = () => {
     }
   };
 
-  const handleCreateSession = async (e) => {
+  const handleCreateSession = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     if (!formData.csvFile) {
@@ -73,16 +72,16 @@ const Dashboard = () => {
       
       // Refresh credentials list
       fetchCredentials();
-    } catch (error) {
+    } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Upload failed');
     } finally {
       setUploading(false);
     }
   };
 
-  const handleAgentControl = async (credId, action) => {
+  const handleAgentControl = async (credId: string, action: 'RUN' | 'STOPPED') => {
     try {
-      await credentialsAPI.controlAgent(credId, action);
+      await credentialsAPI.controlAgent(credId, { action });
       toast.success(`Agent ${action.toLowerCase()}`);
       fetchCredentials();
     } catch (error) {
@@ -90,7 +89,7 @@ const Dashboard = () => {
     }
   };
 
-  const handleDelete = async (credId) => {
+  const handleDelete = async (credId: string) => {
     try {
       await credentialsAPI.delete(credId);
       toast.success('Credential deleted');
@@ -103,14 +102,14 @@ const Dashboard = () => {
   const handleScheduleWeekly = async () => {
     try {
       await schedulingAPI.scheduleWeekly();
-      toast.success('Scheduled all credentials to run weekly');
+      toast.success('Weekly schedule created successfully');
       fetchCredentials();
     } catch (error) {
-      toast.error('Failed to schedule weekly runs');
+      toast.error('Failed to create weekly schedule');
     }
   };
 
-  const handleDownloadPDF = async (credId, email) => {
+  const handleDownloadPDF = async (credId: string, email: string) => {
     try {
       const response = await credentialsAPI.downloadPDF(credId);
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -127,31 +126,28 @@ const Dashboard = () => {
     }
   };
 
-  const getStatusBadgeClass = (status) => {
+  const getStatusBadgeClass = (status: string | undefined) => {
     switch (status?.toLowerCase()) {
       case 'idle':
-        return 'status-badge status-idle';
+        return 'status-idle';
       case 'running':
-        return 'status-badge status-running';
+        return 'status-running';
       case 'completed':
-        return 'status-badge status-completed';
+        return 'status-completed';
       case 'error':
-        return 'status-badge status-error';
+        return 'status-error';
       default:
-        return 'status-badge status-idle';
+        return 'status-idle';
     }
   };
 
   if (loading) {
-    return (
-      <div className="dashboard">
-        <div className="loading">Loading dashboard...</div>
-      </div>
-    );
+    return <div className="loading">Loading...</div>;
   }
 
   return (
-    <div className="dashboard">
+    <div>
+      {/* Dashboard Header */}
       <div className="dashboard-header">
         <h1 className="dashboard-title">Dashboard</h1>
         <p className="dashboard-subtitle">
@@ -159,160 +155,146 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Cards */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-title">Total Credentials</div>
           <div className="stat-value">{credentials.length}</div>
-          <Users size={24} style={{ marginTop: '0.5rem', color: '#6b7280' }} />
+          <span style={{ marginTop: '0.5rem', color: '#6b7280', fontSize: '24px' }}>
+            👥
+          </span>
         </div>
 
         <div className="stat-card">
           <div className="stat-title">Active Credentials</div>
           <div className="stat-value">{credentials.filter(c => c.last_state === 'running').length}</div>
-          <Clock size={24} style={{ marginTop: '0.5rem', color: '#3b82f6' }} />
+          <span style={{ marginTop: '0.5rem', color: '#3b82f6', fontSize: '24px' }}>
+            ⏰
+          </span>
         </div>
 
         <div className="stat-card">
           <div className="stat-title">Completed Jobs</div>
           <div className="stat-value">{credentials.filter(c => c.last_state === 'completed').length}</div>
-          <CheckCircle size={24} style={{ marginTop: '0.5rem', color: '#10b981' }} />
+          <span style={{ marginTop: '0.5rem', color: '#10b981', fontSize: '24px' }}>
+            ✅
+          </span>
         </div>
 
         <div className="stat-card">
           <div className="stat-title">Failed Jobs</div>
           <div className="stat-value">{credentials.filter(c => c.last_state === 'error').length}</div>
-          <FileText size={24} style={{ marginTop: '0.5rem', color: '#ef4444' }} />
+          <span style={{ marginTop: '0.5rem', color: '#ef4444', fontSize: '24px' }}>
+            ❌
+          </span>
         </div>
       </div>
 
-      {/* Create Session Button */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, color: '#1f2937' }}>Credential Jobs</h2>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              onClick={handleScheduleWeekly}
-              className="btn btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-            >
-              <Calendar size={16} />
-              Schedule Weekly
-            </button>
-            <button
-              onClick={() => setShowModal(true)}
-              className="btn btn-primary"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-            >
-              <Plus size={16} />
-              Create Session
-            </button>
-          </div>
+      {/* Credentials Section */}
+      <div className="credentials-header">
+        <h2 className="credentials-title">Credential Jobs</h2>
+        <div className="credentials-actions">
+          <button
+            onClick={handleScheduleWeekly}
+            className="btn btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          >
+            🗓️ Schedule Weekly
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          >
+            ➕ Create Session
+          </button>
         </div>
       </div>
 
       {/* Credentials Grid */}
       {credentials.length === 0 ? (
-        <div className="card">
-          <div style={{ textAlign: 'center', padding: '3rem' }}>
-            <Upload size={48} style={{ color: '#6b7280', marginBottom: '1rem' }} />
-            <h3 style={{ color: '#374151', marginBottom: '0.5rem' }}>No credentials found</h3>
-            <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
-              Create your first session to get started with billing automation
-            </p>
-            <button
-              onClick={() => setShowModal(true)}
-              className="btn btn-primary"
-            >
-              Create First Session
-            </button>
-          </div>
+        <div className="empty-state">
+          <span style={{ color: '#6b7280', marginBottom: '1rem', fontSize: '48px' }}>
+            📧
+          </span>
+          <h3 style={{ color: '#374151', marginBottom: '0.5rem' }}>No credentials found</h3>
+          <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
+            Get started by creating your first credential session.
+          </p>
+          <button
+            onClick={() => setShowModal(true)}
+            className="btn btn-primary"
+          >
+            Create Session
+          </button>
         </div>
       ) : (
         <div className="credentials-grid">
           {credentials.map((cred) => (
             <div key={cred.id} className="credential-card">
               <div className="credential-header">
-                <div className="credential-info">
-                  <h3 className="credential-email">{cred.email}</h3>
-                  {cred.client_name && (
-                    <p className="credential-client">{cred.client_name}</p>
-                  )}
-                  {cred.utility_co_name && (
-                    <p className="credential-utility">{cred.utility_co_name}</p>
-                  )}
-                </div>
-                <span className={getStatusBadgeClass(cred.last_state)}>
-                  {cred.last_state}
+                <h3 className="credential-email">{cred.email}</h3>
+                <span className={`status-badge ${getStatusBadgeClass(cred.last_state)}`}>
+                  {cred.last_state?.toUpperCase() || 'IDLE'}
                 </span>
               </div>
-              
+
               <div className="credential-details">
-                {cred.login_url && (
-                  <p className="credential-url">
-                    <strong>Login:</strong> <a href={cred.login_url} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>
-                      {cred.login_url.length > 40 ? cred.login_url.substring(0, 40) + '...' : cred.login_url}
-                    </a>
-                  </p>
-                )}
-                {cred.billing_url && (
-                  <p className="credential-url">
-                    <strong>Billing:</strong> <a href={cred.billing_url} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>
-                      {cred.billing_url.length > 40 ? cred.billing_url.substring(0, 40) + '...' : cred.billing_url}
-                    </a>
-                  </p>
-                )}
+                <div className="credential-detail">
+                  <span className="credential-label">Client:</span>
+                  <span className="credential-value">{cred.client_name || 'N/A'}</span>
+                </div>
+                <div className="credential-detail">
+                  <span className="credential-label">Utility:</span>
+                  <span className="credential-value">{cred.utility_co_name || 'N/A'}</span>
+                </div>
                 {cred.last_run_time && (
-                  <p className="credential-time">
-                    Last run: {formatDate(cred.last_run_time)}
-                  </p>
-                )}
-                {cred.last_error && (
-                  <p className="credential-error">
-                    Error: {cred.last_error}
-                  </p>
+                  <div className="credential-detail">
+                    <span className="credential-label">Last run:</span>
+                    <span className="credential-value">{formatDate(cred.last_run_time)}</span>
+                  </div>
                 )}
               </div>
-              
+
+              <div className="credential-links">
+                <a href={cred.login_url} target="_blank" rel="noopener noreferrer" className="credential-link">
+                  Login: {cred.login_url}
+                </a>
+                <a href={cred.billing_url} target="_blank" rel="noopener noreferrer" className="credential-link">
+                  Billing: {cred.billing_url}
+                </a>
+              </div>
+
               <div className="credential-actions">
                 {cred.last_state !== 'running' && (
                   <button
                     onClick={() => handleAgentControl(cred.id, 'RUN')}
                     className="btn btn-success"
-                    style={{ padding: '0.5rem', fontSize: '0.875rem' }}
                   >
-                    <Play size={14} style={{ marginRight: '0.25rem' }} />
-                    Start
+                    ▶️ Start
                   </button>
                 )}
-                
                 {cred.last_state === 'running' && (
                   <button
                     onClick={() => handleAgentControl(cred.id, 'STOPPED')}
                     className="btn btn-danger"
-                    style={{ padding: '0.5rem', fontSize: '0.875rem' }}
                   >
-                    <Square size={14} style={{ marginRight: '0.25rem' }} />
-                    Stop
+                    ⏹️ Stop
                   </button>
                 )}
                 {cred.uploaded_bill_url && (
                   <button
                     onClick={() => handleDownloadPDF(cred.id, cred.email)}
-                    className="btn btn-info"
-                    style={{ padding: '0.5rem', fontSize: '0.875rem' }}
+                    className="btn btn-primary"
                   >
-                    <Download size={14} style={{ marginRight: '0.25rem' }} />
-                    Download PDF
+                    📄 Download PDF
                   </button>
                 )}
                 <button
                   onClick={() => handleDelete(cred.id)}
                   className="btn btn-danger"
-                  style={{ padding: '0.5rem', fontSize: '0.875rem' }}
                 >
-                  <Trash2 size={14} style={{ marginRight: '0.25rem' }} />
-                  Delete
+                  🗑️ Delete
                 </button>
               </div>
             </div>
@@ -322,39 +304,42 @@ const Dashboard = () => {
 
       {/* Create Session Modal */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal">
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Create New Session</h2>
+              <h2 className="modal-title">Create New Session</h2>
               <button
                 onClick={() => setShowModal(false)}
                 className="modal-close"
               >
-                <X size={20} />
+                &times;
               </button>
             </div>
             
             <form onSubmit={handleCreateSession}>
               <div className="form-group">
-                <label className="form-label">CSV File</label>
+                <label htmlFor="csvFile" className="form-label">
+                  CSV File
+                </label>
                 <input
                   type="file"
+                  id="csvFile"
                   accept=".csv"
                   onChange={handleFileChange}
                   className="form-input"
                   required
                 />
-                <small style={{ color: '#6b7280', marginTop: '0.25rem', display: 'block' }}>
-                  CSV should have columns: client_name, utility_co_id, utility_co_name, cred_id, cred_user, cred_password
-                </small>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Login URL</label>
+                <label htmlFor="loginUrl" className="form-label">
+                  Login URL
+                </label>
                 <input
                   type="url"
+                  id="loginUrl"
                   value={formData.loginUrl}
-                  onChange={(e) => setFormData({ ...formData, loginUrl: e.target.value })}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, loginUrl: e.target.value })}
                   className="form-input"
                   placeholder="https://example.com/login"
                   required
@@ -362,18 +347,21 @@ const Dashboard = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Billing URL</label>
+                <label htmlFor="billingUrl" className="form-label">
+                  Billing URL
+                </label>
                 <input
                   type="url"
+                  id="billingUrl"
                   value={formData.billingUrl}
-                  onChange={(e) => setFormData({ ...formData, billingUrl: e.target.value })}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, billingUrl: e.target.value })}
                   className="form-input"
                   placeholder="https://example.com/billing"
                   required
                 />
               </div>
 
-              <div className="modal-actions">
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -386,7 +374,7 @@ const Dashboard = () => {
                   className="btn btn-primary"
                   disabled={uploading}
                 >
-                  {uploading ? 'Creating Session...' : 'Create Session'}
+                  {uploading ? 'Creating...' : 'Create Session'}
                 </button>
               </div>
             </form>
