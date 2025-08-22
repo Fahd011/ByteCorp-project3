@@ -48,6 +48,17 @@ BILLS_DIR.mkdir(exist_ok=True)
 # Initialize LLM
 llm = ChatOpenAI(model="gpt-4.1-mini")
 
+def check_and_update_agent_status():
+    """
+    Check if the agent process is still alive and update status accordingly
+    """
+    if agent_status["running"] and agent_status["process"]:
+        if not agent_status["process"].is_alive():
+            print("Agent process has completed, updating status...")
+            agent_status["running"] = False
+            agent_status["process"] = None
+            agent_status["stop_requested"] = False
+
 def run_agent_task(user_creds: dict, signin_url: str, billing_history_url: str):
     """
     Agent runner function that executes the web scraping task using browser-use
@@ -73,6 +84,7 @@ def run_agent_task(user_creds: dict, signin_url: str, billing_history_url: str):
                 browser_profile=BrowserProfile(
                     downloads_path=str(BILLS_DIR),  # Downloads go directly to bills folder
                     user_data_dir=unique_profile_path,
+                    viewport={'width': 1000, 'height': 774},
                 )
             )
             
@@ -108,10 +120,11 @@ Important:
 - Do not click on "Pay My Bill" or similar options.
 - If no elements are interactable, wait 5 seconds — the page might still be loading. Repeat until page has loaded
 - Only download 1 pdf. Never more than 1
+- If no bills were downloaded, the task is failed.
 """,
                 llm=llm,
                 browser_session=browser_session,
-                headless=True,
+                args=["--start-maximized"],
             )
             
             # Check stop again before running
@@ -131,12 +144,80 @@ Important:
                 return
             
             print(f"Agent completed successfully for user: {user_creds.get('username', 'unknown')} on attempt {current_attempt}")
-            print(f"Result: {result}")
+            print(f"Result: {result.final_result()}")
             
-            # Print success message as requested
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            username = user_creds.get('username', 'unknown')
-            print(f"✅ Bills for {username} at {timestamp} have been received and ready for upload")
+            # Check if bills were actually downloaded
+            bill_files = list(BILLS_DIR.glob("*.pdf")) + list(BILLS_DIR.glob("*.PDF"))
+            if not bill_files:
+                print(f"❌ No bills downloaded for user: {user_creds.get('username', 'unknown')} on attempt {current_attempt}")
+                print("Task failed - no bills found, will retry...")
+                
+                # Clean up the profile directory before retry
+                try:
+                    import shutil
+                    shutil.rmtree(unique_profile_path)
+                    print(f"Cleaned up profile directory: {unique_profile_path}")
+                except Exception as cleanup_error:
+                    print(f"Warning: Could not clean up profile directory: {cleanup_error}")
+                
+                # Continue to next attempt instead of breaking
+                current_attempt += 1
+                if current_attempt <= max_attempts:
+                    wait_time = min(2 ** current_attempt, 30)  # Max 30 seconds wait
+                    print(f"Waiting {wait_time} seconds before retry...")
+                    import time
+                    time.sleep(wait_time)
+                    continue  # Go to next attempt
+                else:
+                    # All attempts failed due to no bills downloaded
+                    print(f"All {max_attempts} attempts failed for user: {user_creds.get('username', 'unknown')} - no bills downloaded")
+                    
+                    # Store final error
+                    error_data = {
+                        "error_message": f"Failed after {max_attempts} attempts - no bills were downloaded",
+                        "user_creds": user_creds,
+                        "timestamp": datetime.now().isoformat(),
+                        "traceback": "No bills downloaded after multiple attempts",
+                        "attempts_made": max_attempts,
+                        "status": "failed_no_bills"
+                    }
+                    
+                    store_error_result_locally(error_data)
+                    
+                    # Automatically call the error API
+                    try:
+                        response = requests.post(
+                            "http://localhost:8000/api/agent/error",
+                            json={
+                                "error_message": f"Failed after {max_attempts} attempts - no bills were downloaded",
+                                "user_creds": user_creds,
+                                "timestamp": datetime.now().isoformat(),
+                                "traceback": "No bills downloaded after multiple attempts"
+                            }
+                        )
+                        print(f"✅ Error API called automatically: {response.status_code}")
+                    except Exception as api_error:
+                        print(f"⚠️ Failed to call error API automatically: {api_error}")
+                    
+                    return  # Exit the function
+            
+            # Bills were downloaded successfully!
+            print(f"✅ Bills found: {len(bill_files)} files downloaded for user: {user_creds.get('username', 'unknown')}")
+            
+            
+            # Automatically call the results API when agent completes successfully
+            try:
+                response = requests.post(
+                    "http://localhost:8000/api/agent/results",
+                    json={
+                        "pdf_content": "",  # Empty for now since we're not capturing PDF content
+                        "user_creds": user_creds,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                )
+                print(f"✅ Results API called automatically: {response.status_code}")
+            except Exception as api_error:
+                print(f"⚠️ Failed to call results API automatically: {api_error}")
             
             # Clean up the profile directory
             try:
@@ -176,6 +257,21 @@ Important:
                 }
                 
                 store_error_result_locally(error_data)
+                
+                # Automatically call the error API when agent fails
+                try:
+                    response = requests.post(
+                        "http://localhost:8000/api/agent/error",
+                        json={
+                            "error_message": f"Failed after {max_attempts} attempts. Last error: {str(e)}",
+                            "user_creds": user_creds,
+                            "timestamp": datetime.now().isoformat(),
+                            "traceback": traceback.format_exc()
+                        }
+                    )
+                    print(f"✅ Error API called automatically: {response.status_code}")
+                except Exception as api_error:
+                    print(f"⚠️ Failed to call error API automatically: {api_error}")
             else:
                 # Wait a bit before retrying (exponential backoff)
                 wait_time = min(2 ** current_attempt, 30)  # Max 30 seconds wait
@@ -343,9 +439,9 @@ async def store_agent_results(result: AgentResult):
             "timestamp": result.timestamp
         }
         
-        # The result is not being stored locally, this function is now redundant
         # For now, we'll just print a message
-        print(f"✅ Agent results received for user: {result.user_creds.get('username', 'unknown')}")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        print(f"✅ Bills for {result.user_creds.get('username', 'unknown')} at {timestamp} have been received and ready for upload")
         
         return {
             "message": "Agent results received (not stored locally)",
@@ -386,11 +482,28 @@ async def health_check():
     """
     Health test API to check if FastAPI is responsive
     """
+    # Check and update agent status
+    check_and_update_agent_status()
+    
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "agent_status": agent_status["running"],
         "message": "FastAPI is running and responsive"
+    }
+
+@app.get("/api/agent/status")
+async def get_agent_status():
+    """
+    GET API to check detailed agent status
+    """
+    # Check and update agent status
+    check_and_update_agent_status()
+    
+    return {
+        "running": agent_status["running"],
+        "stop_requested": agent_status["stop_requested"],
+        "timestamp": datetime.now().isoformat()
     }
 
 @app.get("/")
@@ -406,7 +519,8 @@ async def root():
             "POST /api/agent/stop - Stop the agent", 
             "POST /api/agent/results - Store agent results",
             "POST /api/agent/error - Store agent errors",
-            "GET /api/health - Health check"
+            "GET /api/health - Health check",
+            "GET /api/agent/status - Get detailed agent status"
         ]
     }
 
