@@ -24,12 +24,6 @@ class Config:
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    # Storage Configuration
-    # STORAGE_PROVIDER: str = os.getenv("STORAGE_PROVIDER", "local")  # "local", "azure", "aws"
-    
-    # Azure Storage Configuration (for future use)
-    # AZURE_STORAGE_CONNECTION_STRING: Optional[str] = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-    # AZURE_STORAGE_CONTAINER: str = os.getenv("AZURE_STORAGE_CONTAINER", "sagility-files")
     
     
     # Agent Configuration
