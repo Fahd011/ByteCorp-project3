@@ -25,27 +25,8 @@ const Navigation: React.FC = () => {
             Dashboard
           </Link>
         </li>
-        
-        <li className="nav-item">
-          <Link 
-            to="/login" 
-            className={`nav-link ${location.pathname === '/login' ? 'active' : ''}`}
-          >
-            <span className="nav-icon">🚪</span>
-            Login
-          </Link>
-        </li>
-        
-        <li className="nav-item">
-          <Link 
-            to="/register" 
-            className={`nav-link ${location.pathname === '/register' ? 'active' : ''}`}
-          >
-            <span className="nav-icon">👥</span>
-            Register
-          </Link>
-        </li>
       </ul>
+        
       
       <div style={{ marginTop: 'auto', paddingTop: '1rem' }}>
         <button

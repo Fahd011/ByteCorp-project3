@@ -1,5 +1,5 @@
 import { useState, ChangeEvent, FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { validateEmail } from '../utils/helpers';
@@ -11,7 +11,7 @@ const Login: React.FC = () => {
     password: '',
   });
   const [loading, setLoading] = useState(false);
-  const { login, createTestUser } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -52,27 +52,7 @@ const Login: React.FC = () => {
     }
   };
 
-  const handleCreateTestUser = async () => {
-    setLoading(true);
-    
-    try {
-      const result = await createTestUser();
-      
-      if (result.success) {
-        toast.success('Default user created successfully!');
-        setFormData({
-          email: 'sagiliti@yopmail.com',
-          password: 'D3x4YR*8{Rx)Tj>',
-        });
-      } else {
-        toast.error(result.error || 'Failed to create default user');
-      }
-    } catch (error) {
-      toast.error('An error occurred while creating default user');
-    } finally {
-      setLoading(false);
-    }
-  };
+  
 
   return (
     <div className="auth-container">
@@ -124,29 +104,7 @@ const Login: React.FC = () => {
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
-
-        <div className="auth-divider">
-          <span>or</span>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleCreateTestUser}
-          className="auth-btn auth-btn-secondary"
-          disabled={loading}
-        >
-          {loading && <span className="auth-loading"></span>}
-          Create Test User
-        </button>
-
-        <div className="auth-footer">
-          <p>
-            Don't have an account?{' '}
-            <Link to="/register" className="auth-link">
-              Sign up
-            </Link>
-          </p>
-        </div>
+     
       </div>
     </div>
   );

@@ -231,14 +231,14 @@ def create_default_user():
         print("✅ Database session created successfully")
         
         # Check if default user already exists
-        default_email = "sagiliti@yopmail.com"
+        default_email = config.ROOT_USER_EMAIL
         print(f"🔍 Checking if user with email '{default_email}' exists...")
         existing_user = db.query(User).filter(User.email == default_email).first()
         
         if not existing_user:
             print("❌ User not found, creating new user...")
             # Create default user
-            default_password = "D3x4YR*8{Rx)Tj>"
+            default_password = config.ROOT_USER_PASSWORD
             hashed_password = hash_password(default_password)
             print(f"🔐 Password hashed successfully")
             
@@ -1220,8 +1220,8 @@ def get_results(
 @app.post("/api/create-test-user")
 def create_test_user(db: Session = Depends(get_db)):
     """Create a test user for development purposes"""
-    test_email = "sagiliti@yopmail.com"
-    test_password = "D3x4YR*8{Rx)Tj>"
+    test_email = config.ROOT_USER_EMAIL
+    test_password = config.ROOT_USER_PASSWORD
     
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == test_email).first()

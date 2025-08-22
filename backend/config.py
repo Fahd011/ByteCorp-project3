@@ -4,13 +4,20 @@ This file contains all configuration settings that can be easily modified
 """
 
 import os
+from dotenv import load_dotenv
 from typing import Optional
+
+load_dotenv()
 
 class Config:
     """Application configuration"""
+
+    ROOT_USER_EMAIL : str = os.getenv("ROOT_USER_EMAIL")
+    ROOT_USER_PASSWORD : str = os.getenv("ROOT_USER_PASSWORD")
     
     # Database Configuration
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:1234@localhost:5432/browsertest")
+    DATABASE_URL: str = os.getenv("DATABASE_URL")
+    print(DATABASE_URL)
     
     # Security Configuration
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
