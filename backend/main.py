@@ -308,6 +308,9 @@ add_missing_columns()
 # Import agent service after models are defined
 from agent_service import agent_service
 
+# Import Azure storage service
+from azure_storage_service import azure_storage_service
+
 # Database dependency
 def get_db():
     db = SessionLocal()
@@ -807,28 +810,140 @@ async def stop_agent():
 @app.post("/api/agent/results")
 async def store_agent_results(result: AgentResult):
     """
-    POST API to store agent results
+    POST API to store agent results and upload PDF to Azure
     """
     try:
-        # Store the result locally
-        result_data = {
-            "pdf_content": result.pdf_content,
-            "user_creds": result.user_creds,
-            "timestamp": result.timestamp
-        }
-        
-        # For now, we'll just print a message
+        # Get user email from credentials
+        user_email = result.user_creds.get('username', 'unknown')
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        print(f"✅ Bills for {result.user_creds.get('username', 'unknown')} at {timestamp} have been received and ready for upload")
+        
+        print(f"🔍 Processing agent results for user: {user_email}")
+        
+        # Create dummy PDF for testing
+        print(f"📄 Creating dummy PDF for {user_email}...")
+        pdf_content = azure_storage_service.create_dummy_pdf(user_email, timestamp)
+        
+        # Upload PDF to Azure
+        print(f"☁️ Uploading PDF to Azure for {user_email}...")
+        success, blob_url, blob_name = azure_storage_service.upload_pdf_to_azure(
+            pdf_content=pdf_content,
+            email=user_email,
+            original_filename=f"bill_{user_email}_{timestamp}.pdf"
+        )
+        
+        if success:
+            print(f"✅ PDF successfully uploaded to Azure: {blob_url}")
+            
+            # Update database with Azure blob URL
+            try:
+                db = SessionLocal()
+                credential = db.query(UserBillingCredential).filter(
+                    UserBillingCredential.email == user_email,
+                    UserBillingCredential.is_deleted == False
+                ).first()
+                
+                if credential:
+                    credential.uploaded_bill_url = blob_url
+                    credential.last_state = "completed"
+                    credential.last_run_time = datetime.utcnow()
+                    credential.last_error = None
+                    db.commit()
+                    print(f"✅ Database updated with Azure blob URL for {user_email}")
+                else:
+                    print(f"⚠️ No credential found in database for {user_email}")
+                
+                db.close()
+            except Exception as db_error:
+                print(f"❌ Error updating database: {db_error}")
+            
+            return {
+                "message": "Agent results processed and PDF uploaded to Azure successfully",
+                "user": user_email,
+                "timestamp": result.timestamp,
+                "azure_blob_url": blob_url,
+                "azure_blob_name": blob_name,
+                "status": "success"
+            }
+        else:
+            print(f"❌ Failed to upload PDF to Azure for {user_email}")
+            return {
+                "message": "Agent results received but failed to upload PDF to Azure",
+                "user": user_email,
+                "timestamp": result.timestamp,
+                "status": "upload_failed"
+            }
+        
+    except Exception as e:
+        print(f"❌ Error processing agent results: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to store results: {str(e)}")
+
+@app.get("/api/azure/download/{blob_name:path}")
+async def download_pdf_from_azure(blob_name: str):
+    """
+    Download PDF from Azure Blob Storage
+    
+    Args:
+        blob_name: Name of the blob to download (can include path)
+    """
+    try:
+        print(f"🔍 Downloading PDF from Azure: {blob_name}")
+        
+        # Download PDF from Azure
+        success, pdf_content = azure_storage_service.download_pdf_from_azure(blob_name)
+        
+        if success:
+            # Generate filename from blob name
+            filename = blob_name.split('/')[-1]  # Get the last part of the path
+            
+            print(f"✅ PDF downloaded successfully: {filename}")
+            
+            # Return PDF as file response
+            return FileResponse(
+                io.BytesIO(pdf_content),
+                media_type='application/pdf',
+                filename=filename,
+                headers={
+                    'Content-Disposition': f'attachment; filename="{filename}"'
+                }
+            )
+        else:
+            raise HTTPException(status_code=404, detail="PDF not found in Azure storage")
+            
+    except Exception as e:
+        print(f"❌ Error downloading PDF: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to download PDF: {str(e)}")
+
+@app.get("/api/azure/list")
+async def list_azure_blobs(prefix: str = None):
+    """
+    List blobs in Azure container
+    
+    Args:
+        prefix: Optional prefix to filter blobs
+    """
+    try:
+        blobs = azure_storage_service.list_blobs(prefix)
+        
+        # Convert blob names to URLs
+        blob_urls = []
+        for blob_name in blobs:
+            blob_url = azure_storage_service.get_blob_url(blob_name)
+            blob_urls.append({
+                "name": blob_name,
+                "url": blob_url,
+                "download_url": f"/api/azure/download/{blob_name}"
+            })
         
         return {
-            "message": "Agent results received (not stored locally)",
-            "user": result.user_creds.get("username", "unknown"),
-            "timestamp": result.timestamp
+            "blobs": blob_urls,
+            "count": len(blob_urls)
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to store results: {str(e)}")
+        print(f"❌ Error listing blobs: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list blobs: {str(e)}")
+
+
 
 @app.post("/api/agent/error")
 async def store_agent_error(error: ErrorResult):
@@ -1155,10 +1270,16 @@ def control_agent(
         if credential.last_state == "running":
             raise HTTPException(status_code=400, detail="Agent is already running")
         
-        # Start background task using agent service
-        background_tasks.add_task(simulate_agent_run, cred_id, db)
+        # Update credential status to running
+        credential.last_state = "running"
+        credential.last_run_time = datetime.utcnow()
+        credential.last_error = None
+        db.commit()
         
-        return {"message": "Agent started"}
+        # Start background task to create and upload dummy PDF to Azure
+        background_tasks.add_task(create_and_upload_dummy_pdf, credential.id, db)
+        
+        return {"message": "Agent started - creating dummy PDF for Azure testing"}
     
     elif action.action == "STOPPED":
         credential.last_state = "idle"
@@ -1167,6 +1288,78 @@ def control_agent(
     
     else:
         raise HTTPException(status_code=400, detail="Invalid action")
+
+async def create_and_upload_dummy_pdf(credential_id: str, db: Session):
+    """
+    Create and upload a dummy PDF to Azure for testing purposes
+    This bypasses the browser automation and directly tests Azure functionality
+    """
+    try:
+        print(f"🔍 Starting dummy PDF creation for credential: {credential_id}")
+        
+        # Get the credential
+        credential = db.query(UserBillingCredential).filter(
+            UserBillingCredential.id == credential_id
+        ).first()
+        
+        if not credential:
+            print(f"❌ Credential not found: {credential_id}")
+            return
+        
+        username = credential.email
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        print(f"📄 Creating dummy PDF for {username}...")
+        
+        # Create dummy PDF content
+        pdf_content = azure_storage_service.create_dummy_pdf(username, timestamp)
+        
+        print(f"☁️ Uploading dummy PDF to Azure for {username}...")
+        
+        # Upload to Azure
+        success, blob_url, blob_name = azure_storage_service.upload_pdf_to_azure(
+            pdf_content=pdf_content,
+            email=username,
+            original_filename=f"bill_{username}_{timestamp}.pdf"
+        )
+        
+        if success:
+            print(f"✅ Dummy PDF uploaded to Azure: {blob_url}")
+            
+            # Update database with Azure blob URL
+            credential.uploaded_bill_url = blob_url
+            credential.last_state = "completed"
+            credential.last_run_time = datetime.utcnow()
+            credential.last_error = None
+            db.commit()
+            
+            print(f"✅ Database updated with Azure blob URL for {username}")
+            print(f"✅ Credential status set to 'completed' for {username}")
+            
+        else:
+            print(f"❌ Failed to upload dummy PDF to Azure for {username}")
+            
+            # Update database with error
+            credential.last_state = "error"
+            credential.last_run_time = datetime.utcnow()
+            credential.last_error = "Failed to upload PDF to Azure"
+            db.commit()
+            
+    except Exception as e:
+        print(f"❌ Error in create_and_upload_dummy_pdf: {str(e)}")
+        
+        # Update database with error
+        try:
+            credential = db.query(UserBillingCredential).filter(
+                UserBillingCredential.id == credential_id
+            ).first()
+            if credential:
+                credential.last_state = "error"
+                credential.last_run_time = datetime.utcnow()
+                credential.last_error = str(e)
+                db.commit()
+        except Exception as db_error:
+            print(f"❌ Error updating database with error: {db_error}")
 
 @app.post("/api/schedule/weekly")
 def schedule_weekly(
@@ -1221,35 +1414,7 @@ def get_results(
     
     return results
 
-# Utility endpoint to create a test user (for development only)
-@app.post("/api/create-test-user")
-def create_test_user(db: Session = Depends(get_db)):
-    """Create a test user for development purposes"""
-    test_email = config.ROOT_USER_EMAIL
-    test_password = config.ROOT_USER_PASSWORD
-    
-    # Check if user already exists
-    existing_user = db.query(User).filter(User.email == test_email).first()
-    if existing_user:
-        return {"message": "Default user already exists", "email": test_email}
-    
-    # Create new user with hashed password
-    hashed_password = hash_password(test_password)
-    new_user = User(
-        email=test_email,
-        password_hash=hashed_password
-    )
-    
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    return {
-        "message": "Default user created successfully",
-        "email": test_email,
-        "password": test_password,
-        "user_id": new_user.id
-    }
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -20,22 +20,17 @@ class Config:
     print(DATABASE_URL)
     
     # Security Configuration
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+    SECRET_KEY: str = os.getenv("SECRET_KEY")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # Storage Configuration
-    STORAGE_PROVIDER: str = os.getenv("STORAGE_PROVIDER", "local")  # "local", "azure", "aws"
+    # STORAGE_PROVIDER: str = os.getenv("STORAGE_PROVIDER", "local")  # "local", "azure", "aws"
     
     # Azure Storage Configuration (for future use)
-    AZURE_STORAGE_CONNECTION_STRING: Optional[str] = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-    AZURE_STORAGE_CONTAINER: str = os.getenv("AZURE_STORAGE_CONTAINER", "sagility-files")
+    # AZURE_STORAGE_CONNECTION_STRING: Optional[str] = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    # AZURE_STORAGE_CONTAINER: str = os.getenv("AZURE_STORAGE_CONTAINER", "sagility-files")
     
-    # AWS S3 Configuration (for future use)
-    AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY: Optional[str] = os.getenv("AWS_SECRET_ACCESS_KEY")
-    AWS_S3_BUCKET: str = os.getenv("AWS_S3_BUCKET", "sagility-files")
-    AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
     
     # Agent Configuration
     AGENT_TYPE: str = os.getenv("AGENT_TYPE", "simulation")  # "simulation", "selenium", "playwright"

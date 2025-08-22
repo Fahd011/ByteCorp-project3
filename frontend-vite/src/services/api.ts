@@ -72,7 +72,7 @@ export const credentialsAPI = {
       },
     }),
   controlAgent: (credId: string, action: AgentAction): Promise<AxiosResponse<any>> => 
-    api.post(`/credentials/${credId}/agent`, { action }),
+    api.post(`/credentials/${credId}/agent`, action),
   delete: (credId: string): Promise<AxiosResponse<any>> => 
     api.delete(`/credentials/${credId}`),
   downloadPDF: (credId: string): Promise<AxiosResponse<Blob>> => 
