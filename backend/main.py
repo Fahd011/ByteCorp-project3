@@ -217,6 +217,7 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 def verify_password(password: str, hashed: str) -> bool:
+    print("🔍 Verifying password...",password)
     try:
         return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
     except (ValueError, TypeError):
@@ -404,7 +405,7 @@ def run_agent_task(user_creds: List[dict], signin_url: str, billing_history_url:
     for user_index, user_cred in enumerate(user_creds, 1):
         print(f"\n=== Processing user {user_index}/{total_users}: {user_cred.get('username', 'unknown')} ===")
         
-        max_attempts = 2
+        max_attempts = 5
         current_attempt = 1
         
         while current_attempt <= max_attempts:
@@ -434,32 +435,29 @@ def run_agent_task(user_creds: List[dict], signin_url: str, billing_history_url:
                 )
                 
                 task = f"""
-                    1. Go to {signin_url}
-2. Wait for the page to fully load (this website is very slow, be patient)
-3. Sign in using email: {user_cred.get('username')} and password: {user_cred.get('password')}
-4. Wait for login to complete and the dashboard to fully load
-5. Navigate to {billing_history_url}
-6. IMPORTANT: The billing history page can take a long time to load and become interactive.
-   - Wait patiently, do not rush
-   - Keep checking until the content is fully interactive
-   - Do not proceed until you clearly see the "Billing & Payment Activity" text and the billing table is ready
-7. Check the page content carefully:
-   - If you see "Oops, something went wrong." → immediately close the browser session and stop
-   - If you see other error messages → refresh the page and keep waiting
-   - Only proceed when the billing history table is visible and interactive
-8. Once the billing history table is visible, locate the FIRST row only
-9. Click ONLY the "View Bill" button in the FIRST row of the table
-10. Download ONLY ONE bill (do not download more than one, even if more buttons exist)
-11. Wait for the bill to finish downloading to {BILLS_DIR}
-12. Once the download is complete, immediately close the browser session
-
-Important notes:
-- Be very patient with page loading times, especially on the billing history page
-- Do not click or interact with anything except the first row’s "View Bill" button
-- Do not attempt to download more than one bill
-- If the site is slow, wait longer instead of taking extra actions
-            - If you encounter errors, handle them as specified above
-            """
+1. Go to {signin_url}.
+2. Log in using:
+   - Email: {user_cred.get('username', 'unknown')}
+   - Password: {user_cred.get('password', 'unknown')}
+3. Wait for the dashboard to load. Only then proceed to the next step.
+4. Then go to this url: {billing_history_url}
+5. On the billing history page:
+   - download only download the first bill
+6. Wait at least 5 seconds after clicking to ensure the download is triggered.
+7. Now, go to the top right corner of the page.
+   - Click the user icon (showing {user_cred.get('username', 'unknown')}).
+   - Select "Sign out" from the dropdown.
+8. Confirm that you are signed out:
+   - You should be redirected to the **main homepage**.
+   - After reaching the homepage and confirming logout, do not click or navigate anywhere.
+     The task is finished. Do not revisit any links or pages after logout. Do not open new tabs.
+9. If you see a page that says "Something went wrong", stop the task.
+Important:
+- Do not revisit the billing history page after logout.
+- Do not click on "Pay My Bill" or similar options.
+- If no elements are interactable, wait 5 seconds — the page might still be loading. Repeat until page has loaded
+- Only download 1 pdf. Never more than 1
+"""
                 
                 # Create the agent with the actual task
                 agent = Agent(
@@ -553,15 +551,17 @@ Important notes:
                     if filename.lower().endswith(".pdf"):
                         old_path = os.path.join(BILLS_DIR, filename)
                         clean_email = username.replace('@', '_').replace('+', '_').replace('.', '_')
-                        new_filename = f"{clean_email}_{timestamp}.pdf"
+                        human_time = datetime.now().strftime("%Y-%m-%d_%I-%M-%S_%p")  # readable date+time
+                        new_filename = f"{clean_email}_{human_time}.pdf"
                         new_path = os.path.join(BILLS_DIR, new_filename)
                         try:
                             os.rename(old_path, new_path)
-                            print(f"[{email}] File renamed to: {new_filename}")
+                            print(f"[{username}] File renamed to: {new_filename}")
                         except Exception as e:
-                            print(f"[{email}] Error renaming file: {e}")
+                            print(f"[{username}] Error renaming file: {e}")
                     else:
-                        print(f"[{email}] Downloaded non-PDF: {filename}")
+                        print(f"[{username}] Downloaded non-PDF: {filename}")
+
                 # Print success message as requested
                 
                 print(f"✅ Bills for {username} at {timestamp} have been received and ready for upload")
