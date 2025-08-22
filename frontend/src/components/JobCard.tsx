@@ -24,6 +24,7 @@ const JobCard: React.FC<JobCardProps> = ({
   isInCooldown = false,
   cooldownRemaining = 0,
 }) => {
+  console.log('job :>> ', job);
   const getStatusColor = (status: string) => {
     switch (status) {
       case "running":
@@ -109,6 +110,7 @@ const JobCard: React.FC<JobCardProps> = ({
       <div style={styles.actions}>
         {(job.status === "idle" ||
           job.status === "stopped" ||
+          job.status === "completed" ||
           job.status === "error") && (
           <button
             onClick={() => onRun(job.id)}
