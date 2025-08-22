@@ -21,6 +21,7 @@ from apscheduler.triggers.cron import CronTrigger
 import asyncio
 import threading
 import time
+import json
 import requests
 from pathlib import Path
 import asyncio
@@ -403,7 +404,7 @@ def run_agent_task(user_creds: List[dict], signin_url: str, billing_history_url:
     for user_index, user_cred in enumerate(user_creds, 1):
         print(f"\n=== Processing user {user_index}/{total_users}: {user_cred.get('username', 'unknown')} ===")
         
-        max_attempts = 5
+        max_attempts = 2
         current_attempt = 1
         
         while current_attempt <= max_attempts:
@@ -424,7 +425,7 @@ def run_agent_task(user_creds: List[dict], signin_url: str, billing_history_url:
                     browser_profile=BrowserProfile(
                         downloads_path=str(BILLS_DIR),  # Downloads go directly to bills folder
                         user_data_dir=unique_profile_path,
-                        headless=False,  # Show browser window
+                        headless=True,  # Show browser window
                         viewport={"width": 1920, "height": 1080},  # Full screen size
                         window_size={"width": 1920, "height": 1080},  # Browser window size
                         wait_for_network_idle_page_load_time=5.0,  # Increased wait time for slow pages
@@ -434,27 +435,31 @@ def run_agent_task(user_creds: List[dict], signin_url: str, billing_history_url:
                 
                 task = f"""
                     1. Go to {signin_url}
-        2. Wait for the page to fully load (be patient, this website is slow)
-        3. Sign in using email: {user_cred.get('username')} and password: {user_cred.get('password')}
-        4. Wait for login to complete and dashboard to load completely
-        5. Navigate to {billing_history_url}
-        6. IMPORTANT: Wait patiently for the billing history page to load completely
-        7. Check the page content:
-           - If you see "Oops, something went wrong." message, IMMEDIATELY close the browser session and stop
-           - If you see other error messages, refresh the page and wait again
-           - Keep waiting until you see "Billing & Payment Activity" text on the page
-        8. Once the billing history table is visible, find the first row in the billing table
-        9. Click ONLY on the "View Bill" button in the FIRST row of the table
-        10. Wait for the bill to download to {BILLS_DIR}
-        11. Once download is complete, close the browser session
-        
-        Important notes:
-        - Be very patient with page loading times
-        - If you see "Oops, something went wrong." - STOP and close the session immediately
-        - Only click the View Bill button for the first/top item in the billing table
-        - Do not interact with any other buttons or rows
-        - If pages are slow, wait longer rather than giving up
-    """
+2. Wait for the page to fully load (this website is very slow, be patient)
+3. Sign in using email: {user_cred.get('username')} and password: {user_cred.get('password')}
+4. Wait for login to complete and the dashboard to fully load
+5. Navigate to {billing_history_url}
+6. IMPORTANT: The billing history page can take a long time to load and become interactive.
+   - Wait patiently, do not rush
+   - Keep checking until the content is fully interactive
+   - Do not proceed until you clearly see the "Billing & Payment Activity" text and the billing table is ready
+7. Check the page content carefully:
+   - If you see "Oops, something went wrong." → immediately close the browser session and stop
+   - If you see other error messages → refresh the page and keep waiting
+   - Only proceed when the billing history table is visible and interactive
+8. Once the billing history table is visible, locate the FIRST row only
+9. Click ONLY the "View Bill" button in the FIRST row of the table
+10. Download ONLY ONE bill (do not download more than one, even if more buttons exist)
+11. Wait for the bill to finish downloading to {BILLS_DIR}
+12. Once the download is complete, immediately close the browser session
+
+Important notes:
+- Be very patient with page loading times, especially on the billing history page
+- Do not click or interact with anything except the first row’s "View Bill" button
+- Do not attempt to download more than one bill
+- If the site is slow, wait longer instead of taking extra actions
+            - If you encounter errors, handle them as specified above
+            """
                 
                 # Create the agent with the actual task
                 agent = Agent(
@@ -547,7 +552,7 @@ def run_agent_task(user_creds: List[dict], signin_url: str, billing_history_url:
                 for filename in new_files:
                     if filename.lower().endswith(".pdf"):
                         old_path = os.path.join(BILLS_DIR, filename)
-                        clean_email = email.replace('@', '_').replace('+', '_').replace('.', '_')
+                        clean_email = username.replace('@', '_').replace('+', '_').replace('.', '_')
                         new_filename = f"{clean_email}_{timestamp}.pdf"
                         new_path = os.path.join(BILLS_DIR, new_filename)
                         try:
@@ -609,7 +614,7 @@ def run_agent_task(user_creds: List[dict], signin_url: str, billing_history_url:
                         "error_message": f"Failed after {max_attempts} attempts. Last error: {str(e)}",
                         "user_creds": user_cred,
                         "timestamp": datetime.now().isoformat(),
-                        "traceback": traceback.format_exc(),
+                        "traceback": "",
                         "attempts_made": max_attempts,
                         "status": "failed"
                     }
@@ -624,7 +629,7 @@ def run_agent_task(user_creds: List[dict], signin_url: str, billing_history_url:
                                 "error_message": f"Failed after {max_attempts} attempts. Last error: {str(e)}",
                                 "user_creds": user_cred,
                                 "timestamp": datetime.now().isoformat(),
-                                "traceback": traceback.format_exc()
+                                "traceback": ""
                             }
                         )
                         print(f"✅ Error API called automatically: {response.status_code}")
