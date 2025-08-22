@@ -11,3 +11,8 @@ PyJWT>=2.8.0
 bcrypt>=4.1.2
 anyio>=4.9.0
 psycopg2-binary>=2.9.0
+browser-use
+pandas
+openai
+python-dotenv
+playwright

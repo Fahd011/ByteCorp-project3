@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker, Session, relationship
 from sqlalchemy.sql import func
 from datetime import datetime, timedelta
 from typing import List, Optional
+import multiprocessing
 import uuid
 import jwt
 import bcrypt
@@ -20,6 +21,15 @@ from apscheduler.triggers.cron import CronTrigger
 import asyncio
 import threading
 import time
+import requests
+from pathlib import Path
+import asyncio
+import uuid
+from browser_use.llm import ChatOpenAI
+from browser_use import Agent
+from browser_use.browser import BrowserSession, BrowserProfile
+from dotenv import load_dotenv
+
 
 # Import configuration first
 from config import config
@@ -58,6 +68,24 @@ scheduler.start()
 security = HTTPBearer()
 
 # Pydantic models
+
+# Data models
+class AgentRequest(BaseModel):
+    user_creds: List[dict]  # Changed from dict to List[dict]
+    signin_url: str
+    billing_history_url: str
+
+class AgentResult(BaseModel):
+    pdf_content: bytes
+    user_creds: dict
+    timestamp: str
+
+class ErrorResult(BaseModel):
+    error_message: str
+    user_creds: dict
+    timestamp: str
+    traceback: str
+
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
@@ -284,14 +312,515 @@ scheduler.add_job(
     id='daily_agent_job',
     replace_existing=True
 )
+agent_status = {"running": False, "process": None, "stop_requested": False}
+
+# Create bills directory if it doesn't exist
+BILLS_DIR = Path("bills")
+BILLS_DIR.mkdir(exist_ok=True)
+
+# Initialize LLM
+llm = ChatOpenAI(model="gpt-4.1-mini")
+
+def check_and_update_agent_status():
+    """
+    Check if the agent process is still alive and update status accordingly
+    """
+    if agent_status["running"] and agent_status["process"]:
+        if not agent_status["process"].is_alive():
+            print("Agent process has completed, updating status...")
+            agent_status["running"] = False
+            agent_status["process"] = None
+            agent_status["stop_requested"] = False
+
+def run_agent_task(user_creds: List[dict], signin_url: str, billing_history_url: str):
+    """
+    Agent runner function that executes the web scraping task for multiple users
+    """
+    total_users = len(user_creds)
+    completed_users = 0
+    initial_files = set(os.listdir(BILLS_DIR))
+    print(f"Starting agent for {total_users} users")
+    
+    for user_index, user_cred in enumerate(user_creds, 1):
+        print(f"\n=== Processing user {user_index}/{total_users}: {user_cred.get('username', 'unknown')} ===")
+        
+        max_attempts = 5
+        current_attempt = 1
+        
+        while current_attempt <= max_attempts:
+            try:
+                print(f"Agent attempt {current_attempt}/{max_attempts} for user: {user_cred.get('username', 'unknown')}")
+                
+                # Check if stop was requested
+                if agent_status.get("stop_requested", False):
+                    print(f"Agent stop requested for user: {user_cred.get('username', 'unknown')}")
+                    return
+                
+                # Create unique profile path for this session
+                unique_profile_path = f'/tmp/browser_profiles/{uuid.uuid4()}'
+                os.makedirs(unique_profile_path, exist_ok=True)
+                
+                # Create browser session with bills folder as downloads path
+                browser_session = BrowserSession(
+                    browser_profile=BrowserProfile(
+                        downloads_path=str(BILLS_DIR),  # Downloads go directly to bills folder
+                        user_data_dir=unique_profile_path,
+                        headless=False,  # Show browser window
+                        viewport={"width": 1920, "height": 1080},  # Full screen size
+                        window_size={"width": 1920, "height": 1080},  # Browser window size
+                        wait_for_network_idle_page_load_time=5.0,  # Increased wait time for slow pages
+                        wait_between_actions=2.0,  # Wait 2 seconds between actions
+                    )
+                )
+                
+                task = f"""
+                    1. Go to {signin_url}
+        2. Wait for the page to fully load (be patient, this website is slow)
+        3. Sign in using email: {user_cred.get('username')} and password: {user_cred.get('password')}
+        4. Wait for login to complete and dashboard to load completely
+        5. Navigate to {billing_history_url}
+        6. IMPORTANT: Wait patiently for the billing history page to load completely
+        7. Check the page content:
+           - If you see "Oops, something went wrong." message, IMMEDIATELY close the browser session and stop
+           - If you see other error messages, refresh the page and wait again
+           - Keep waiting until you see "Billing & Payment Activity" text on the page
+        8. Once the billing history table is visible, find the first row in the billing table
+        9. Click ONLY on the "View Bill" button in the FIRST row of the table
+        10. Wait for the bill to download to {BILLS_DIR}
+        11. Once download is complete, close the browser session
+        
+        Important notes:
+        - Be very patient with page loading times
+        - If you see "Oops, something went wrong." - STOP and close the session immediately
+        - Only click the View Bill button for the first/top item in the billing table
+        - Do not interact with any other buttons or rows
+        - If pages are slow, wait longer rather than giving up
+    """
+                
+                # Create the agent with the actual task
+                agent = Agent(
+                    task=task,
+                    llm=llm,
+                    browser_session=browser_session,
+                    args=["--start-maximized"],
+                )
+                
+                # Check stop again before running
+                if agent_status.get("stop_requested", False):
+                    print(f"Agent stop requested before running for user: {user_cred.get('username', 'unknown')}")
+                    return
+                
+                # Run the agent
+                print(f"Starting browser automation for user: {user_cred.get('username', 'unknown')} (Attempt {current_attempt})")
+                
+                # Run the async agent in the current thread
+                result = asyncio.run(agent.run())
+                
+                # Check if stop was requested during execution
+                if agent_status.get("stop_requested", False):
+                    print(f"Agent stop requested during execution for user: {user_cred.get('username', 'unknown')}")
+                    return
+                
+                print(f"Agent completed successfully for user: {user_cred.get('username', 'unknown')} on attempt {current_attempt}")
+                print(f"Result: {result.final_result()}")
+                
+                # Check if bills were actually downloaded
+                bill_files = list(BILLS_DIR.glob("*.pdf")) + list(BILLS_DIR.glob("*.PDF"))
+                if not bill_files:
+                    print(f"❌ No bills downloaded for user: {user_cred.get('username', 'unknown')} on attempt {current_attempt}")
+                    print("Task failed - no bills found, will retry...")
+                    
+                    # Clean up the profile directory before retry
+                    try:
+                        import shutil
+                        shutil.rmtree(unique_profile_path)
+                        print(f"Cleaned up profile directory: {unique_profile_path}")
+                    except Exception as cleanup_error:
+                        print(f"Warning: Could not clean up profile directory: {cleanup_error}")
+                    
+                    # Continue to next attempt instead of breaking
+                    current_attempt += 1
+                    if current_attempt <= max_attempts:
+                        wait_time = min(2 ** current_attempt, 30)  # Max 30 seconds wait
+                        print(f"Waiting {wait_time} seconds before retry...")
+                        import time
+                        time.sleep(wait_time)
+                        continue  # Go to next attempt
+                    else:
+                        # All attempts failed due to no bills downloaded
+                        print(f"All {max_attempts} attempts failed for user: {user_cred.get('username', 'unknown')} - no bills downloaded")
+                        
+                        # Store final error
+                        error_data = {
+                            "error_message": f"Failed after {max_attempts} attempts - no bills were downloaded",
+                            "user_creds": user_cred,
+                            "timestamp": datetime.now().isoformat(),
+                            "traceback": "No bills downloaded after multiple attempts",
+                            "attempts_made": max_attempts,
+                            "status": "failed_no_bills"
+                        }
+                        
+                        store_error_result_locally(error_data)
+                        
+                        # Automatically call the error API
+                        try:
+                            response = requests.post(
+                                "http://localhost:8000/api/agent/error",
+                                json={
+                                    "error_message": f"Failed after {max_attempts} attempts - no bills were downloaded",
+                                    "user_creds": user_cred,
+                                    "timestamp": datetime.now().isoformat(),
+                                    "traceback": "No bills downloaded after multiple attempts"
+                                }
+                            )
+                            print(f"✅ Error API called automatically: {response.status_code}")
+                        except Exception as api_error:
+                            print(f"⚠️ Failed to call error API automatically: {api_error}")
+                        
+                        break  # Move to next user
+                
+                # Bills were downloaded successfully!
+                print(f"✅ Bills found: {len(bill_files)} files downloaded for user: {user_cred.get('username', 'unknown')}")
+                # Detect new files
+                new_files = set(os.listdir(BILLS_DIR)) - initial_files
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                username = user_cred.get('username', 'unknown')
+                for filename in new_files:
+                    if filename.lower().endswith(".pdf"):
+                        old_path = os.path.join(BILLS_DIR, filename)
+                        clean_email = email.replace('@', '_').replace('+', '_').replace('.', '_')
+                        new_filename = f"{clean_email}_{timestamp}.pdf"
+                        new_path = os.path.join(BILLS_DIR, new_filename)
+                        try:
+                            os.rename(old_path, new_path)
+                            print(f"[{email}] File renamed to: {new_filename}")
+                        except Exception as e:
+                            print(f"[{email}] Error renaming file: {e}")
+                    else:
+                        print(f"[{email}] Downloaded non-PDF: {filename}")
+                # Print success message as requested
+                
+                print(f"✅ Bills for {username} at {timestamp} have been received and ready for upload")
+                
+                # Automatically call the results API when agent completes successfully
+                try:
+                    response = requests.post(
+                        "http://localhost:8000/api/agent/results",
+                        json={
+                            "pdf_content": "",  # Empty for now since we're not capturing PDF content
+                            "user_creds": user_cred,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                    )
+                    print(f"✅ Results API called automatically: {response.status_code}")
+                except Exception as api_error:
+                    print(f"⚠️ Failed to call results API automatically: {api_error}")
+                
+                # Clean up the profile directory
+                try:
+                    import shutil
+                    shutil.rmtree(unique_profile_path)
+                    print(f"Cleaned up profile directory: {unique_profile_path}")
+                except Exception as cleanup_error:
+                    print(f"Warning: Could not clean up profile directory: {cleanup_error}")
+                
+                # Success! Exit the retry loop for this user
+                completed_users += 1
+                print(f"✅ User {user_cred.get('username', 'unknown')} completed successfully ({completed_users}/{total_users})")
+                break
+                
+            except Exception as e:
+                print(f"Agent attempt {current_attempt} failed for user: {user_cred.get('username', 'unknown')} with error: {str(e)}")
+                
+                # Clean up the profile directory on error
+                try:
+                    if 'unique_profile_path' in locals():
+                        import shutil
+                        shutil.rmtree(unique_profile_path)
+                        print(f"Cleaned up profile directory after error: {unique_profile_path}")
+                except Exception as cleanup_error:
+                    print(f"Warning: Could not clean up profile directory after error: {cleanup_error}")
+                
+                # If this was the last attempt, store the final error
+                if current_attempt == max_attempts:
+                    print(f"All {max_attempts} attempts failed for user: {user_cred.get('username', 'unknown')}")
+                    
+                    # Handle errors and store error information
+                    error_data = {
+                        "error_message": f"Failed after {max_attempts} attempts. Last error: {str(e)}",
+                        "user_creds": user_cred,
+                        "timestamp": datetime.now().isoformat(),
+                        "traceback": traceback.format_exc(),
+                        "attempts_made": max_attempts,
+                        "status": "failed"
+                    }
+                    
+                    store_error_result_locally(error_data)
+                    
+                    # Automatically call the error API when agent fails
+                    try:
+                        response = requests.post(
+                            "http://localhost:8000/api/agent/error",
+                            json={
+                                "error_message": f"Failed after {max_attempts} attempts. Last error: {str(e)}",
+                                "user_creds": user_cred,
+                                "timestamp": datetime.now().isoformat(),
+                                "traceback": traceback.format_exc()
+                            }
+                        )
+                        print(f"✅ Error API called automatically: {response.status_code}")
+                    except Exception as api_error:
+                        print(f"⚠️ Failed to call error API automatically: {api_error}")
+                else:
+                    # Wait a bit before retrying (exponential backoff)
+                    wait_time = min(2 ** current_attempt, 30)  # Max 30 seconds wait
+                    print(f"Waiting {wait_time} seconds before retry...")
+                    import time
+                    time.sleep(wait_time)
+                
+                current_attempt += 1
+        
+        # Check if stop was requested between users
+        if agent_status.get("stop_requested", False):
+            print(f"Agent stop requested between users")
+            return
+    
+    print(f"\n=== All users completed! Total: {completed_users}/{total_users} successful ===")
+    
+    # Update status when done (moved outside the while loop)
+    agent_status["running"] = False
+    agent_status["process"] = None
+    agent_status["stop_requested"] = False
+
+
+def store_error_result_locally(error_data: dict):
+    """
+    Store error results locally
+    """
+    try:
+        # Create filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        username = error_data["user_creds"].get("username", "unknown")
+        filename = f"error_{username}_{timestamp}.json"
+        
+        # Save to bills directory
+        filepath = BILLS_DIR / filename
+        with open(filepath, 'w') as f:
+            json.dump(error_data, f, indent=2)
+        
+        print(f"❌ Error for {username} at {timestamp} has been saved")
+        print(f"📁 Error file saved to: {filepath}")
+        
+    except Exception as e:
+        print(f"Error storing error result: {str(e)}")
+
 
 # API Endpoints
 
-@app.get("/health")
+@app.get("/api/health")
 def health_check():
     return {"status": "ok"}
 
-@app.post("/auth/register", response_model=Token)
+@app.post("/api/agent/run")
+async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
+    """
+    POST API to run the agent for multiple users
+    """
+    if agent_status["running"]:
+        raise HTTPException(status_code=400, detail="Agent is already running")
+    
+    try:
+        # Start agent in background process with the full user_creds array
+        process = multiprocessing.Process(
+            target=run_agent_task,
+            args=(request.user_creds, request.signin_url, request.billing_history_url)
+        )
+        process.start()
+        
+        # Update status
+        agent_status["running"] = True
+        agent_status["process"] = process
+        
+        return {
+            "message": f"Agent started successfully for {len(request.user_creds)} users",
+            "status": "running",
+            "total_users": len(request.user_creds),
+            "users": [creds.get("username", "unknown") for creds in request.user_creds],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start agent: {str(e)}")
+
+@app.post("/api/agent/stop")
+async def stop_agent():
+    """
+    POST API to stop the agent with force kill of all browser processes
+    """
+    if not agent_status["running"]:
+        raise HTTPException(status_code=400, detail="Agent is not running")
+    
+    try:
+        # Set stop flag
+        agent_status["stop_requested"] = True
+        
+        # Try to terminate the process
+        if agent_status["process"] and agent_status["process"].is_alive():
+            print("Attempting to terminate agent process...")
+            agent_status["process"].terminate()
+            
+            # Wait a bit for graceful termination
+            agent_status["process"].join(timeout=10)
+            
+            # Force kill if still alive
+            if agent_status["process"].is_alive():
+                print("Force killing agent process...")
+                agent_status["process"].kill()
+                agent_status["process"].join(timeout=5)
+        
+        # Force kill all browser processes (this is the key part)
+        try:
+            import subprocess
+            import platform
+            import psutil
+            
+            print("Force killing all browser processes...")
+            
+            if platform.system() == "Windows":
+                # Kill Chrome/Chromium processes on Windows
+                subprocess.run(["taskkill", "/f", "/im", "chrome.exe"], capture_output=True)
+                subprocess.run(["taskkill", "/f", "/im", "chromium.exe"], capture_output=True)
+                subprocess.run(["taskkill", "/f", "/im", "msedge.exe"], capture_output=True)
+                
+                # Also kill any remaining browser processes
+                for proc in psutil.process_iter(['pid', 'name']):
+                    try:
+                        proc_name = proc.info['name'].lower()
+                        if any(browser in proc_name for browser in ['chrome', 'chromium', 'edge', 'firefox']):
+                            print(f"Killing browser process: {proc.info['name']} (PID: {proc.info['pid']})")
+                            proc.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                        
+            else:
+                # Kill Chrome/Chromium processes on Unix-like systems
+                subprocess.run(["pkill", "-f", "chrome"], capture_output=True)
+                subprocess.run(["pkill", "-f", "chromium"], capture_output=True)
+                subprocess.run(["pkill", "-f", "firefox"], capture_output=True)
+                
+                # Also kill any remaining browser processes
+                for proc in psutil.process_iter(['pid', 'name']):
+                    try:
+                        proc_name = proc.info['name'].lower()
+                        if any(browser in proc_name for browser in ['chrome', 'chromium', 'firefox']):
+                            print(f"Killing browser process: {proc.info['name']} (PID: {proc.info['pid']})")
+                            proc.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                
+            print("Force killed all browser processes")
+            
+        except Exception as kill_error:
+            print(f"Warning: Could not force kill browser processes: {kill_error}")
+        
+        # Reset status
+        agent_status["running"] = False
+        agent_status["process"] = None
+        
+        return {
+            "message": "Agent stopped and all browser processes terminated",
+            "status": "stopped",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        # Reset status even on error
+        agent_status["running"] = False
+        agent_status["process"] = None
+        agent_status["stop_requested"] = False
+        raise HTTPException(status_code=500, detail=f"Failed to stop agent: {str(e)}")
+
+@app.post("/api/agent/results")
+async def store_agent_results(result: AgentResult):
+    """
+    POST API to store agent results
+    """
+    try:
+        # Store the result locally
+        result_data = {
+            "pdf_content": result.pdf_content,
+            "user_creds": result.user_creds,
+            "timestamp": result.timestamp
+        }
+        
+        # For now, we'll just print a message
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        print(f"✅ Bills for {result.user_creds.get('username', 'unknown')} at {timestamp} have been received and ready for upload")
+        
+        return {
+            "message": "Agent results received (not stored locally)",
+            "user": result.user_creds.get("username", "unknown"),
+            "timestamp": result.timestamp
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to store results: {str(e)}")
+
+@app.post("/api/agent/error")
+async def store_agent_error(error: ErrorResult):
+    """
+    POST API to store agent errors
+    """
+    try:
+        # Store the error locally
+        error_data = {
+            "error_message": error.error_message,
+            "user_creds": error.user_creds,
+            "timestamp": error.timestamp,
+            "traceback": error.traceback
+        }
+        
+        store_error_result_locally(error_data)
+        
+        return {
+            "message": "Agent error stored successfully",
+            "user": error.user_creds.get("username", "unknown"),
+            "timestamp": error.timestamp
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to store error: {str(e)}")
+
+@app.get("/api/agent/health")
+async def health_check():
+    """
+    Health test API to check if FastAPI is responsive
+    """
+    # Check and update agent status
+    check_and_update_agent_status()
+    
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "agent_status": agent_status["running"],
+        "message": "FastAPI is running and responsive"
+    }
+
+@app.get("/api/agent/status")
+async def get_agent_status():
+    """
+    GET API to check detailed agent status
+    """
+    # Check and update agent status
+    check_and_update_agent_status()
+    
+    return {
+        "running": agent_status["running"],
+        "stop_requested": agent_status["stop_requested"],
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.post("api/auth/register", response_model=Token)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
@@ -316,7 +845,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     access_token = create_access_token(data={"sub": new_user.id})
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.post("/auth/login", response_model=Token)
+@app.post("/api/auth/login", response_model=Token)
 def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_credentials.email).first()
     
@@ -330,7 +859,7 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     access_token = create_access_token(data={"sub": user.id})
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.post("/credentials/upload")
+@app.post("/api/credentials/upload")
 def upload_credentials(
     background_tasks: BackgroundTasks,
     csv_file: UploadFile = File(...),
@@ -437,7 +966,7 @@ def upload_credentials(
     
     return {"message": f"Uploaded {len(new_credentials)} credentials", "session_id": import_session.id}
 
-@app.post("/credentials/{cred_id}/upload_pdf")
+@app.post("/api/credentials/{cred_id}/upload_pdf")
 def upload_pdf(
     cred_id: str,
     pdf_file: UploadFile = File(...),
@@ -466,7 +995,7 @@ def upload_pdf(
     
     return {"message": "PDF uploaded successfully", "file_url": pdf_filename}
 
-@app.get("/credentials/{cred_id}/download_pdf")
+@app.get("/api/credentials/{cred_id}/download_pdf")
 def download_pdf(
     cred_id: str,
     user_id: str = Depends(verify_token),
@@ -495,7 +1024,7 @@ def download_pdf(
         media_type="application/pdf"
     )
 
-@app.get("/credentials", response_model=List[UserBillingCredentialResponse])
+@app.get("/api/credentials", response_model=List[UserBillingCredentialResponse])
 def get_credentials(
     user_id: str = Depends(verify_token),
     db: Session = Depends(get_db)
@@ -507,7 +1036,7 @@ def get_credentials(
     
     return credentials
 
-@app.delete("/credentials/{cred_id}")
+@app.delete("/api/credentials/{cred_id}")
 def delete_credential(
     cred_id: str,
     user_id: str = Depends(verify_token),
@@ -526,7 +1055,7 @@ def delete_credential(
     db.commit()
     return {"message": "Credential deleted"}
 
-@app.post("/credentials/{cred_id}/agent")
+@app.post("/api/credentials/{cred_id}/agent")
 def control_agent(
     cred_id: str,
     action: AgentAction,
@@ -560,7 +1089,7 @@ def control_agent(
     else:
         raise HTTPException(status_code=400, detail="Invalid action")
 
-@app.post("/schedule/weekly")
+@app.post("/api/schedule/weekly")
 def schedule_weekly(
     user_id: str = Depends(verify_token),
     db: Session = Depends(get_db)
@@ -581,7 +1110,7 @@ def schedule_weekly(
 
 # Additional utility endpoints
 
-@app.get("/sessions", response_model=List[ImportSessionResponse])
+@app.get("/api/sessions", response_model=List[ImportSessionResponse])
 def get_sessions(
     user_id: str = Depends(verify_token),
     db: Session = Depends(get_db)
@@ -592,7 +1121,7 @@ def get_sessions(
     
     return sessions
 
-@app.get("/results/{session_id}", response_model=List[ImportResultResponse])
+@app.get("/api/results/{session_id}", response_model=List[ImportResultResponse])
 def get_results(
     session_id: str,
     user_id: str = Depends(verify_token),
@@ -614,7 +1143,7 @@ def get_results(
     return results
 
 # Utility endpoint to create a test user (for development only)
-@app.post("/create-test-user")
+@app.post("/api/create-test-user")
 def create_test_user(db: Session = Depends(get_db)):
     """Create a test user for development purposes"""
     test_email = "test@example.com"
