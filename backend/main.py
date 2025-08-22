@@ -70,8 +70,8 @@ Base = declarative_base()
 os.makedirs("./uploads", exist_ok=True)
 
 # Scheduler (AsyncIO version)
-scheduler = AsyncIOScheduler()
-scheduler.start()
+# scheduler = AsyncIOScheduler()
+# scheduler.start()
 
 # Security scheme
 security = HTTPBearer()
@@ -414,7 +414,7 @@ def run_agent_task(user_creds: List[dict], signin_url: str, billing_history_url:
     """
     total_users = len(user_creds)
     completed_users = 0
-    initial_files = set(os.listdir(BILLS_DIR))
+
     print(f"Starting agent for {total_users} users")
     
     for user_index, user_cred in enumerate(user_creds, 1):
@@ -436,10 +436,12 @@ def run_agent_task(user_creds: List[dict], signin_url: str, billing_history_url:
                 unique_profile_path = f'/tmp/browser_profiles/{uuid.uuid4()}'
                 os.makedirs(unique_profile_path, exist_ok=True)
                 
+                download_path = BILLS_DIR / str(datetime.now().year) / datetime.now().strftime("%B")
+                initial_files = set(os.listdir(download_path))
                 # Create browser session with bills folder as downloads path
                 browser_session = BrowserSession(
                     browser_profile=BrowserProfile(
-                        downloads_path=str(BILLS_DIR),  # Downloads go directly to bills folder
+                        downloads_path=str(download_path),  # Downloads go directly to bills folder
                         user_data_dir=unique_profile_path,
                         headless=True,  # Show browser window
                         viewport={"width": 1920, "height": 1080},  # Full screen size
@@ -502,7 +504,7 @@ Important:
                 print(f"Result: {result.final_result()}")
                 
                 # Check if bills were actually downloaded
-                bill_files = list(BILLS_DIR.glob("*.pdf")) + list(BILLS_DIR.glob("*.PDF"))
+                bill_files = list(download_path.glob("*.pdf")) + list(download_path.glob("*.PDF"))
                 if not bill_files:
                     print(f"❌ No bills downloaded for user: {user_cred.get('username', 'unknown')} on attempt {current_attempt}")
                     print("Task failed - no bills found, will retry...")
@@ -559,16 +561,16 @@ Important:
                 # Bills were downloaded successfully!
                 print(f"✅ Bills found: {len(bill_files)} files downloaded for user: {user_cred.get('username', 'unknown')}")
                 # Detect new files
-                new_files = set(os.listdir(BILLS_DIR)) - initial_files
+                new_files = set(os.listdir(download_path)) - initial_files
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 username = user_cred.get('username', 'unknown')
                 for filename in new_files:
                     if filename.lower().endswith(".pdf"):
-                        old_path = os.path.join(BILLS_DIR, filename)
+                        old_path = os.path.join(download_path, filename)
                         clean_email = username.replace('@', '_').replace('+', '_').replace('.', '_')
                         human_time = datetime.now().strftime("%Y-%m-%d_%I-%M-%S_%p")  # readable date+time
                         new_filename = f"{clean_email}_{human_time}.pdf"
-                        new_path = os.path.join(BILLS_DIR, new_filename)
+                        new_path = os.path.join(download_path, new_filename)
                         try:
                             os.rename(old_path, new_path)
                             print(f"[{username}] File renamed to: {new_filename}")
@@ -667,9 +669,9 @@ Important:
     print(f"\n=== All users completed! Total: {completed_users}/{total_users} successful ===")
     
     # Update status when done (moved outside the while loop)
-    agent_status["running"] = False
-    agent_status["process"] = None
-    agent_status["stop_requested"] = False
+    # agent_status["running"] = False
+    # agent_status["process"] = None
+    # agent_status["stop_requested"] = False
 
 
 def store_error_result_locally(error_data: dict):
@@ -705,8 +707,6 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
     """
     POST API to run the agent for multiple users
     """
-    if agent_status["running"]:
-        raise HTTPException(status_code=400, detail="Agent is already running")
     
     try:
         # Start agent in background process with the full user_creds array
@@ -717,8 +717,8 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
         process.start()
         
         # Update status
-        agent_status["running"] = True
-        agent_status["process"] = process
+        # agent_status["running"] = True
+        # agent_status["process"] = process
         
         return {
             "message": f"Agent started successfully for {len(request.user_creds)} users",
@@ -736,8 +736,6 @@ async def stop_agent():
     """
     POST API to stop the agent with force kill of all browser processes
     """
-    if not agent_status["running"]:
-        raise HTTPException(status_code=400, detail="Agent is not running")
     
     try:
         # Set stop flag
