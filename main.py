@@ -84,44 +84,40 @@ def run_agent_task(user_creds: dict, signin_url: str, billing_history_url: str):
                 browser_profile=BrowserProfile(
                     downloads_path=str(BILLS_DIR),  # Downloads go directly to bills folder
                     user_data_dir=unique_profile_path,
-                    viewport={'width': 1000, 'height': 774},
+                    headless=True,  # Show browser window
+                    viewport={"width": 1920, "height": 1080},  # Full screen size
+                    window_size={"width": 1920, "height": 1080},  # Browser window size
+                    wait_for_network_idle_page_load_time=5.0,  # Increased wait time for slow pages
+                    wait_between_actions=2.0,  # Wait 2 seconds between actions
                 )
             )
-            
-            # Check stop again before creating agent
-            if agent_status.get("stop_requested", False):
-                print(f"Agent stop requested before creating agent for user: {user_creds.get('username', 'unknown')}")
-                return
+            task = f"""
+                1. Go to {signin_url}
+    2. Wait for the page to fully load (be patient, this website is slow)
+    3. Sign in using email: {user_creds.get('username')} and password: {user_creds.get('password')}
+    4. Wait for login to complete and dashboard to load completely
+    5. Navigate to {billing_history_url}
+    6. IMPORTANT: Wait patiently for the billing history page to load completely
+    7. Check the page content:
+       - If you see "Oops, something went wrong." message, IMMEDIATELY close the browser session and stop
+       - If you see other error messages, refresh the page and wait again
+       - Keep waiting until you see "Billing & Payment Activity" text on the page
+    8. Once the billing history table is visible, find the first row in the billing table
+    9. Click ONLY on the "View Bill" button in the FIRST row of the table
+    10. Wait for the bill to download to {BILLS_DIR}
+    11. Once download is complete, close the browser session
+    
+    Important notes:
+    - Be very patient with page loading times
+    - If you see "Oops, something went wrong." - STOP and close the session immediately
+    - Only click the View Bill button for the first/top item in the billing table
+    - Do not interact with any other buttons or rows
+    - If pages are slow, wait longer rather than giving up
+"""
             
             # Create the agent with the actual task
             agent = Agent(
-                task=f"""
-1. Go to {signin_url}.
-2. Log in using:
-   - Email: {user_creds.get('username')}
-   - Password: {user_creds.get('password')}
-3. After successful login, go to "Billing and Payment Activity".
-   - If unsure, navigate directly to {billing_history_url}.
-4. On the billing history page:
-   - Find the first "View Bill" button.
-   - Click it to download the bill (the download may happen silently).
-5. Wait at least 5 seconds after clicking to ensure the download is triggered.
-6. Now, go to the top right corner of the page.
-   - Click the user icon (showing {user_creds.get('username')}).
-   - Select "Sign out" from the dropdown.
-7. Confirm that you are signed out:
-   - You should be redirected to the **main homepage**.
-   - After reaching the homepage and confirming logout, do not click or navigate anywhere. 
-     The task is finished. Do not revisit any links or pages after logout. Do not open new tabs.
-8. If you see a page that says "Something went wrong", stop the task.
-
-Important:
-- Do not revisit the billing history page after logout.
-- Do not click on "Pay My Bill" or similar options.
-- If no elements are interactable, wait 5 seconds — the page might still be loading. Repeat until page has loaded
-- Only download 1 pdf. Never more than 1
-- If no bills were downloaded, the task is failed.
-""",
+                task=task,
                 llm=llm,
                 browser_session=browser_session,
                 args=["--start-maximized"],
