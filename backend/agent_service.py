@@ -83,6 +83,7 @@ class AgentService:
         """
         # Simulate work (replace with actual agent logic)
         time.sleep(5)
+        print("Completed agent work for credential:", credential.email)
         
         # Generate a sample PDF file for demonstration
         # In a real implementation, this would be the actual PDF downloaded from the billing portal

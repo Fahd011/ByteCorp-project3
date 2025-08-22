@@ -16,7 +16,9 @@ import os
 import csv
 import io
 from pydantic import BaseModel, EmailStr
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+# from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 import asyncio
 import threading
@@ -67,8 +69,8 @@ Base = declarative_base()
 # Create uploads directory
 os.makedirs("./uploads", exist_ok=True)
 
-# Scheduler
-scheduler = BackgroundScheduler()
+# Scheduler (AsyncIO version)
+scheduler = AsyncIOScheduler()
 scheduler.start()
 
 # Security scheme
@@ -356,6 +358,8 @@ async def daily_agent_job():
             UserBillingCredential.last_state.in_(["idle", "completed", "error"])
         ).all()
         
+        print(f"Daily job found {len(credentials)} credentials to process")
+        
         for credential in credentials:
             # Use agent service to run the agent
             result = await agent_service.run_agent(credential, db)
@@ -366,13 +370,24 @@ async def daily_agent_job():
     finally:
         db.close()
 
-# Schedule daily job at 12 AM
-scheduler.add_job(
-    daily_agent_job,
-    CronTrigger(hour=0, minute=0),
-    id='daily_agent_job',
-    replace_existing=True
-)
+
+# --- Schedules ---
+
+# # ⏰ For production: run daily at 12 AM
+# scheduler.add_job(
+#     daily_agent_job,
+#     CronTrigger(hour=0, minute=0),
+#     id="daily_agent_job",
+#     replace_existing=True,
+# )
+
+# ⏳ For testing: run every 30 seconds
+# scheduler.add_job(
+#     daily_agent_job,
+#     IntervalTrigger(seconds=5),
+#     id="daily_agent_job_test",
+#     replace_existing=True,
+# )
 agent_status = {"running": False, "process": None, "stop_requested": False}
 
 # Create bills directory if it doesn't exist
