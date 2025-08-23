@@ -17,7 +17,6 @@ class Config:
     
     # Database Configuration
     DATABASE_URL: str = os.getenv("DATABASE_URL")
-    print(DATABASE_URL)
     
     # Security Configuration
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
