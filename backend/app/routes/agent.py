@@ -18,24 +18,28 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
     """
     
     try:
-        # Start agent in background process with the full user_creds array
-        process = multiprocessing.Process(
-            target=run_agent_task,
-            args=(request.user_creds[0], request.signin_url, request.billing_history_url)  # one user at a time
-        )
-        process.start()
-        
-        # Update status
-        # agent_status["running"] = True
-        # agent_status["process"] = process
-        
-        return {
-            "message": f"Agent started successfully for {len(request.user_creds)} users",
-            "status": "running",
-            "total_users": len(request.user_creds),
-            "users": [creds.get("username", "unknown") for creds in request.user_creds],
-            "timestamp": datetime.now().isoformat()
-        }
+        if request.user_creds:
+            first_user = request.user_creds[0]
+            print(f"First user -> username: {first_user['username']}, password: {first_user['password']}")
+            
+            # # Start agent in background process with the full user_creds array
+            process = multiprocessing.Process(
+                target=run_agent_task,
+                args=(first_user, request.signin_url, request.billing_history_url)  # one user at a time
+            )
+            process.start()
+            
+            # Update status
+            # agent_status["running"] = True
+            # agent_status["process"] = process
+            
+            return {
+                "message": f"Agent started successfully for {len(request.user_creds)} users",
+                "status": "running",
+                "total_users": len(request.user_creds),
+                "users": [creds.get("username", "unknown") for creds in request.user_creds],
+                "timestamp": datetime.now().isoformat()
+            }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start agent: {str(e)}")
@@ -107,7 +111,7 @@ async def health_check():
     Health test API to check if FastAPI is responsive
     """
     # Check and update agent status
-    check_and_update_agent_status()
+    # check_and_update_agent_status()
     
     return {
         "status": "healthy",

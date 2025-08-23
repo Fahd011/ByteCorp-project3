@@ -93,10 +93,13 @@ class AgentService:
         """
         Execute the actual agent work by calling the agent API endpoint.
         """
+        print("credential.email:", credential.email)
+        print("credential.password:", credential.password)
+
         import httpx
         async with httpx.AsyncClient() as client:
             payload = {
-                "user_creds": [{"email": credential.email, "password": credential.password}],
+                "user_creds": [{"username": credential.email, "password": credential.password}],
                 "signin_url": credential.login_url,
                 "billing_history_url": credential.billing_url
             }
@@ -104,8 +107,9 @@ class AgentService:
             response_data = response.json()
             print("API response:", response_data)
         # You can handle the response here, e.g., save PDF, update credential, etc.
-        
+
         pass
+
     
     def _generate_sample_pdf(self, credential):
         """

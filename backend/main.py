@@ -6,7 +6,7 @@ from browser_use.llm import ChatOpenAI
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 # from apscheduler.schedulers.background import BackgroundScheduler
-# from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 
 from app.models import UserBillingCredential  # ✅ safe now
@@ -98,14 +98,16 @@ async def daily_agent_job():
     db = SessionLocal()
     try:
         credentials = db.query(UserBillingCredential).filter(
-            UserBillingCredential.is_deleted == False,
-            UserBillingCredential.last_state.in_(["idle", "completed", "error"])
+            UserBillingCredential.is_deleted == False
+            # UserBillingCredential.last_state.in_(["idle", "completed", "error"])
         ).all()
         
         print(f"Daily job found {len(credentials)} credentials to process")
         
         for credential in credentials:
             # Use agent service to run the agent
+            print(f"EMAIL {credential.email}")
+            print(f"PASS {credential.password}")
             result = await agent_service.run_agent(credential, db)
             print(f"Daily job result for {credential.email}: {result}")
             
@@ -123,11 +125,11 @@ scheduler = AsyncIOScheduler()
 
 # Start scheduler in FastAPI startup event
 
-# ⏰ For production: run daily at 10 AM
+# # ⏰ For production: run daily at 10 AM
 scheduler.add_job(
     daily_agent_job,
-    CronTrigger(hour=16, minute=50),
-    # CronTrigger(hour=21, minute=46),
+    CronTrigger(hour=17, minute=59),
+    # CronTrigger(hour=22, minute=50),
     id="daily_agent_job",
     replace_existing=True,
 )
