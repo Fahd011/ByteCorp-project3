@@ -91,29 +91,20 @@ class AgentService:
     
     async def _execute_agent_work(self, credential):
         """
-        Execute the actual agent work
-        This method should be overridden for different agent types
-        
-        Args:
-            credential: The credential to process
+        Execute the actual agent work by calling the agent API endpoint.
         """
-        # Simulate work (replace with actual agent logic)
-        time.sleep(5)
-        print("Completed agent work for credential:", credential.email)
+        import httpx
+        async with httpx.AsyncClient() as client:
+            payload = {
+                "user_creds": [{"email": credential.email, "password": credential.password}],
+                "signin_url": credential.login_url,
+                "billing_history_url": credential.billing_url
+            }
+            response = await client.post("http://localhost:5000/api/agent/run", json=payload)
+            response_data = response.json()
+            print("API response:", response_data)
+        # You can handle the response here, e.g., save PDF, update credential, etc.
         
-        # Generate a sample PDF file for demonstration
-        # In a real implementation, this would be the actual PDF downloaded from the billing portal
-        sample_pdf_content = self._generate_sample_pdf(credential)
-        
-        # Upload the PDF file
-        filename = f"bill_{credential.email}_{credential.cred_id}.pdf"
-        pdf_path = self._upload_to_local(sample_pdf_content, filename)
-        
-        # Update the credential with the PDF URL
-        credential.uploaded_bill_url = pdf_path
-        
-        # Example: Login to billing portal, download PDF, etc.
-        # This is where you'd integrate with actual automation tools
         pass
     
     def _generate_sample_pdf(self, credential):
