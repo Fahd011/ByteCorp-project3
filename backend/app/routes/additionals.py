@@ -1,0 +1,76 @@
+from typing import List
+from app.db import get_db
+from app.utils import hash_password
+from app.models import ImportResult, ImportResultResponse, ImportSession, ImportSessionResponse, User
+from app.routes.auth import verify_token
+from config import config
+
+from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+
+router = APIRouter()
+
+
+# Additional utility endpoints
+@router.get("/api/sessions", response_model=List[ImportSessionResponse])
+def get_sessions(
+    user_id: str = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    sessions = db.query(ImportSession).filter(
+        ImportSession.user_id == user_id
+    ).all()
+    
+    return sessions
+
+@router.get("/api/results/{session_id}", response_model=List[ImportResultResponse])
+def get_results(
+    session_id: str,
+    user_id: str = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    # Verify session belongs to user
+    session = db.query(ImportSession).filter(
+        ImportSession.id == session_id,
+        ImportSession.user_id == user_id
+    ).first()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    results = db.query(ImportResult).filter(
+        ImportResult.session_id == session_id
+    ).all()
+    
+    return results
+
+# Utility endpoint to create a test user (for development only)
+@router.post("/api/create-test-user")
+def create_test_user(db: Session = Depends(get_db)):
+    """Create a test user for development purposes"""
+    test_email = config.ROOT_USER_EMAIL
+    test_password = config.ROOT_USER_PASSWORD
+    
+    # Check if user already exists
+    existing_user = db.query(User).filter(User.email == test_email).first()
+    if existing_user:
+        return {"message": "Default user already exists", "email": test_email}
+    
+    # Create new user with hashed password
+    hashed_password = hash_password(test_password)
+    new_user = User(
+        email=test_email,
+        password_hash=hashed_password
+    )
+    
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    return {
+        "message": "Default user created successfully",
+        "email": test_email,
+        "password": test_password,
+        "user_id": new_user.id
+    }

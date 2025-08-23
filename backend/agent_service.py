@@ -11,6 +11,8 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 
+from datetime import datetime, timedelta
+
 # Import configuration
 from config import config
 
@@ -28,44 +30,58 @@ class AgentService:
     
     async def run_agent(self, credential, db: Session) -> Dict[str, Any]:
         """
-        Run agent for a specific credential
-        
-        Args:
-            credential: The credential to process
-            db: Database session
-            
-        Returns:
-            Dict with operation results
+        Run agent for a specific credential if billing cycle matches (yesterday).
+        If yesterday == billing_cycle_day → agent runs.
+        Else → it skips with a message.
+        If no cycle day in CSV → also skips safely.
         """
         try:
-            # Update credential state to running
+            today = datetime.utcnow().date()
+            yesterday = today - timedelta(days=1)
+
+            # Skip if no billing cycle set
+            if not credential.billing_cycle_day:
+                return {
+                    "success": False,
+                    "message": "No billing cycle date set",
+                    "credential_id": credential.id
+                }
+
+            # Run only if yesterday was the billing cycle date
+            if yesterday.day != credential.billing_cycle_day:
+                return {
+                    "success": False,
+                    "message": f"Skipping. Billing cycle day is {credential.billing_cycle_day}, yesterday was {yesterday.day}",
+                    "credential_id": credential.id
+                }
+
+            # Update state → running
             credential.last_state = "running"
             credential.last_run_time = datetime.utcnow()
             credential.last_error = None
             db.commit()
-            
-            # Simulate agent work (replace with actual agent logic)
+
+            # Do the work
             await self._execute_agent_work(credential)
-            
-            # Update credential state to completed
+
+            # Update state → completed
             credential.last_state = "completed"
             credential.last_run_time = datetime.utcnow()
             credential.last_error = None
             db.commit()
-            
+
             return {
                 "success": True,
                 "message": "Agent completed successfully",
                 "credential_id": credential.id
             }
-            
+
         except Exception as e:
-            # Update credential state to error
             credential.last_state = "error"
             credential.last_error = str(e)
             credential.last_run_time = datetime.utcnow()
             db.commit()
-            
+
             return {
                 "success": False,
                 "message": f"Agent failed: {str(e)}",
