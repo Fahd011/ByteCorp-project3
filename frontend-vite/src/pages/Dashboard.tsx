@@ -99,15 +99,15 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleScheduleWeekly = async () => {
-    try {
-      await schedulingAPI.scheduleWeekly();
-      toast.success('Weekly schedule created successfully');
-      fetchCredentials();
-    } catch (error) {
-      toast.error('Failed to create weekly schedule');
-    }
-  };
+  // const handleScheduleWeekly = async () => {
+  //   try {
+  //     await schedulingAPI.scheduleWeekly();
+  //     toast.success('Weekly schedule created successfully');
+  //     fetchCredentials();
+  //   } catch (error) {
+  //     toast.error('Failed to create weekly schedule');
+  //   }
+  // };
 
   const handleDownloadPDF = async (credId: string, email: string) => {
     try {
