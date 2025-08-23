@@ -29,7 +29,16 @@ Base.metadata.create_all(bind=engine)
 llm = ChatOpenAI(model="gpt-4.1-mini")
 
 # FastAPI app
-app = FastAPI(title="Sagility Backend", version="1.0.0")
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.start()
+    yield
+    # Optionally: scheduler.shutdown() or other cleanup
+
+app = FastAPI(title="Sagility Backend", version="1.0.0", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -200,9 +209,6 @@ async def daily_agent_job():
 scheduler = AsyncIOScheduler()
 
 # Start scheduler in FastAPI startup event
-@app.on_event("startup")
-async def startup_event():
-    scheduler.start()
 
 # ⏰ For production: run daily at 10 AM
 scheduler.add_job(
