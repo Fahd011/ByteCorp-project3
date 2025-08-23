@@ -70,6 +70,7 @@ class UserBillingCredentialResponse(BaseModel):
     cred_id: Optional[str]
     login_url: Optional[str]
     billing_url: Optional[str]
+    billing_cycle_day: Optional[int]  # New field
     is_deleted: bool
     last_state: str
     last_error: Optional[str]

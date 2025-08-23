@@ -1,7 +1,7 @@
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
-import { toast } from 'react-hot-toast';
-import { credentialsAPI } from '../services/api';
-import { formatDate } from '../utils/helpers';
+import { useState, useEffect, ChangeEvent, FormEvent } from "react";
+import { toast } from "react-hot-toast";
+import { credentialsAPI } from "../services/api";
+import { formatDate } from "../utils/helpers";
 
 const Dashboard: React.FC = () => {
   const [credentials, setCredentials] = useState<any[]>([]);
@@ -10,8 +10,8 @@ const Dashboard: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     csvFile: null as File | null,
-    loginUrl: '',
-    billingUrl: '',
+    loginUrl: "",
+    billingUrl: "",
   });
 
   useEffect(() => {
@@ -23,7 +23,7 @@ const Dashboard: React.FC = () => {
       const response = await credentialsAPI.getAll();
       setCredentials(response.data || []);
     } catch (error) {
-      toast.error('Failed to load credentials');
+      toast.error("Failed to load credentials");
     } finally {
       setLoading(false);
     }
@@ -31,71 +31,74 @@ const Dashboard: React.FC = () => {
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type === 'text/csv') {
+    if (file && file.type === "text/csv") {
       setFormData({ ...formData, csvFile: file });
     } else {
-      toast.error('Please select a valid CSV file');
+      toast.error("Please select a valid CSV file");
     }
   };
 
   const handleCreateSession = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     if (!formData.csvFile) {
-      toast.error('Please select a CSV file');
+      toast.error("Please select a CSV file");
       return;
     }
 
     if (!formData.loginUrl || !formData.billingUrl) {
-      toast.error('Please fill in all required fields');
+      toast.error("Please fill in all required fields");
       return;
     }
 
     setUploading(true);
-    
+
     try {
       const uploadData = new FormData();
-      uploadData.append('csv_file', formData.csvFile);
-      uploadData.append('login_url', formData.loginUrl);
-      uploadData.append('billing_url', formData.billingUrl);
+      uploadData.append("csv_file", formData.csvFile);
+      uploadData.append("login_url", formData.loginUrl);
+      uploadData.append("billing_url", formData.billingUrl);
 
       const response = await credentialsAPI.upload(uploadData);
       toast.success(response.data.message);
-      
+
       // Reset form and close modal
       setFormData({
         csvFile: null,
-        loginUrl: '',
-        billingUrl: '',
+        loginUrl: "",
+        billingUrl: "",
       });
       setShowModal(false);
-      
+
       // Refresh credentials list
       fetchCredentials();
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Upload failed');
+      toast.error(error.response?.data?.detail || "Upload failed");
     } finally {
       setUploading(false);
     }
   };
 
-  const handleAgentControl = async (credId: string, action: 'RUN' | 'STOPPED') => {
+  const handleAgentControl = async (
+    credId: string,
+    action: "RUN" | "STOPPED"
+  ) => {
     try {
       await credentialsAPI.controlAgent(credId, { action });
       toast.success(`Agent ${action.toLowerCase()}`);
       fetchCredentials();
     } catch (error) {
-      toast.error('Failed to control agent');
+      toast.error("Failed to control agent");
     }
   };
 
   const handleDelete = async (credId: string) => {
     try {
       await credentialsAPI.delete(credId);
-      toast.success('Credential deleted');
+      toast.success("Credential deleted");
       fetchCredentials();
     } catch (error) {
-      toast.error('Failed to delete credential');
+      toast.error("Failed to delete credential");
     }
   };
 
@@ -113,31 +116,31 @@ const Dashboard: React.FC = () => {
     try {
       const response = await credentialsAPI.downloadPDF(credId);
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
-      link.setAttribute('download', `bill_${email}.pdf`);
+      link.setAttribute("download", `bill_${email}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success('PDF downloaded successfully');
+      toast.success("PDF downloaded successfully");
     } catch (error) {
-      toast.error('Failed to download PDF');
+      toast.error("Failed to download PDF");
     }
   };
 
   const getStatusBadgeClass = (status: string | undefined) => {
     switch (status?.toLowerCase()) {
-      case 'idle':
-        return 'status-idle';
-      case 'running':
-        return 'status-running';
-      case 'completed':
-        return 'status-completed';
-      case 'error':
-        return 'status-error';
+      case "idle":
+        return "status-idle";
+      case "running":
+        return "status-running";
+      case "completed":
+        return "status-completed";
+      case "error":
+        return "status-error";
       default:
-        return 'status-idle';
+        return "status-idle";
     }
   };
 
@@ -160,31 +163,45 @@ const Dashboard: React.FC = () => {
         <div className="stat-card">
           <div className="stat-title">Total Credentials</div>
           <div className="stat-value">{credentials.length}</div>
-          <span style={{ marginTop: '0.5rem', color: '#6b7280', fontSize: '24px' }}>
+          <span
+            style={{ marginTop: "0.5rem", color: "#6b7280", fontSize: "24px" }}
+          >
             👥
           </span>
         </div>
 
         <div className="stat-card">
           <div className="stat-title">Active Credentials</div>
-          <div className="stat-value">{credentials.filter(c => c.last_state === 'running').length}</div>
-          <span style={{ marginTop: '0.5rem', color: '#3b82f6', fontSize: '24px' }}>
+          <div className="stat-value">
+            {credentials.filter((c) => c.last_state === "running").length}
+          </div>
+          <span
+            style={{ marginTop: "0.5rem", color: "#3b82f6", fontSize: "24px" }}
+          >
             ⏰
           </span>
         </div>
 
         <div className="stat-card">
           <div className="stat-title">Completed Jobs</div>
-          <div className="stat-value">{credentials.filter(c => c.last_state === 'completed').length}</div>
-          <span style={{ marginTop: '0.5rem', color: '#10b981', fontSize: '24px' }}>
+          <div className="stat-value">
+            {credentials.filter((c) => c.last_state === "completed").length}
+          </div>
+          <span
+            style={{ marginTop: "0.5rem", color: "#10b981", fontSize: "24px" }}
+          >
             ✅
           </span>
         </div>
 
         <div className="stat-card">
           <div className="stat-title">Failed Jobs</div>
-          <div className="stat-value">{credentials.filter(c => c.last_state === 'error').length}</div>
-          <span style={{ marginTop: '0.5rem', color: '#ef4444', fontSize: '24px' }}>
+          <div className="stat-value">
+            {credentials.filter((c) => c.last_state === "error").length}
+          </div>
+          <span
+            style={{ marginTop: "0.5rem", color: "#ef4444", fontSize: "24px" }}
+          >
             ❌
           </span>
         </div>
@@ -197,7 +214,7 @@ const Dashboard: React.FC = () => {
           <button
             onClick={() => setShowModal(true)}
             className="btn btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
           >
             ➕ Create Session
           </button>
@@ -207,11 +224,15 @@ const Dashboard: React.FC = () => {
       {/* Credentials Grid */}
       {credentials.length === 0 ? (
         <div className="empty-state">
-          <span style={{ color: '#6b7280', marginBottom: '1rem', fontSize: '48px' }}>
+          <span
+            style={{ color: "#6b7280", marginBottom: "1rem", fontSize: "48px" }}
+          >
             📧
           </span>
-          <h3 style={{ color: '#374151', marginBottom: '0.5rem' }}>No credentials found</h3>
-          <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
+          <h3 style={{ color: "#374151", marginBottom: "0.5rem" }}>
+            No credentials found
+          </h3>
+          <p style={{ color: "#6b7280", marginBottom: "1.5rem" }}>
             Get started by creating your first credential session.
           </p>
           <button
@@ -227,49 +248,74 @@ const Dashboard: React.FC = () => {
             <div key={cred.id} className="credential-card">
               <div className="credential-header">
                 <h3 className="credential-email">{cred.email}</h3>
-                <span className={`status-badge ${getStatusBadgeClass(cred.last_state)}`}>
-                  {cred.last_state?.toUpperCase() || 'IDLE'}
+                <span
+                  className={`status-badge ${getStatusBadgeClass(
+                    cred.last_state
+                  )}`}
+                >
+                  {cred.last_state?.toUpperCase() || "IDLE"}
                 </span>
               </div>
 
               <div className="credential-details">
                 <div className="credential-detail">
                   <span className="credential-label">Client:</span>
-                  <span className="credential-value">{cred.client_name || 'N/A'}</span>
+                  <span className="credential-value">
+                    {cred.client_name || "N/A"}
+                  </span>
                 </div>
                 <div className="credential-detail">
                   <span className="credential-label">Utility:</span>
-                  <span className="credential-value">{cred.utility_co_name || 'N/A'}</span>
+                  <span className="credential-value">
+                    {cred.utility_co_name || "N/A"}
+                  </span>
                 </div>
+                  <span className="credential-info" style={{ color: "#6b7280", fontSize: "0.75em",  }}>
+                    {cred.billing_cycle_day
+                      ? `Each month on date ${cred.billing_cycle_day}, your bill cycle runs.`
+                      : ""}
+                  </span>
                 {cred.last_run_time && (
                   <div className="credential-detail">
                     <span className="credential-label">Last run:</span>
-                    <span className="credential-value">{formatDate(cred.last_run_time)}</span>
+                    <span className="credential-value">
+                      {formatDate(cred.last_run_time)}
+                    </span>
                   </div>
                 )}
               </div>
 
               <div className="credential-links">
-                <a href={cred.login_url} target="_blank" rel="noopener noreferrer" className="credential-link">
+                <a
+                  href={cred.login_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="credential-link"
+                >
                   Login: {cred.login_url}
                 </a>
-                <a href={cred.billing_url} target="_blank" rel="noopener noreferrer" className="credential-link">
+                <a
+                  href={cred.billing_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="credential-link"
+                >
                   Billing: {cred.billing_url}
                 </a>
               </div>
 
               <div className="credential-actions">
-                {cred.last_state !== 'running' && (
+                {cred.last_state !== "running" && (
                   <button
-                    onClick={() => handleAgentControl(cred.id, 'RUN')}
+                    onClick={() => handleAgentControl(cred.id, "RUN")}
                     className="btn btn-success"
                   >
                     ▶️ Start
                   </button>
                 )}
-                {cred.last_state === 'running' && (
+                {cred.last_state === "running" && (
                   <button
-                    onClick={() => handleAgentControl(cred.id, 'STOPPED')}
+                    onClick={() => handleAgentControl(cred.id, "STOPPED")}
                     className="btn btn-danger"
                   >
                     ⏹️ Stop
@@ -308,7 +354,7 @@ const Dashboard: React.FC = () => {
                 &times;
               </button>
             </div>
-            
+
             <form onSubmit={handleCreateSession}>
               <div className="form-group">
                 <label htmlFor="csvFile" className="form-label">
@@ -332,7 +378,9 @@ const Dashboard: React.FC = () => {
                   type="url"
                   id="loginUrl"
                   value={formData.loginUrl}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, loginUrl: e.target.value })}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setFormData({ ...formData, loginUrl: e.target.value })
+                  }
                   className="form-input"
                   placeholder="https://example.com/login"
                   required
@@ -347,14 +395,22 @@ const Dashboard: React.FC = () => {
                   type="url"
                   id="billingUrl"
                   value={formData.billingUrl}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, billingUrl: e.target.value })}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setFormData({ ...formData, billingUrl: e.target.value })
+                  }
                   className="form-input"
                   placeholder="https://example.com/billing"
                   required
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "1rem",
+                  justifyContent: "flex-end",
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -367,7 +423,7 @@ const Dashboard: React.FC = () => {
                   className="btn btn-primary"
                   disabled={uploading}
                 >
-                  {uploading ? 'Creating...' : 'Create Session'}
+                  {uploading ? "Creating..." : "Create Session"}
                 </button>
               </div>
             </form>
