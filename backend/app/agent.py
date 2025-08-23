@@ -53,7 +53,7 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         )
 
         # Give Cloud task a moment to finish syncing
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
 
         print(f"[INFO] Task finished:")
         print(f"  id                = {result.id}")
@@ -70,6 +70,7 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
 
 
 async def handle_task_result(result, client, email, DOWNLOAD_DIR):
+    print("handle_task_result called")
     if hasattr(result, 'output_files') and result.output_files:
         print(f"  output_files      = {len(result.output_files)} files found")
         
