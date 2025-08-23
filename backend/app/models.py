@@ -98,7 +98,6 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class ImportSession(Base):
     __tablename__ = 'import_sessions'
@@ -114,7 +113,6 @@ class ImportSession(Base):
     schedule_config = Column(JSON)
     next_run = Column(DateTime)
     last_scheduled_run = Column(DateTime)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class ImportResult(Base):
     __tablename__ = 'import_results'
