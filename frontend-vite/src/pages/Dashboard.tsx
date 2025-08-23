@@ -195,13 +195,6 @@ const Dashboard: React.FC = () => {
         <h2 className="credentials-title">Credential Jobs</h2>
         <div className="credentials-actions">
           <button
-            onClick={handleScheduleWeekly}
-            className="btn btn-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          >
-            🗓️ Schedule Weekly
-          </button>
-          <button
             onClick={() => setShowModal(true)}
             className="btn btn-primary"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
