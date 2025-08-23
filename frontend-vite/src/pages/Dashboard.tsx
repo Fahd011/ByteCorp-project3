@@ -1,6 +1,6 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { toast } from 'react-hot-toast';
-import { credentialsAPI, schedulingAPI } from '../services/api';
+import { credentialsAPI } from '../services/api';
 import { formatDate } from '../utils/helpers';
 
 const Dashboard: React.FC = () => {
