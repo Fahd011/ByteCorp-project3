@@ -1,5 +1,6 @@
 import os
 import asyncio
+import requests
 from datetime import datetime
 
 from browser_use_sdk import AsyncBrowserUse
@@ -36,42 +37,66 @@ TASK_TEMPLATE = f"""
 async def run_duke_download():
     # Ensure ~/duke_bills exists
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
-    # Remember which files we already have
-    before_files = set(os.listdir(DOWNLOAD_DIR))
+    
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
     client = AsyncBrowserUse(api_key=API_KEY)
 
     print("[INFO] Starting remote browser task …")
-    result = await client.tasks.run(task=TASK_TEMPLATE)
-    print(f"[INFO] Task finished, status = {result.status}\n         output = {result.done_output}")
+    result = await client.tasks.run(
+        task=TASK_TEMPLATE,
+    )
+
+   
 
     # Give the remote browser a moment to finish synchronising the file
     await asyncio.sleep(5)
-
-    # Identify newly downloaded files
-    after_files = set(os.listdir(DOWNLOAD_DIR))
-    new_files   = after_files - before_files
-
-    if not new_files:
-        print("[WARN] No new files detected in", DOWNLOAD_DIR)
-        return
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    clean_email = EMAIL.replace("@", "_").replace("+", "_").replace(".", "_")
-
-    for f in new_files:
-        if f.lower().endswith(".pdf"):
-            old_path = os.path.join(DOWNLOAD_DIR, f)
-            new_name = f"{clean_email}_{timestamp}.pdf"
-            new_path = os.path.join(DOWNLOAD_DIR, new_name)
-            try:
-                os.rename(old_path, new_path)
-                print(f"[OK] Renamed '{f}'  →  '{new_name}'")
-            except OSError as e:
-                print(f"[ERROR] Could not rename '{f}': {e}")
-        else:
-            print(f"[SKIP] '{f}' is not a PDF – leaving unchanged")
+    
+    
+    print(f"[INFO] Task finished:")
+    print(f"  id                = {result.id}")
+    print(f"  status            = {result.status}")
+    print(f"  done_output       = {result.done_output}")
+    print(f"  output_files       = {result.output_files}")
+    
+    # Check if there are any output files
+    if hasattr(result, 'output_files') and result.output_files:
+        print(f"  output_files      = {len(result.output_files)} files found")
+        
+        # Look for PDF files in output_files
+        for output_file in result.output_files:
+            file_name = getattr(output_file, 'file_name', 'unknown')
+            if file_name.lower().endswith('.pdf'):
+                try:
+                    # Get download URL for the file
+                    file_response = await client.tasks.get_output_file(
+                        file_id=output_file.id, 
+                        task_id=result.id
+                    )
+                    file_url = file_response.download_url
+                    
+                    # Download the file
+                    response = requests.get(file_url)
+                    if response.status_code == 200:
+                        # Create filename with timestamp
+                        clean_email = EMAIL.replace('@', '_').replace('+', '_').replace('.', '_')
+                        local_filename = f"{clean_email}_{timestamp}.pdf"
+                        local_path = os.path.join(DOWNLOAD_DIR, local_filename)
+                        
+                        # Save the file
+                        with open(local_path, "wb") as f:
+                            f.write(response.content)
+                        
+                        print(f"[OK] Downloaded and saved: {local_path}")
+                    else:
+                        print(f"[ERROR] Failed to download {file_name}: HTTP {response.status_code}")
+                        
+                except Exception as e:
+                    print(f"[ERROR] Error downloading {file_name}: {e}")
+            else:
+                print(f"[INFO] Skipping non-PDF file: {file_name}")
+    else:
+        print("[INFO] No output files found in task result")
 
 
 if __name__ == "__main__":
