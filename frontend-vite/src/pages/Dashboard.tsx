@@ -270,11 +270,46 @@ const Dashboard: React.FC = () => {
                     {cred.utility_co_name || "N/A"}
                   </span>
                 </div>
-                  <span className="credential-info" style={{ color: "#6b7280", fontSize: "0.75em",  }}>
-                    {cred.billing_cycle_day
-                      ? `Each month on date ${cred.billing_cycle_day}, your bill cycle runs.`
-                      : ""}
-                  </span>
+                <span
+                  className="credential-info"
+                  style={{ color: "#6b7280", fontSize: "0.75em" }}
+                >
+                  {cred.billing_cycle_day
+                    ? (() => {
+                        const today = new Date();
+                        const currentDay = today.getDate();
+
+                        // Actual run day is billing_cycle_day + 1
+                        const runDay = cred.billing_cycle_day + 1;
+
+                        let remainingDays: number;
+
+                        if (currentDay === runDay) {
+                          // Today is the run day
+                          remainingDays = 0;
+                        } else if (currentDay < runDay) {
+                          // Run day later this month
+                          remainingDays = runDay - currentDay;
+                        } else {
+                          // Run day passed → schedule for next month
+                          const nextMonth = new Date(
+                            today.getFullYear(),
+                            today.getMonth() + 1,
+                            0
+                          ); // last day of current month
+                          const daysInMonth = nextMonth.getDate();
+                          remainingDays = daysInMonth - currentDay + runDay;
+                        }
+
+                        return remainingDays === 0
+                          ? "Your bill cycle runs today."
+                          : `Your bill cycle runs in ${remainingDays} day${
+                              remainingDays > 1 ? "s" : ""
+                            }.`;
+                      })()
+                    : ""}
+                </span>
+
                 {cred.last_run_time && (
                   <div className="credential-detail">
                     <span className="credential-label">Last run:</span>
