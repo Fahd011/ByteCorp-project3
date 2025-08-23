@@ -77,7 +77,6 @@ class UserBillingCredentialResponse(BaseModel):
     last_run_time: Optional[datetime]
     uploaded_bill_url: Optional[str]
     created_at: datetime
-    updated_at: datetime
 
 class ImportResultResponse(BaseModel):
     id: str
@@ -89,7 +88,6 @@ class ImportResultResponse(BaseModel):
     retry_attempts: int
     final_error: Optional[str]
     created_at: datetime
-    updated_at: datetime
 
 # SQLAlchemy models
 class User(Base):
