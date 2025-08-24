@@ -1,13 +1,19 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse
 import multiprocessing
 from datetime import datetime
 from pathlib import Path
 
-from app.models import AgentResult, ErrorResult
+from app.db import SessionLocal
+from app.models import AgentRequest, AgentResult, ErrorResult, UserBillingCredential
 from app.agent import run_agent_task
-from app.models import AgentRequest
+
+# Import Azure storage service
+from azure_storage_service import azure_storage_service
+from typing import Optional
 
 import json
+import io
 
 router = APIRouter()
 
@@ -20,7 +26,7 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
     try:
         if request.user_creds:
             first_user = request.user_creds[0]
-            print(f"First user -> username: {first_user['username']}, password: {first_user['password']}")
+            print(f"[INFO] First user ----> username: {first_user['username']}, password: {first_user['password']}")
             
             # # Start agent in background process with the full user_creds array
             process = multiprocessing.Process(
@@ -28,10 +34,6 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
                 args=(first_user, request.signin_url, request.billing_history_url)  # one user at a time
             )
             process.start()
-            
-            # Update status
-            # agent_status["running"] = True
-            # agent_status["process"] = process
             
             return {
                 "message": f"Agent started successfully for {len(request.user_creds)} users",
@@ -53,32 +55,6 @@ async def stop_agent():
         "message": "Stop agent functionality not implemented yet",
         "status": "not_implemented",
     }
-
-@router.post("/api/agent/results")
-async def store_agent_results(result: AgentResult):
-    """
-    POST API to store agent results
-    """
-    try:
-        # Store the result locally
-        result_data = {
-            "pdf_content": result.pdf_content,
-            "user_creds": result.user_creds,
-            "timestamp": result.timestamp
-        }
-        
-        # For now, we'll just print a message
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        print(f"✅ Bills for {result.user_creds.get('username', 'unknown')} at {timestamp} have been received and ready for upload")
-        
-        return {
-            "message": "Agent results received (not stored locally)",
-            "user": result.user_creds.get("username", "unknown"),
-            "timestamp": result.timestamp
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to store results: {str(e)}")
 
 @router.post("/api/agent/error")
 async def store_agent_error(error: ErrorResult):
@@ -134,6 +110,113 @@ async def get_agent_status():
         "timestamp": datetime.now().isoformat()
     }
 
+@router.get("/api/azure/list")
+async def list_azure_blobs(prefix: Optional[str] = None):
+    """
+    List blobs in Azure container with proper JSON structure.
+    """
+    try:
+        blobs = azure_storage_service.list_blobs(prefix)
+
+        blob_urls = [
+            {
+                "name": blob_name,
+                "url": azure_storage_service.get_blob_url(blob_name),  # direct Azure URL
+                "download_url": f"/api/azure/download/{blob_name}"     # your API endpoint for downloading
+            }
+            for blob_name in blobs
+        ]
+
+        return {
+            "success": True,
+            "count": len(blob_urls),
+            "blobs": blob_urls
+        }
+
+    except Exception as e:
+        print(f"❌ Error listing blobs: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"success": False, "error": f"Failed to list blobs: {str(e)}"}
+        )
+        
+        
+@router.delete("/api/azure/delete-all")
+async def delete_all_azure_blobs():
+    """
+    Delete ALL blobs in Azure container (⚠️ irreversible).
+    """
+    try:
+        blobs = azure_storage_service.list_blobs()
+
+        if not blobs:
+            return {
+                "success": True,
+                "deleted_count": 0,
+                "message": "Container is already empty"
+            }
+
+        deleted = []
+        errors = []
+
+        for blob_name in blobs:
+            try:
+                azure_storage_service.delete_blob(blob_name)
+                deleted.append(blob_name)
+            except Exception as e:
+                errors.append({"name": blob_name, "error": str(e)})
+
+        return {
+            "success": len(errors) == 0,
+            "deleted_count": len(deleted),
+            "deleted": deleted,
+            "errors": errors
+        }
+
+    except Exception as e:
+        print(f"❌ Error deleting all blobs: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={"success": False, "error": f"Failed to delete blobs: {str(e)}"}
+        )
+
+
+@router.get("/api/azure/download/{blob_name:path}")
+async def download_pdf_from_azure(blob_name: str):
+    """
+    Download PDF from Azure Blob Storage
+    
+    Args:
+        blob_name: Name of the blob to download (can include path)
+    """
+    try:
+        print(f"🔍 Downloading PDF from Azure: {blob_name}")
+        
+        # Download PDF from Azure
+        success, pdf_content = azure_storage_service.download_pdf_from_azure(blob_name)
+        
+        if success:
+            # Generate filename from blob name
+            filename = blob_name.split('/')[-1]  # Get the last part of the path
+            
+            print(f"✅ PDF downloaded successfully: {filename}")
+            
+            # Return PDF as file response
+            return FileResponse(
+                io.BytesIO(pdf_content),
+                media_type='application/pdf',
+                filename=filename,
+                headers={
+                    'Content-Disposition': f'attachment; filename="{filename}"'
+                }
+            )
+        else:
+            raise HTTPException(status_code=404, detail="PDF not found in Azure storage")
+            
+    except Exception as e:
+        print(f"❌ Error downloading PDF: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to download PDF: {str(e)}")
+
 
 # Create bills directory if it doesn't exist
 BILLS_DIR = Path("bills")
@@ -159,3 +242,5 @@ def store_error_result_locally(error_data: dict):
         
     except Exception as e:
         print(f"Error storing error result: {str(e)}")
+        
+        

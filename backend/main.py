@@ -106,8 +106,6 @@ async def daily_agent_job():
         
         for credential in credentials:
             # Use agent service to run the agent
-            print(f"EMAIL {credential.email}")
-            print(f"PASS {credential.password}")
             result = await agent_service.run_agent(credential, db)
             print(f"Daily job result for {credential.email}: {result}")
             
@@ -128,8 +126,8 @@ scheduler = AsyncIOScheduler()
 # # ⏰ For production: run daily at 10 AM
 scheduler.add_job(
     daily_agent_job,
-    CronTrigger(hour=18, minute=20),
-    # CronTrigger(hour=23, minute=8),
+    # CronTrigger(hour=18, minute=20),
+    CronTrigger(hour=13, minute=50),
     id="daily_agent_job",
     replace_existing=True,
 )

@@ -4,6 +4,8 @@ import requests
 
 from datetime import datetime
 from typing import Dict
+# Import Azure storage service
+from azure_storage_service import azure_storage_service
 
 from browser_use_sdk import AsyncBrowserUse
 
@@ -69,45 +71,82 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
 
 
 
+import calendar
+
+import os
+import requests
+import calendar
+from datetime import datetime
+
+# Assuming you have a service like this injected/available
+# from services.azure_storage import azure_storage_service
+
+
 async def handle_task_result(result, client, email, DOWNLOAD_DIR):
     print("handle_task_result called")
     if hasattr(result, 'output_files') and result.output_files:
         print(f"  output_files      = {len(result.output_files)} files found")
         
-        # Look for PDF files in output_files
         for output_file in result.output_files:
             file_name = getattr(output_file, 'file_name', 'unknown')
             if file_name.lower().endswith('.pdf'):
                 try:
-                    # Get download URL for the file
+                    # Get download URL from remote browser agent
                     file_response = await client.tasks.get_output_file(
                         file_id=output_file.id, 
                         task_id=result.id
                     )
                     file_url = file_response.download_url
-                    
-                    # Download the file
                     response = requests.get(file_url)
+
                     if response.status_code == 200:
-                        # Clean email for filename
                         clean_email = email.replace('@', '_').replace('+', '_').replace('.', '_')
-                        
-                        # Human-readable datetime for logs
-                        human_time = datetime.now().strftime("%d/%m/%y %I:%M%p")
-                        
-                        # Safe datetime for filename
-                        safe_time = datetime.now().strftime("%d-%m-%y_%I-%M%p")
-                        
-                        # Local filename
+
+                        # Get current date info
+                        now = datetime.now()
+                        year = now.strftime("%Y")
+                        month_name = calendar.month_name[now.month]  # e.g. January, February
+
+                        # Local folder structure (~/duke_bills/2025/January/)
+                        year_folder = os.path.join(DOWNLOAD_DIR, year)
+                        month_folder = os.path.join(year_folder, month_name)
+                        os.makedirs(month_folder, exist_ok=True)
+
+                        # Human-readable + safe datetime for filename
+                        human_time = now.strftime("%d/%m/%y %I:%M%p")
+                        safe_time = now.strftime("%d-%m-%y_%I-%M%p")
+
+                        # Local filename and path
                         local_filename = f"{clean_email}_{safe_time}.pdf"
-                        local_path = os.path.join(DOWNLOAD_DIR, local_filename)
-                        
-                        # Save the file
+                        local_path = os.path.join(month_folder, local_filename)
+
+                        # Save file locally
                         with open(local_path, "wb") as f:
                             f.write(response.content)
-                        
-                        print(f"[OK] Downloaded and saved: {local_path}")
+
+                        print(f"[OK] Downloaded and saved locally: {local_path}")
                         print(f"[INFO] Download time: {human_time}")
+
+                        # -----------------------------------
+                        # Upload same file to Azure
+                        # -----------------------------------
+                        pdf_content = response.content  # raw bytes
+                        blob_name = f"{year}/{month_name}/{local_filename}"
+
+                        try:
+                            success, blob_url, uploaded_blob_name = azure_storage_service.upload_pdf_to_azure(
+                                pdf_content=pdf_content,
+                                email=email,
+                                original_filename=blob_name
+                            )
+
+                            if success:
+                                print(f"[OK] Uploaded to Azure: {blob_url}")
+                            else:
+                                print(f"[ERROR] Upload to Azure failed for {blob_name}")
+                        except Exception as e:
+                            print(f"[ERROR] Azure upload failed: {e}")
+
                     else:
                         print(f"[ERROR] Failed to download {file_name}: HTTP {response.status_code}")
                         
@@ -117,3 +156,4 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR):
                 print(f"[INFO] Skipping non-PDF file: {file_name}")
     else:
         print("[INFO] No output files found in task result")
+

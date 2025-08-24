@@ -18,3 +18,5 @@ openai
 python-dotenv
 playwright
 alembic==1.16.4
+azure-storage-blob
+reportlab

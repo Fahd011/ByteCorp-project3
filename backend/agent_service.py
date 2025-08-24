@@ -60,6 +60,8 @@ class AgentService:
             credential.last_run_time = datetime.utcnow()
             credential.last_error = None
             db.commit()
+            
+            print(f"[INFO] Running agent for {credential.email} …")
 
             # Do the work
             await self._execute_agent_work(credential)
