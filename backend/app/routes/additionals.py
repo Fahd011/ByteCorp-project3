@@ -1,3 +1,10 @@
+# Fetch all billing results for a credential_id
+from fastapi import APIRouter, Depends, HTTPException
+from app.models import BillingResult
+from app.db import get_db
+from sqlalchemy.orm import Session
+
+
 from typing import List
 from app.db import get_db
 from app.utils import hash_password
@@ -74,3 +81,20 @@ def create_test_user(db: Session = Depends(get_db)):
         "password": test_password,
         "user_id": new_user.id
     }
+
+
+@router.get("/api/billing-results/{credential_id}")
+def get_billing_results(credential_id: str, db: Session = Depends(get_db)):
+    results = db.query(BillingResult).filter(BillingResult.user_billing_credential_id == credential_id).order_by(BillingResult.run_time.desc()).all()
+    return [
+        {
+            "id": r.id,
+            "azure_blob_url": r.azure_blob_url,
+            "run_time": r.run_time,
+            "status": r.status,
+            "year": r.year,
+            "month": r.month,
+            "created_at": r.created_at
+        }
+        for r in results
+    ]

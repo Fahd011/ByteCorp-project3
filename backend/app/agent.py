@@ -35,6 +35,9 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         email = user_cred.get("username")
         password = user_cred.get("password")
 
+        # You must pass the credential_id to handle_task_result
+        credential_id = user_cred.get("credential_id")  # Make sure this is set in user_cred
+
         TASK_TEMPLATE = f"""
 1. Go to {signin_url}
 2. Wait for the page to fully load (this site is slow)
@@ -64,7 +67,7 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         print(f"  output_files       = {result.output_files}")
         
          # 👇 Call your helper
-        await handle_task_result(result, client, email, DOWNLOAD_DIR)
+        await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
 
     # Run the async function in a new event loop (needed for multiprocessing)
     asyncio.run(_run())
@@ -82,7 +85,7 @@ from datetime import datetime
 # from services.azure_storage import azure_storage_service
 
 
-async def handle_task_result(result, client, email, DOWNLOAD_DIR):
+async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id):
     print("handle_task_result called")
     if hasattr(result, 'output_files') and result.output_files:
         print(f"  output_files      = {len(result.output_files)} files found")
@@ -141,7 +144,27 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR):
                             )
 
                             if success:
-                                print(f"[OK] Uploaded to Azure: {blob_url}")
+                                print(f"[OK] Uploaded to Azure Blob Name: {uploaded_blob_name}")
+                                # Insert BillingResult entry in DB
+                                try:
+                                    from app.models import BillingResult
+                                    from app.db import SessionLocal
+                                    db = SessionLocal()
+                                    # You need to pass the correct credential id here
+                                    # If you have it available, use it. Otherwise, you may need to pass it to this function.
+                                    billing_result = BillingResult(
+                                        user_billing_credential_id=credential_id,
+                                        azure_blob_url=uploaded_blob_name,
+                                        run_time=datetime.utcnow(),
+                                        status="success",
+                                        year=year,
+                                        month=month_name
+                                    )
+                                    db.add(billing_result)
+                                    db.commit()
+                                    db.close()
+                                except Exception as db_e:
+                                    print(f"[ERROR] Failed to insert BillingResult: {db_e}")
                             else:
                                 print(f"[ERROR] Upload to Azure failed for {blob_name}")
                         except Exception as e:

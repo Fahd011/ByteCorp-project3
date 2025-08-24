@@ -101,7 +101,7 @@ class AgentService:
         import httpx
         async with httpx.AsyncClient() as client:
             payload = {
-                "user_creds": [{"username": credential.email, "password": credential.password}],
+                "user_creds": [{"username": credential.email, "password": credential.password,"credential_id": credential.id}],
                 "signin_url": credential.login_url,
                 "billing_history_url": credential.billing_url
             }

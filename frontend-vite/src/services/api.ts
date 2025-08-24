@@ -1,28 +1,32 @@
-import axios, { AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { 
-  Token, 
-  UserBillingCredential, 
-  ImportSession, 
-  ImportResult, 
-  LoginCredentials, 
+import axios, {
+  AxiosResponse,
+  AxiosError,
+  InternalAxiosRequestConfig,
+} from "axios";
+import {
+  Token,
+  UserBillingCredential,
+  ImportSession,
+  ImportResult,
+  LoginCredentials,
   RegisterData,
-  AgentAction 
-} from '../types';
+  AgentAction,
+} from "../types";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://34.29.0.208/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://34.29.0.208/api";
 
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -38,8 +42,8 @@ api.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      localStorage.removeItem("token");
+      window.location.href = "/login";
     }
     return Promise.reject(error);
   }
@@ -47,56 +51,66 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  login: (credentials: LoginCredentials): Promise<AxiosResponse<Token>> => 
-    api.post('/auth/login', credentials),
-  register: (userData: RegisterData): Promise<AxiosResponse<Token>> => 
-    api.post('/auth/register', userData),
-  createTestUser: (): Promise<AxiosResponse<any>> => 
-    api.post('/create-test-user'),
+  login: (credentials: LoginCredentials): Promise<AxiosResponse<Token>> =>
+    api.post("/auth/login", credentials),
+  register: (userData: RegisterData): Promise<AxiosResponse<Token>> =>
+    api.post("/auth/register", userData),
+  createTestUser: (): Promise<AxiosResponse<any>> =>
+    api.post("/create-test-user"),
 };
 
 // Credentials API
 export const credentialsAPI = {
-  upload: (formData: FormData): Promise<AxiosResponse<any>> => 
-    api.post('/credentials/upload', formData, {
+  upload: (formData: FormData): Promise<AxiosResponse<any>> =>
+    api.post("/credentials/upload", formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        "Content-Type": "multipart/form-data",
       },
     }),
-  getAll: (): Promise<AxiosResponse<UserBillingCredential[]>> => 
-    api.get('/credentials'),
-  uploadPDF: (credId: string, formData: FormData): Promise<AxiosResponse<any>> => 
+  getAll: (): Promise<AxiosResponse<UserBillingCredential[]>> =>
+    api.get("/credentials"),
+  uploadPDF: (
+    credId: string,
+    formData: FormData
+  ): Promise<AxiosResponse<any>> =>
     api.post(`/credentials/${credId}/upload_pdf`, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        "Content-Type": "multipart/form-data",
       },
     }),
-  controlAgent: (credId: string, action: AgentAction): Promise<AxiosResponse<any>> => 
+  controlAgent: (
+    credId: string,
+    action: AgentAction
+  ): Promise<AxiosResponse<any>> =>
     api.post(`/credentials/${credId}/agent`, { action }),
-  delete: (credId: string): Promise<AxiosResponse<any>> => 
+  delete: (credId: string): Promise<AxiosResponse<any>> =>
     api.delete(`/credentials/${credId}`),
-  downloadPDF: (credId: string): Promise<AxiosResponse<Blob>> => 
-    api.get(`/credentials/${credId}/download_pdf`, { responseType: 'blob' }),
+
+  getBillingResults: (credId: string): Promise<AxiosResponse<any>> =>
+    api.get(`/billing-results/${credId}`),
+
+  downloadPDF: (blobName: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/azure/download/${encodeURIComponent(blobName)}`, {
+      responseType: "blob",
+    }),
 };
 
 // Sessions API
 export const sessionsAPI = {
-  getAll: (): Promise<AxiosResponse<ImportSession[]>> => 
-    api.get('/sessions'),
-  getResults: (sessionId: string): Promise<AxiosResponse<ImportResult[]>> => 
+  getAll: (): Promise<AxiosResponse<ImportSession[]>> => api.get("/sessions"),
+  getResults: (sessionId: string): Promise<AxiosResponse<ImportResult[]>> =>
     api.get(`/results/${sessionId}`),
 };
 
 // Scheduling API
 export const schedulingAPI = {
-  scheduleWeekly: (): Promise<AxiosResponse<any>> => 
-    api.post('/schedule/weekly'),
+  scheduleWeekly: (): Promise<AxiosResponse<any>> =>
+    api.post("/schedule/weekly"),
 };
 
 // Health check
 export const healthAPI = {
-  check: (): Promise<AxiosResponse<any>> => 
-    api.get('/health'),
+  check: (): Promise<AxiosResponse<any>> => api.get("/health"),
 };
 
 export default api;

@@ -1,3 +1,5 @@
+# BillingResult model for job results
+
 from app.db import Base
 from sqlalchemy import Column, String, DateTime, Boolean, Integer, ForeignKey, JSON
 from pydantic import BaseModel, EmailStr
@@ -142,4 +144,15 @@ class UserBillingCredential(Base):
     last_error = Column(String)
     last_run_time = Column(DateTime)
     uploaded_bill_url = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class BillingResult(Base):
+    __tablename__ = 'billing_results'
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_billing_credential_id = Column(String, ForeignKey('user_billing_credentials.id'), nullable=False)
+    azure_blob_url = Column(String, nullable=False)
+    run_time = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, nullable=False)
+    year = Column(String, nullable=False)
+    month = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -1,7 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useEffect, ChangeEvent, FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import { credentialsAPI } from "../services/api";
-import { formatDate } from "../utils/helpers";
+// import { formatDate } from "../utils/helpers";
+import { useNavigate } from "react-router-dom";
 
 const Dashboard: React.FC = () => {
   const [credentials, setCredentials] = useState<any[]>([]);
@@ -13,6 +16,8 @@ const Dashboard: React.FC = () => {
     loginUrl: "",
     billingUrl: "",
   });
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchCredentials();
@@ -79,28 +84,28 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleAgentControl = async (
-    credId: string,
-    action: "RUN" | "STOPPED"
-  ) => {
-    try {
-      await credentialsAPI.controlAgent(credId, { action });
-      toast.success(`Agent ${action.toLowerCase()}`);
-      fetchCredentials();
-    } catch (error) {
-      toast.error("Failed to control agent");
-    }
-  };
+  // const handleAgentControl = async (
+  //   credId: string,
+  //   action: "RUN" | "STOPPED"
+  // ) => {
+  //   try {
+  //     await credentialsAPI.controlAgent(credId, { action });
+  //     toast.success(`Agent ${action.toLowerCase()}`);
+  //     fetchCredentials();
+  //   } catch (error) {
+  //     toast.error("Failed to control agent");
+  //   }
+  // };
 
-  const handleDelete = async (credId: string) => {
-    try {
-      await credentialsAPI.delete(credId);
-      toast.success("Credential deleted");
-      fetchCredentials();
-    } catch (error) {
-      toast.error("Failed to delete credential");
-    }
-  };
+  // const handleDelete = async (credId: string) => {
+  //   try {
+  //     await credentialsAPI.delete(credId);
+  //     toast.success("Credential deleted");
+  //     fetchCredentials();
+  //   } catch (error) {
+  //     toast.error("Failed to delete credential");
+  //   }
+  // };
 
   // const handleScheduleWeekly = async () => {
   //   try {
@@ -111,23 +116,6 @@ const Dashboard: React.FC = () => {
   //     toast.error('Failed to create weekly schedule');
   //   }
   // };
-
-  const handleDownloadPDF = async (credId: string, email: string) => {
-    try {
-      const response = await credentialsAPI.downloadPDF(credId);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `bill_${email}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success("PDF downloaded successfully");
-    } catch (error) {
-      toast.error("Failed to download PDF");
-    }
-  };
 
   const getStatusBadgeClass = (status: string | undefined) => {
     switch (status?.toLowerCase()) {
@@ -159,7 +147,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="stats-grid">
+      {/* <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-title">Total Credentials</div>
           <div className="stat-value">{credentials.length}</div>
@@ -205,7 +193,7 @@ const Dashboard: React.FC = () => {
             ❌
           </span>
         </div>
-      </div>
+      </div> */}
 
       {/* Credentials Section */}
       <div className="credentials-header">
@@ -217,7 +205,7 @@ const Dashboard: React.FC = () => {
             style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
           >
             ➕ Create Session
-          </button>
+          </button>{" "}
         </div>
       </div>
 
@@ -248,14 +236,26 @@ const Dashboard: React.FC = () => {
             <div key={cred.id} className="credential-card">
               <div className="credential-header">
                 <h3 className="credential-email">{cred.email}</h3>
+
                 <span
                   className={`status-badge ${getStatusBadgeClass(
-                    cred.last_state
+                    cred.last_state || "idle"
                   )}`}
                 >
-                  {cred.last_state?.toUpperCase() || "IDLE"}
+                  {cred.last_state
+                    ? `Last run: ${cred.last_state}`
+                    : "Never run (IDLE)"}
                 </span>
               </div>
+
+              {/* {cred.last_run_time && (
+                <div className="credential-detail">
+                  <span className="credential-label">Last run:</span>
+                  <span className="credential-value">
+                    {formatDate(cred.last_run_time)}
+                  </span>
+                </div>
+              )} */}
 
               <div className="credential-details">
                 <div className="credential-detail">
@@ -309,15 +309,6 @@ const Dashboard: React.FC = () => {
                       })()
                     : ""}
                 </span>
-
-                {cred.last_run_time && (
-                  <div className="credential-detail">
-                    <span className="credential-label">Last run:</span>
-                    <span className="credential-value">
-                      {formatDate(cred.last_run_time)}
-                    </span>
-                  </div>
-                )}
               </div>
 
               <div className="credential-links">
@@ -340,7 +331,13 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="credential-actions">
-                {cred.last_state !== "running" && (
+                <button
+                  onClick={() => navigate(`/billing-results/${cred.id}`)}
+                  className="btn btn-primary"
+                >
+                  View Bills
+                </button>
+                {/* {cred.last_state !== "running" && (
                   <button
                     onClick={() => handleAgentControl(cred.id, "RUN")}
                     className="btn btn-success"
@@ -356,20 +353,12 @@ const Dashboard: React.FC = () => {
                     ⏹️ Stop
                   </button>
                 )}
-                {cred.uploaded_bill_url && (
-                  <button
-                    onClick={() => handleDownloadPDF(cred.id, cred.email)}
-                    className="btn btn-primary"
-                  >
-                    📄 Download PDF
-                  </button>
-                )}
                 <button
                   onClick={() => handleDelete(cred.id)}
                   className="btn btn-danger"
                 >
                   🗑️ Delete
-                </button>
+                </button> */}
               </div>
             </div>
           ))}

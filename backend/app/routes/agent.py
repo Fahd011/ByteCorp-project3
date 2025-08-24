@@ -1,3 +1,4 @@
+from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 import multiprocessing
@@ -201,11 +202,10 @@ async def download_pdf_from_azure(blob_name: str):
             
             print(f"✅ PDF downloaded successfully: {filename}")
             
-            # Return PDF as file response
-            return FileResponse(
+            # Return PDF as streaming response
+            return StreamingResponse(
                 io.BytesIO(pdf_content),
                 media_type='application/pdf',
-                filename=filename,
                 headers={
                     'Content-Disposition': f'attachment; filename="{filename}"'
                 }

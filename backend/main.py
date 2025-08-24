@@ -127,7 +127,7 @@ scheduler = AsyncIOScheduler()
 scheduler.add_job(
     daily_agent_job,
     # CronTrigger(hour=18, minute=20),
-    CronTrigger(hour=13, minute=50),
+    CronTrigger(hour=15, minute=20),
     id="daily_agent_job",
     replace_existing=True,
 )
