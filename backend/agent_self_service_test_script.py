@@ -72,7 +72,7 @@ async def run_duke_download():
         llm=llm,
         browser_session=browser_session,
         max_steps=15,  # Limit total steps to prevent excessive actions
-        args=["--start-maximized"],
+        args=["--start-maximized","--no-sandbox"],
     )
     
     # Run the async agent in the current event loop
