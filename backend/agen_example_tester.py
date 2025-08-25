@@ -36,10 +36,11 @@ TASK_TEMPLATE = f"""
 """
 
 async def main():
-    # Enhanced browser profile with additional stability args for VMs
+    # Use downloads_path instead of Chrome args
     browser_profile = BrowserProfile(
         headless=True,
         java_script_enabled=True,
+        downloads_path=BILLS_DIR.absolute(),  # Use the proper downloads_path parameter
         args=[
             "--no-sandbox", 
             "--disable-setuid-sandbox",
@@ -52,7 +53,6 @@ async def main():
             "--disable-renderer-backgrounding",
             "--disable-field-trial-config",
             "--disable-ipc-flooding-protection",
-            f"--download-default-directory={BILLS_DIR.absolute()}",
             "--window-size=1920,1080",
             "--disable-extensions",
             "--no-first-run",
