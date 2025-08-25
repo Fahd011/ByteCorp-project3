@@ -123,13 +123,13 @@ async def main():
                 credential_id ="d4d5dcbc-d66e-498f-b3d5-82d5e4bb1b9d"
 
                 try:
-                    success, uploaded_blob_name = azure_storage_service.upload_pdf_to_azure(
+                    uploaded_blob_name = azure_storage_service.upload_pdf_to_azure(
                         pdf_content=pdf_content,
                         email=EMAIL,
                         original_filename=blob_name
                     )
 
-                    if success:
+                    if uploaded_blob_name:
                         print(f"[OK] Uploaded to Azure Blob Name: {uploaded_blob_name}")
                         # Insert BillingResult entry in DB
                         try:
