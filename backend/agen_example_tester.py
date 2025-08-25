@@ -37,35 +37,59 @@ TASK_TEMPLATE = f"""
 """
 
 async def main():
-    # Create browser profile with sandbox args and download directory
+    # Enhanced browser profile with additional stability args for VMs
     browser_profile = BrowserProfile(
         headless=True,
+        java_script_enabled=True,  # Ensure JavaScript is enabled
         args=[
             "--no-sandbox", 
             "--disable-setuid-sandbox",
-            f"--download-default-directory={DOWNLOAD_DIR}"
-        ]
+            "--disable-dev-shm-usage",  # Overcome limited resource problems
+            "--disable-gpu",  # Applicable to Windows
+            "--disable-web-security",  # Disable web security for better compatibility
+            "--disable-features=VizDisplayCompositor",  # Disable compositor
+            "--disable-background-timer-throttling",  # Prevent background throttling
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
+            "--disable-field-trial-config",
+            "--disable-ipc-flooding-protection",
+            f"--download-default-directory={DOWNLOAD_DIR}",
+            "--window-size=1920,1080",  # Set explicit window size
+            "--disable-extensions",  # Disable extensions for stability
+            "--no-first-run",  # Skip first run setup
+            "--disable-default-apps",  # Disable default apps
+        ],
+        wait_between_actions=2.0,  # Increase wait time between actions
     )
 
-    # Create browser session
+    # Create browser session with enhanced error handling
     browser_session = BrowserSession(
-        browser_profile=browser_profile
+        browser_profile=browser_profile,
+        keep_alive=True,  # Keep browser alive for better stability
     )
 
     # Create agent with the Duke Energy task
     agent = Agent(
         task=TASK_TEMPLATE,
         llm=ChatOpenAI(model="gpt-4o-mini"),
-        browser_session=browser_session
+        browser_session=browser_session,
+        max_failures=5,  # Allow more failures before giving up
+        retry_delay=3,  # Longer retry delay
     )
 
     # Run the agent
     print(f"Starting Duke Energy billing task...")
     print(f"Downloads will be saved to: {DOWNLOAD_DIR}")
     
-    result = await agent.run()
-    print("Task completed!")
-    print(f"Final result: {result.final_result()}")
+    try:
+        result = await agent.run()
+        print("Task completed!")
+        print(f"Final result: {result.final_result()}")
+    except Exception as e:
+        print(f"Task failed with error: {e}")
+    finally:
+        # Ensure browser session is properly closed
+        await browser_session.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())
