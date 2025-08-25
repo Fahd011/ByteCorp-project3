@@ -62,10 +62,9 @@ async def main():
         wait_between_actions=2.0,  # Increase wait time between actions
     )
 
-    # Create browser session with enhanced error handling
+    # Create browser session - removed keep_alive parameter
     browser_session = BrowserSession(
         browser_profile=browser_profile,
-        keep_alive=True,  # Keep browser alive for better stability
     )
 
     # Create agent with the Duke Energy task
@@ -87,9 +86,6 @@ async def main():
         print(f"Final result: {result.final_result()}")
     except Exception as e:
         print(f"Task failed with error: {e}")
-    finally:
-        # Ensure browser session is properly closed
-        await browser_session.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())
