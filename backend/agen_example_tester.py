@@ -22,27 +22,18 @@ DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 # ---------------------------------------------------------------------------
 TASK_TEMPLATE = f"""
 1. Go to https://duke-energy.com/my-account/sign-in.
-2. Log in using:
-   - Email: {EMAIL}
-   - Password: {PASSWORD}
-3. Wait for the dashboard to load. Only then proceed to the next step.
-4. Then go to this url: https://businessportal2.duke-energy.com/billinghistory
-5. On the billing history page:
-   - download only download the first bill
-6. Wait at least 5 seconds after clicking to ensure the download is triggered.
-7. Now, go to the top right corner of the page.
-   - Click the user icon (showing {EMAIL}).
-   - Select "Sign out" from the dropdown.
-8. Confirm that you are signed out:
-   - You should be redirected to the **main homepage**.
-   - After reaching the homepage and confirming logout, do not click or navigate anywhere.
-     The task is finished. Do not revisit any links or pages after logout. Do not open new tabs.
-9. If you see a page that says "Something went wrong", stop the task.
-Important:
-- Do not revisit the billing history page after logout.
-- Do not click on "Pay My Bill" or similar options.
-- If no elements are interactable, wait 5 seconds — the page might still be loading. Repeat until page has loaded
-- Only download 1 pdf. Never more than 1
+2. Wait for the login page to fully load.
+3. Log in with:
+    • email    : {EMAIL}
+    • password : {PASSWORD}
+4. After clicking sign in, DO NOT navigate further until the dashboard has fully loaded and interactive elements are visible.
+5. Once the dashboard is clearly loaded, navigate to https://businessportal2.duke-energy.com/billinghistory.
+6. Wait until the billing history page fully loads and billing rows are visible.
+7. If "Oops, something went wrong." appears, STOP the task
+8. Find the "View Bill" button in the FIRST billing row.
+9. Click the "View Bill" button in the FIRST row EXACTLY ONE TIME.
+10. After clicking once and seeing a download notification, the task is COMPLETE. STOP immediately.
+11. SUCCESS = One click on first row View Bill button + one PDF downloaded. DO NOT CLICK AGAIN.
 """
 
 async def main():
