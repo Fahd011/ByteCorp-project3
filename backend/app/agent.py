@@ -265,7 +265,7 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         browser_profile = BrowserProfile(
             headless=True,
             java_script_enabled=True,
-            downloads_path=DOWNLOAD_DIR.absolute(),  # Use the proper downloads_path parameter
+            downloads_path=DOWNLOAD_DIR,  # Use the proper downloads_path parameter
             args=[
                 "--no-sandbox", 
                 "--disable-setuid-sandbox",
@@ -299,7 +299,7 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         )
 
         print(f"Starting Duke Energy billing task...")
-        print(f"Downloads will be saved to: {DOWNLOAD_DIR.absolute()}")
+        print(f"Downloads will be saved to: {DOWNLOAD_DIR}")
         
         # Track initial files in the bills directory before agent runs
         download_path = DOWNLOAD_DIR
