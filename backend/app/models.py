@@ -52,16 +52,7 @@ class UserResponse(BaseModel):
     email: str
     created_at: datetime
 
-class ImportSessionResponse(BaseModel):
-    id: str
-    csv_url: str
-    login_url: str
-    billing_url: str
-    status: str
-    created_at: datetime
-    is_scheduled: bool
-    schedule_type: Optional[str]
-    next_run: Optional[datetime]
+# Removed ImportSessionResponse - no longer needed
 
 class UserBillingCredentialResponse(BaseModel):
     id: str
@@ -80,16 +71,7 @@ class UserBillingCredentialResponse(BaseModel):
     uploaded_bill_url: Optional[str]
     created_at: datetime
 
-class ImportResultResponse(BaseModel):
-    id: str
-    session_id: str
-    email: str
-    status: str
-    error: Optional[str]
-    file_url: Optional[str]
-    retry_attempts: int
-    final_error: Optional[str]
-    created_at: datetime
+# Removed ImportResultResponse - no longer needed
 
 # SQLAlchemy models
 class User(Base):
@@ -99,32 +81,9 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-class ImportSession(Base):
-    __tablename__ = 'import_sessions'
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey('users.id'))
-    csv_url = Column(String, nullable=False)
-    login_url = Column(String, nullable=False)
-    billing_url = Column(String, nullable=False)
-    status = Column(String, default="idle")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    is_scheduled = Column(Boolean, default=False)
-    schedule_type = Column(String)  # 'weekly', 'daily', 'monthly', 'custom'
-    schedule_config = Column(JSON)
-    next_run = Column(DateTime)
-    last_scheduled_run = Column(DateTime)
+# Removed ImportSession - no longer needed
 
-class ImportResult(Base):
-    __tablename__ = 'import_results'
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    session_id = Column(String, ForeignKey('import_sessions.id'))
-    email = Column(String)
-    status = Column(String)
-    error = Column(String)
-    file_url = Column(String)
-    retry_attempts = Column(Integer, default=0)
-    final_error = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
+# Removed ImportResult - no longer needed
 
 class UserBillingCredential(Base):
     __tablename__ = 'user_billing_credentials'

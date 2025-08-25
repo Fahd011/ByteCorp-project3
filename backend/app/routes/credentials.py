@@ -1,16 +1,18 @@
 import uuid
 from app.db import get_db
 from app.agent_utils import simulate_agent_run
-from app.models import AgentAction, ImportSession, UserBillingCredential, UserBillingCredentialResponse
+from app.models import AgentAction, UserBillingCredential, UserBillingCredentialResponse
 from app.routes.auth import verify_token
 from fastapi import Depends,UploadFile, File, Form, APIRouter, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from typing import List
 
 import csv
 import io
 import os
+from datetime import datetime
+from azure_storage_service import azure_storage_service
 
 
 router = APIRouter()
@@ -38,11 +40,17 @@ def upload_credentials(
     # Create a set of existing emails for duplicate checking
     existing_emails = {cred.email for cred in existing_creds}
     
-    # Save CSV file
-    csv_filename = f"uploads/{uuid.uuid4()}_{csv_file.filename}"
-    with open(csv_filename, "wb") as buffer:
-        content = csv_file.file.read()
-        buffer.write(content)
+    # Save CSV file to Azure storage
+    content = csv_file.file.read()
+    csv_filename = f"{uuid.uuid4()}_{csv_file.filename}"
+    
+    # Upload CSV to Azure storage
+    success, csv_url, csv_blob_name = azure_storage_service.upload_manual_credential_pdf(
+        content, user_id, "csv_upload", csv_filename
+    )
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to upload CSV file to Azure storage")
     
     # Parse CSV and create credentials
     try:
@@ -110,23 +118,16 @@ def upload_credentials(
         raise HTTPException(status_code=400, detail=f"Error parsing CSV: {str(e)}")
     
     db.add_all(new_credentials)
-    
-    # Create import session
-    import_session = ImportSession(
-        user_id=user_id,
-        csv_url=csv_filename,
-        login_url=login_url,
-        billing_url=billing_url
-    )
-    db.add(import_session)
     db.commit()
     
-    return {"message": f"Uploaded {len(new_credentials)} credentials", "session_id": import_session.id}
+    return {"message": f"Uploaded {len(new_credentials)} credentials"}
 
 @router.post("/api/credentials/{cred_id}/upload_pdf")
 def upload_pdf(
     cred_id: str,
     pdf_file: UploadFile = File(...),
+    year: str = Form(...),
+    month: str = Form(...),
     user_id: str = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
@@ -140,17 +141,32 @@ def upload_pdf(
     if not credential:
         raise HTTPException(status_code=404, detail="Credential not found")
     
-    # Save PDF file
-    pdf_filename = f"uploads/{uuid.uuid4()}_{pdf_file.filename}"
-    with open(pdf_filename, "wb") as buffer:
-        content = pdf_file.file.read()
-        buffer.write(content)
+    # Read PDF file content
+    content = pdf_file.file.read()
     
-    # Update credential
-    credential.uploaded_bill_url = pdf_filename
+    # Upload PDF to Azure storage with custom year/month path
+    success, blob_url, blob_name = azure_storage_service.upload_manual_credential_pdf_with_custom_path(
+        content, user_id, cred_id, pdf_file.filename, year, month
+    )
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to upload PDF to Azure storage")
+    
+    # Create BillingResult entry for manual upload
+    from app.models import BillingResult
+    billing_result = BillingResult(
+        user_billing_credential_id=cred_id,
+        azure_blob_url=blob_name,
+        run_time=datetime.utcnow(),
+        status="manual_upload",
+        year=year,
+        month=month
+    )
+    
+    db.add(billing_result)
     db.commit()
     
-    return {"message": "PDF uploaded successfully", "file_url": pdf_filename}
+    return {"message": "PDF uploaded successfully", "file_url": blob_name, "azure_url": blob_url}
 
 @router.get("/api/credentials/{cred_id}/download_pdf")
 def download_pdf(
@@ -170,15 +186,19 @@ def download_pdf(
     if not credential.uploaded_bill_url:
         raise HTTPException(status_code=404, detail="No PDF uploaded for this credential")
     
-    # Check if file exists
-    if not os.path.exists(credential.uploaded_bill_url):
-        raise HTTPException(status_code=404, detail="PDF file not found")
+    # Download PDF from Azure storage
+    success, pdf_content = azure_storage_service.download_manual_credential_pdf(credential.uploaded_bill_url)
     
-    # Return file for download
-    return FileResponse(
-        path=credential.uploaded_bill_url,
-        filename=f"bill_{credential.email}_{credential.cred_id}.pdf",
-        media_type="application/pdf"
+    if not success:
+        raise HTTPException(status_code=404, detail="PDF file not found in Azure storage")
+    
+    # Return PDF as streaming response
+    return StreamingResponse(
+        io.BytesIO(pdf_content),
+        media_type='application/pdf',
+        headers={
+            'Content-Disposition': f'attachment; filename="bill_{credential.email}_{credential.cred_id}.pdf"'
+        }
     )
 
 @router.get("/api/credentials", response_model=List[UserBillingCredentialResponse])
