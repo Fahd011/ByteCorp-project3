@@ -216,6 +216,8 @@ from datetime import datetime
 from browser_use import Agent, BrowserSession, BrowserProfile
 from browser_use.llm import ChatOpenAI
 from dotenv import load_dotenv
+from typing import Dict
+
 
 load_dotenv()
 
