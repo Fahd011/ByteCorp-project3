@@ -1,11 +1,17 @@
 import asyncio
 import os
+import calendar
+
+
 from pathlib import Path
+from datetime import datetime
 from browser_use import Agent, BrowserSession, BrowserProfile
 from browser_use.llm import ChatOpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+
+from azure_storage_service import azure_storage_service
 
 # ---------------------------------------------------------------------------
 # CONFIGURATION -------------------------------------------------------------
@@ -76,10 +82,82 @@ async def main():
     print(f"Starting Duke Energy billing task...")
     print(f"Downloads will be saved to: {BILLS_DIR.absolute()}")
     
+    # Track initial files in the bills directory before agent runs
+    download_path = BILLS_DIR
+    initial_files = set(os.listdir(download_path))
+
     try:
         result = await agent.run()
         print("Task completed!")
         print(f"Final result: {result.final_result()}")
+
+        # Give the remote browser a moment to finish synchronising the file
+        await asyncio.sleep(5)
+
+        bill_files = list(download_path.glob("*.pdf")) + list(download_path.glob("*.PDF"))
+
+        # Bills were downloaded successfully!
+        print(f"✅ Bills found: {len(bill_files)} files downloaded for user: {EMAIL}")
+        # Detect new files
+        new_files = set(os.listdir(download_path)) - initial_files
+        
+        clean_email = EMAIL.replace('@', '_').replace('+', '_').replace('.', '_')
+
+        # Get current date info
+        now = datetime.now()
+        year = now.strftime("%Y")
+        month_name = calendar.month_name[now.month]  # e.g. January, February
+
+        if new_files:
+            for file in new_files:
+                # -----------------------------------
+                # Upload same file to Azure
+                # -----------------------------------
+                
+                safe_time = now.strftime("%d-%m-%y_%I-%M%p")
+                
+                # Local filename and path
+                local_filename = f"{clean_email}_{safe_time}.pdf"
+                pdf_content = file  # raw bytes
+                blob_name = f"{year}/{month_name}/{local_filename}"
+                credential_id ="d4d5dcbc-d66e-498f-b3d5-82d5e4bb1b9d"
+
+                try:
+                    success, uploaded_blob_name = azure_storage_service.upload_pdf_to_azure(
+                        pdf_content=pdf_content,
+                        email=EMAIL,
+                        original_filename=blob_name
+                    )
+
+                    if success:
+                        print(f"[OK] Uploaded to Azure Blob Name: {uploaded_blob_name}")
+                        # Insert BillingResult entry in DB
+                        try:
+                            from app.models import BillingResult
+                            from app.db import SessionLocal
+                            db = SessionLocal()
+                            # You need to pass the correct credential id here
+                            # If you have it available, use it. Otherwise, you may need to pass it to this function.
+                            billing_result = BillingResult(
+                                user_billing_credential_id=credential_id,
+                                azure_blob_url=uploaded_blob_name,
+                                run_time=datetime.utcnow(),
+                                status="success",
+                                year=year,
+                                month=month_name
+                            )
+                            db.add(billing_result)
+                            db.commit()
+                            db.close()
+                        except Exception as db_e:
+                            print(f"[ERROR] Failed to insert BillingResult: {db_e}")
+                    else:
+                        print(f"[ERROR] Upload to Azure failed for {blob_name}")
+                except Exception as e:
+                    print(f"[ERROR] Azure upload failed: {e}")
+
+
+        print(f"[INFO] Task finished:")
     except Exception as e:
         print(f"Task failed with error: {e}")
 
