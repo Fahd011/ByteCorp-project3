@@ -226,7 +226,8 @@ from azure_storage_service import azure_storage_service
 # ---------------------------------------------------------------------------
 # CONFIGURATION -------------------------------------------------------------
 # ---------------------------------------------------------------------------
-DOWNLOAD_DIR = os.path.expanduser("~/duke_bills")  # ~/duke_bills on any OS
+# DOWNLOAD_DIR = os.path.expanduser("~/duke_bills")
+DOWNLOAD_DIR = BILLS_DIR = Path("bills")# ~/duke_bills on any OS
 API_KEY  = os.environ.get(
     "BROWSER_USE_API_KEY",
     "bu_7xpa6a_pYy1Xz1mspGw0azXf_9EOZk_IVHwZh-5UVKM",
@@ -342,13 +343,13 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
                     credential_id ="54c0d7fa-c282-438a-99ae-3a435774aa85"
 
                     try:
-                        uploaded_blob_name = azure_storage_service.upload_pdf_to_azure(
+                        success, uploaded_blob_name = azure_storage_service.upload_pdf_to_azure(
                             pdf_content=pdf_content,
                             email=user_cred.get('username'),
                             original_filename=blob_name
                         )
 
-                        if uploaded_blob_name:
+                        if success:
                             print(f"[OK] Uploaded to Azure Blob Name: {uploaded_blob_name}")
                             # Insert BillingResult entry in DB
                             try:
