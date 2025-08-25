@@ -13,13 +13,8 @@ load_dotenv()
 EMAIL = "billing+rtx@sagiliti.com"
 PASSWORD = "Collins123!!"
 DOWNLOAD_DIR = Path(os.path.expanduser("~/duke_bills"))
-
-# Create download directory if it doesn't exist
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-# ---------------------------------------------------------------------------
-# MAIN TASK -----------------------------------------------------------------
-# ---------------------------------------------------------------------------
 TASK_TEMPLATE = f"""
 1. Go to https://duke-energy.com/my-account/sign-in.
 2. Wait for the login page to fully load.
@@ -37,46 +32,36 @@ TASK_TEMPLATE = f"""
 """
 
 async def main():
-    # Enhanced browser profile with additional stability args for VMs
+    # Fix the core technical issues
     browser_profile = BrowserProfile(
-        headless=True,
-        java_script_enabled=True,  # Ensure JavaScript is enabled
+        headless=False,  # Try non-headless first to debug
+        java_script_enabled=True,
         args=[
             "--no-sandbox", 
             "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",  # Overcome limited resource problems
-            "--disable-gpu",  # Applicable to Windows
-            "--disable-web-security",  # Disable web security for better compatibility
-            "--disable-features=VizDisplayCompositor",  # Disable compositor
-            "--disable-background-timer-throttling",  # Prevent background throttling
-            "--disable-backgrounding-occluded-windows",
-            "--disable-renderer-backgrounding",
-            "--disable-field-trial-config",
-            "--disable-ipc-flooding-protection",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
             f"--download-default-directory={DOWNLOAD_DIR}",
-            "--window-size=1920,1080",  # Set explicit window size
-            "--disable-extensions",  # Disable extensions for stability
-            "--no-first-run",  # Skip first run setup
-            "--disable-default-apps",  # Disable default apps
+            "--window-size=1920,1080",
+            # Remove problematic args that might cause 500 errors
+            "--disable-blink-features=AutomationControlled",  # Hide automation
+            "--exclude-switches=enable-automation",  # Hide automation
+            "--disable-extensions-file-access-check",
+            "--disable-plugins-discovery",
         ],
-        wait_between_actions=2.0,  # Increase wait time between actions
+        wait_between_actions=2.0,
     )
 
-    # Create browser session - removed keep_alive parameter
     browser_session = BrowserSession(
         browser_profile=browser_profile,
     )
 
-    # Create agent with the Duke Energy task
     agent = Agent(
         task=TASK_TEMPLATE,
         llm=ChatOpenAI(model="gpt-4o-mini"),
         browser_session=browser_session,
-        max_failures=5,  # Allow more failures before giving up
-        retry_delay=3,  # Longer retry delay
     )
 
-    # Run the agent
     print(f"Starting Duke Energy billing task...")
     print(f"Downloads will be saved to: {DOWNLOAD_DIR}")
     
