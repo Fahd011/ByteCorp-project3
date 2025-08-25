@@ -78,6 +78,11 @@
   color: #475569;
 }
 
+.status-badge.manual_upload {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .billing-details {
   font-size: 0.9rem;
   color: #64748b;
@@ -179,31 +184,7 @@
   transform: none;
 }
 
-.download-manual-btn {
-  padding: 10px 20px;
-  background: #7c3aed;
-  color: #fff;
-  font-size: 0.9rem;
-  font-weight: 500;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.download-manual-btn:hover:not(:disabled) {
-  background: #6d28d9;
-  transform: translateY(-1px);
-}
-
-.download-manual-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
+/* Removed download-manual-btn styles - no longer needed */
 
 /* Responsive design */
 @media (max-width: 768px) {
@@ -211,8 +192,7 @@
     flex-direction: column;
   }
   
-  .upload-btn,
-  .download-manual-btn {
+  .upload-btn {
     width: 100%;
     justify-content: center;
   }

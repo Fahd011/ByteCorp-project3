@@ -1,33 +1,20 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { credentialsAPI } from "../services/api";
 import "./BillingResults.css"; // custom CSS file
 import toast from "react-hot-toast";
+import UploadModal from "../components/UploadModal";
 
 const BillingResults: React.FC = () => {
   const { cred_id: credId } = useParams();
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   useEffect(() => {
-    const fetchResults = async () => {
-      try {
-        if (credId) {
-          const response = await credentialsAPI.getBillingResults(credId);
-          setResults(response.data || []);
-        }
-      } catch (err) {
-        console.error("❌ Failed to fetch billing results", err);
-        toast.error("Failed to fetch billing results");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchResults();
   }, [credId]);
 
@@ -48,95 +35,59 @@ const BillingResults: React.FC = () => {
     }
   };
 
-  const handleUploadManualPDF = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !credId) return;
-
-    if (file.type !== "application/pdf") {
-      toast.error("Please select a PDF file");
-      return;
-    }
+  const handleUploadManualPDF = async (file: File, year: string, month: string) => {
+    if (!credId) return;
 
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("pdf_file", file);
+      formData.append("year", year);
+      formData.append("month", month);
 
       await credentialsAPI.uploadManualPDF(credId, formData);
       toast.success("PDF uploaded successfully");
       
-      // Refresh the page to show updated data
-      window.location.reload();
+      // Refresh the billing results
+      fetchResults();
+      setShowUploadModal(false);
     } catch (error: any) {
       toast.error(error.response?.data?.detail || "Failed to upload PDF");
     } finally {
       setUploading(false);
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   };
 
-  const handleDownloadManualPDF = async () => {
-    if (!credId) return;
-
-    setDownloading(true);
+  const fetchResults = async () => {
     try {
-      const response = await credentialsAPI.downloadManualPDF(credId);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `manual_bill_${credId}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success("Manual PDF downloaded successfully");
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || "Failed to download manual PDF");
+      if (credId) {
+        const response = await credentialsAPI.getBillingResults(credId);
+        setResults(response.data || []);
+      }
+    } catch (err) {
+      console.error("❌ Failed to fetch billing results", err);
+      toast.error("Failed to fetch billing results");
     } finally {
-      setDownloading(false);
+      setLoading(false);
     }
-  };
-
-  const triggerFileUpload = () => {
-    fileInputRef.current?.click();
   };
 
   return (
     <div className="billing-container">
       <h2 className="billing-title">Billing Results</h2>
 
-      {/* Manual PDF Upload/Download Section */}
+      {/* Manual PDF Upload Section */}
       <div className="manual-pdf-section">
-        <h3 className="manual-pdf-title">Manual PDF Management</h3>
+        <h3 className="manual-pdf-title">Upload Manual PDF Bill</h3>
         <div className="manual-pdf-actions">
           <button
-            onClick={triggerFileUpload}
+            onClick={() => setShowUploadModal(true)}
             disabled={uploading}
             className="upload-btn"
           >
-            {uploading ? "Uploading..." : "📁 Upload PDF"}
-          </button>
-          
-          <button
-            onClick={handleDownloadManualPDF}
-            disabled={downloading}
-            className="download-manual-btn"
-          >
-            {downloading ? "Downloading..." : "⬇️ Download Manual PDF"}
+            {uploading ? "Uploading..." : "📁 Upload PDF Bill"}
           </button>
         </div>
-        
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf"
-          onChange={handleUploadManualPDF}
-          style={{ display: "none" }}
-        />
       </div>
 
       {loading ? (
@@ -155,7 +106,7 @@ const BillingResults: React.FC = () => {
                   Bill for {r.year} / {r.month}
                 </h3>
                 <span className={`status-badge ${r.status.toLowerCase()}`}>
-                  {r.status}
+                  {r.status === 'manual_upload' ? 'Manual Upload' : r.status}
                 </span>
               </div>
 
@@ -163,6 +114,11 @@ const BillingResults: React.FC = () => {
                 <p>
                   <strong>Date:</strong> {r.run_time}
                 </p>
+                {r.status === 'manual_upload' && (
+                  <p>
+                    <strong>Type:</strong> Manually uploaded
+                  </p>
+                )}
               </div>
 
               <button
@@ -175,6 +131,14 @@ const BillingResults: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Upload Modal */}
+      <UploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onUpload={handleUploadManualPDF}
+        uploading={uploading}
+      />
     </div>
   );
 };

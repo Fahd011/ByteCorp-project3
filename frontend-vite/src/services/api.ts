@@ -92,7 +92,7 @@ export const credentialsAPI = {
       responseType: "blob",
     }),
   
-  // Manual credential PDF upload/download
+  // Manual credential PDF upload
   uploadManualPDF: (
     credId: string,
     formData: FormData
@@ -101,11 +101,6 @@ export const credentialsAPI = {
       headers: {
         "Content-Type": "multipart/form-data",
       },
-    }),
-  
-  downloadManualPDF: (credId: string): Promise<AxiosResponse<Blob>> =>
-    api.get(`/credentials/${credId}/download_pdf`, {
-      responseType: "blob",
     }),
 };
 
