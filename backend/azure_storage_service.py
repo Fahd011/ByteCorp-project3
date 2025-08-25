@@ -188,5 +188,66 @@ class AzureStorageService:
             print(f"❌ Error listing blobs: {e}")
             return []
 
+    def upload_manual_credential_pdf(self, pdf_content: bytes, user_id: str, credential_id: str, original_filename: str) -> Tuple[bool, str, str]:
+        """
+        Upload manual credential PDF to Azure Blob Storage with user_credentials_bills_manual/year/month path
+        
+        Args:
+            pdf_content: PDF file content as bytes
+            user_id: User ID
+            credential_id: Credential ID
+            original_filename: Original filename
+            
+        Returns:
+            Tuple of (success, blob_url, blob_name)
+        """
+        try:
+            # Create year/month path
+            current_date = datetime.now()
+            year_month_path = f"{current_date.year}/{current_date.month:02d}"
+            
+            # Create blob name with manual credential path
+            blob_name = f"user_credentials_bills_manual/{year_month_path}/{user_id}_{credential_id}_{original_filename}"
+            
+            # Get blob client
+            blob_client = self.container_client.get_blob_client(blob_name)
+            
+            # Upload the PDF
+            blob_client.upload_blob(pdf_content, overwrite=True)
+            
+            # Generate the full URL
+            blob_url = f"https://{self.storage_account_name}.blob.core.windows.net/{self.container_name}/{blob_name}"
+            
+            print(f"✅ Manual credential PDF uploaded successfully to Azure: {blob_url}")
+            return True, blob_url, blob_name
+            
+        except Exception as e:
+            print(f"❌ Error uploading manual credential PDF to Azure: {e}")
+            return False, "", ""
+
+    def download_manual_credential_pdf(self, blob_name: str) -> Tuple[bool, bytes]:
+        """
+        Download manual credential PDF from Azure Blob Storage
+        
+        Args:
+            blob_name: Name of the blob to download
+            
+        Returns:
+            Tuple of (success, pdf_content)
+        """
+        try:
+            blob_client = self.container_client.get_blob_client(blob_name)
+            
+            # Download the blob
+            blob_data = blob_client.download_blob()
+            pdf_content = blob_data.readall()
+            
+            print(f"✅ Manual credential PDF downloaded successfully from Azure: {blob_name}")
+            return True, pdf_content
+            
+        except Exception as e:
+            print(f"❌ Error downloading manual credential PDF from Azure: {e}")
+            return False, b""
+
 # Create global instance
 azure_storage_service = AzureStorageService()

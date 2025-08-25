@@ -6,8 +6,6 @@ import axios, {
 import {
   Token,
   UserBillingCredential,
-  ImportSession,
-  ImportResult,
   LoginCredentials,
   RegisterData,
   AgentAction,
@@ -93,14 +91,25 @@ export const credentialsAPI = {
     api.get(`/azure/download/${encodeURIComponent(blobName)}`, {
       responseType: "blob",
     }),
+  
+  // Manual credential PDF upload/download
+  uploadManualPDF: (
+    credId: string,
+    formData: FormData
+  ): Promise<AxiosResponse<any>> =>
+    api.post(`/credentials/${credId}/upload_pdf`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }),
+  
+  downloadManualPDF: (credId: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/credentials/${credId}/download_pdf`, {
+      responseType: "blob",
+    }),
 };
 
-// Sessions API
-export const sessionsAPI = {
-  getAll: (): Promise<AxiosResponse<ImportSession[]>> => api.get("/sessions"),
-  getResults: (sessionId: string): Promise<AxiosResponse<ImportResult[]>> =>
-    api.get(`/results/${sessionId}`),
-};
+// Removed sessionsAPI - no longer needed
 
 // Scheduling API
 export const schedulingAPI = {
