@@ -11,6 +11,8 @@ from typing import List
 import csv
 import io
 import os
+from datetime import datetime
+from azure_storage_service import azure_storage_service
 
 
 router = APIRouter()
@@ -119,6 +121,8 @@ def upload_credentials(
 def upload_pdf(
     cred_id: str,
     pdf_file: UploadFile = File(...),
+    year: str = Form(...),
+    month: str = Form(...),
     user_id: str = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
@@ -138,8 +142,26 @@ def upload_pdf(
         content = pdf_file.file.read()
         buffer.write(content)
     
-    # Update credential
-    credential.uploaded_bill_url = pdf_filename
+    # Upload PDF to Azure storage with custom year/month path
+    success, blob_url, blob_name = azure_storage_service.upload_manual_credential_pdf_with_custom_path(
+        content, user_id, cred_id, pdf_file.filename, year, month
+    )
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to upload PDF to Azure storage")
+    
+    # Create BillingResult entry for manual upload
+    from app.models import BillingResult
+    billing_result = BillingResult(
+        user_billing_credential_id=cred_id,
+        azure_blob_url=blob_name,
+        run_time=datetime.utcnow(),
+        status="manual_upload",
+        year=year,
+        month=month
+    )
+    
+    db.add(billing_result)
     db.commit()
     
     return {"message": "PDF uploaded successfully", "file_url": pdf_filename}
