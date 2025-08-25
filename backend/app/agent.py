@@ -343,13 +343,13 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
                     credential_id ="54c0d7fa-c282-438a-99ae-3a435774aa85"
 
                     try:
-                        success, uploaded_blob_name = azure_storage_service.upload_pdf_to_azure(
+                        uploaded_blob_name = azure_storage_service.upload_pdf_to_azure(
                             pdf_content=pdf_content,
                             email=user_cred.get('username'),
                             original_filename=blob_name
                         )
 
-                        if success:
+                        if uploaded_blob_name:
                             print(f"[OK] Uploaded to Azure Blob Name: {uploaded_blob_name}")
                             # Insert BillingResult entry in DB
                             try:
