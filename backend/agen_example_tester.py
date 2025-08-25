@@ -120,7 +120,7 @@ async def main():
                 local_filename = f"{clean_email}_{safe_time}.pdf"
                 pdf_content = file  # raw bytes
                 blob_name = f"{year}/{month_name}/{local_filename}"
-                credential_id ="d4d5dcbc-d66e-498f-b3d5-82d5e4bb1b9d"
+                credential_id ="54c0d7fa-c282-438a-99ae-3a435774aa85"
 
                 try:
                     uploaded_blob_name = azure_storage_service.upload_pdf_to_azure(
