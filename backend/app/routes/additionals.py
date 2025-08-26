@@ -1,6 +1,6 @@
 # Fetch all billing results for a credential_id
 from fastapi import APIRouter, Depends, HTTPException
-from app.models import BillingResult
+from app.models import BillingResult, Provider, ProviderResponse
 from app.db import get_db
 from sqlalchemy.orm import Session
 
@@ -67,3 +67,18 @@ def get_billing_results(credential_id: str, db: Session = Depends(get_db)):
         }
         for r in results
     ]
+
+# Provider endpoints
+@router.get("/api/providers", response_model=List[ProviderResponse])
+def get_providers(db: Session = Depends(get_db)):
+    """Get all available providers"""
+    providers = db.query(Provider).all()
+    return providers
+
+@router.get("/api/providers/{provider_id}", response_model=ProviderResponse)
+def get_provider(provider_id: str, db: Session = Depends(get_db)):
+    """Get a specific provider by ID"""
+    provider = db.query(Provider).filter(Provider.id == provider_id).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    return provider

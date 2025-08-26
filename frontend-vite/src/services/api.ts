@@ -57,6 +57,14 @@ export const authAPI = {
     api.post("/create-test-user"),
 };
 
+// Provider API
+export const providerAPI = {
+  getAll: (): Promise<AxiosResponse<any[]>> =>
+    api.get("/providers"),
+  getById: (providerId: string): Promise<AxiosResponse<any>> =>
+    api.get(`/providers/${providerId}`),
+};
+
 // Credentials API
 export const credentialsAPI = {
   upload: (formData: FormData): Promise<AxiosResponse<any>> =>

@@ -10,6 +10,15 @@ export interface Token {
   token_type: string;
 }
 
+export interface Provider {
+  id: string;
+  name: string;
+  login_url: string;
+  billing_url: string;
+  extras?: any;
+  created_at: string;
+}
+
 export interface UserBillingCredential {
   id: string;
   email: string;
