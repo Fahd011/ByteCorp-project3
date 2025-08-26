@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 
 # Import configuration
 from config import config
+from azure_storage_service import azure_storage_service
 
 class AgentService:
     """Abstract service for agent operations"""
@@ -203,19 +204,31 @@ startxref
         else:
             raise ValueError(f"Unsupported storage provider: {self.storage_provider}")
     
+    def upload_manual_credential_file(self, file_data: bytes, user_id: str, credential_id: str, filename: str) -> str:
+        """
+        Upload manual credential file to Azure storage
+        
+        Args:
+            file_data: File content as bytes
+            user_id: User ID
+            credential_id: Credential ID
+            filename: Name of the file
+            
+        Returns:
+            Blob name in Azure storage
+        """
+        success, blob_url, blob_name = azure_storage_service.upload_manual_credential_pdf(
+            file_data, user_id, credential_id, filename
+        )
+        
+        if not success:
+            raise Exception("Failed to upload file to Azure storage")
+        
+        return blob_name
+    
     def _upload_to_local(self, file_data: bytes, filename: str) -> str:
-        """Upload file to local storage"""
-        # Create uploads directory if it doesn't exist
-        os.makedirs("./uploads", exist_ok=True)
-        
-        # Generate unique filename
-        unique_filename = f"uploads/{uuid.uuid4()}_{filename}"
-        
-        # Write file
-        with open(unique_filename, "wb") as f:
-            f.write(file_data)
-        
-        return unique_filename
+        """Upload file to local storage - DEPRECATED, use Azure storage instead"""
+        raise NotImplementedError("Local storage is deprecated. Please use Azure storage instead.")
     
     def _upload_to_azure(self, file_data: bytes, filename: str) -> str:
         """Upload file to Azure Blob Storage"""
@@ -241,9 +254,8 @@ startxref
             raise ValueError(f"Unsupported storage provider: {self.storage_provider}")
     
     def _download_from_local(self, file_path: str) -> bytes:
-        """Download file from local storage"""
-        with open(file_path, "rb") as f:
-            return f.read()
+        """Download file from local storage - DEPRECATED, use Azure storage instead"""
+        raise NotImplementedError("Local storage is deprecated. Please use Azure storage instead.")
     
     def _download_from_azure(self, file_path: str) -> bytes:
         """Download file from Azure Blob Storage"""
@@ -252,7 +264,7 @@ startxref
         raise NotImplementedError("Azure storage not yet implemented")
 
 # Global agent service instance
-agent_service = AgentService(storage_provider="local")
+agent_service = AgentService(storage_provider="azure")
 
 # Factory function to create agent service with different providers
 def create_agent_service(storage_provider: str = "local") -> AgentService:

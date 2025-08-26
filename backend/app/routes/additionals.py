@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.db import get_db
 from app.utils import hash_password
-from app.models import ImportResult, ImportResultResponse, ImportSession, ImportSessionResponse, User
+from app.models import User
 from app.routes.auth import verify_token
 from config import config
 
@@ -19,38 +19,7 @@ from datetime import datetime
 router = APIRouter()
 
 
-# Additional utility endpoints
-@router.get("/api/sessions", response_model=List[ImportSessionResponse])
-def get_sessions(
-    user_id: str = Depends(verify_token),
-    db: Session = Depends(get_db)
-):
-    sessions = db.query(ImportSession).filter(
-        ImportSession.user_id == user_id
-    ).all()
-    
-    return sessions
-
-@router.get("/api/results/{session_id}", response_model=List[ImportResultResponse])
-def get_results(
-    session_id: str,
-    user_id: str = Depends(verify_token),
-    db: Session = Depends(get_db)
-):
-    # Verify session belongs to user
-    session = db.query(ImportSession).filter(
-        ImportSession.id == session_id,
-        ImportSession.user_id == user_id
-    ).first()
-    
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    results = db.query(ImportResult).filter(
-        ImportResult.session_id == session_id
-    ).all()
-    
-    return results
+# Removed unused session and result endpoints - no longer needed
 
 # Utility endpoint to create a test user (for development only)
 @router.post("/api/create-test-user")

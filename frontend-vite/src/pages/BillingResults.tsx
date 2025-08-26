@@ -5,26 +5,16 @@ import { useParams } from "react-router-dom";
 import { credentialsAPI } from "../services/api";
 import "./BillingResults.css"; // custom CSS file
 import toast from "react-hot-toast";
+import UploadModal from "../components/UploadModal";
 
 const BillingResults: React.FC = () => {
   const { cred_id: credId } = useParams();
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   useEffect(() => {
-    const fetchResults = async () => {
-      try {
-        if (credId) {
-          const response = await credentialsAPI.getBillingResults(credId);
-          setResults(response.data || []);
-        }
-      } catch (err) {
-        console.error("❌ Failed to fetch billing results", err);
-        toast.error("Failed to fetch billing results");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchResults();
   }, [credId]);
 
@@ -45,9 +35,60 @@ const BillingResults: React.FC = () => {
     }
   };
 
+  const handleUploadManualPDF = async (file: File, year: string, month: string) => {
+    if (!credId) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("pdf_file", file);
+      formData.append("year", year);
+      formData.append("month", month);
+
+      await credentialsAPI.uploadManualPDF(credId, formData);
+      toast.success("PDF uploaded successfully");
+      
+      // Refresh the billing results
+      fetchResults();
+      setShowUploadModal(false);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || "Failed to upload PDF");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const fetchResults = async () => {
+    try {
+      if (credId) {
+        const response = await credentialsAPI.getBillingResults(credId);
+        setResults(response.data || []);
+      }
+    } catch (err) {
+      console.error("❌ Failed to fetch billing results", err);
+      toast.error("Failed to fetch billing results");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="billing-container">
       <h2 className="billing-title">Billing Results</h2>
+
+      {/* Manual PDF Upload Section */}
+      <div className="manual-pdf-section">
+        <h3 className="manual-pdf-title">Upload Manual PDF Bill</h3>
+        <div className="manual-pdf-actions">
+          <button
+            onClick={() => setShowUploadModal(true)}
+            disabled={uploading}
+            className="upload-btn"
+          >
+            {uploading ? "Uploading..." : "📁 Upload PDF Bill"}
+          </button>
+        </div>
+      </div>
 
       {loading ? (
         <div className="loading-spinner-container">
@@ -65,7 +106,7 @@ const BillingResults: React.FC = () => {
                   Bill for {r.year} / {r.month}
                 </h3>
                 <span className={`status-badge ${r.status.toLowerCase()}`}>
-                  {r.status}
+                  {r.status === 'manual_upload' ? 'Manual Upload' : r.status}
                 </span>
               </div>
 
@@ -73,6 +114,11 @@ const BillingResults: React.FC = () => {
                 <p>
                   <strong>Date:</strong> {r.run_time}
                 </p>
+                {r.status === 'manual_upload' && (
+                  <p>
+                    <strong>Type:</strong> Manually uploaded
+                  </p>
+                )}
               </div>
 
               <button
@@ -85,6 +131,14 @@ const BillingResults: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Upload Modal */}
+      <UploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onUpload={handleUploadManualPDF}
+        uploading={uploading}
+      />
     </div>
   );
 };

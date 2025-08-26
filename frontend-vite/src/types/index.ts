@@ -27,29 +27,9 @@ export interface UserBillingCredential {
   created_at: string;
 }
 
-export interface ImportSession {
-  id: string;
-  csv_url: string;
-  login_url: string;
-  billing_url: string;
-  status: string;
-  created_at: string;
-  is_scheduled: boolean;
-  schedule_type?: string;
-  next_run?: string;
-}
+// Removed ImportSession - no longer needed
 
-export interface ImportResult {
-  id: string;
-  session_id: string;
-  email: string;
-  status: string;
-  error?: string;
-  file_url?: string;
-  retry_attempts: number;
-  final_error?: string;
-  created_at: string;
-}
+// Removed ImportResult - no longer needed
 
 // Auth Types
 export interface LoginCredentials {
