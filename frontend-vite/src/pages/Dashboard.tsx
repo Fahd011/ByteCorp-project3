@@ -2,17 +2,20 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useEffect, ChangeEvent, FormEvent } from "react";
 import { toast } from "react-hot-toast";
-import { credentialsAPI } from "../services/api";
+import { credentialsAPI, providerAPI } from "../services/api";
+import { Provider } from "../types";
 // import { formatDate } from "../utils/helpers";
 import { useNavigate } from "react-router-dom";
 
 const Dashboard: React.FC = () => {
   const [credentials, setCredentials] = useState<any[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     csvFile: null as File | null,
+    selectedProviderId: "",
     loginUrl: "",
     billingUrl: "",
   });
@@ -21,6 +24,7 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchCredentials();
+    fetchProviders();
   }, []);
 
   const fetchCredentials = async () => {
@@ -34,6 +38,15 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const fetchProviders = async () => {
+    try {
+      const response = await providerAPI.getAll();
+      setProviders(response.data || []);
+    } catch (error) {
+      toast.error("Failed to load providers");
+    }
+  };
+
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && file.type === "text/csv") {
@@ -43,11 +56,28 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleProviderChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    const providerId = e.target.value;
+    const selectedProvider = providers.find(p => p.id === providerId);
+    
+    setFormData({
+      ...formData,
+      selectedProviderId: providerId,
+      loginUrl: selectedProvider?.login_url || "",
+      billingUrl: selectedProvider?.billing_url || "",
+    });
+  };
+
   const handleCreateSession = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!formData.csvFile) {
       toast.error("Please select a CSV file");
+      return;
+    }
+
+    if (!formData.selectedProviderId) {
+      toast.error("Please select a provider");
       return;
     }
 
@@ -70,6 +100,7 @@ const Dashboard: React.FC = () => {
       // Reset form and close modal
       setFormData({
         csvFile: null,
+        selectedProviderId: "",
         loginUrl: "",
         billingUrl: "",
       });
@@ -395,38 +426,26 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="loginUrl" className="form-label">
-                  Login URL
+                <label htmlFor="providerSelect" className="form-label">
+                  Provider
                 </label>
-                <input
-                  type="url"
-                  id="loginUrl"
-                  value={formData.loginUrl}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                    setFormData({ ...formData, loginUrl: e.target.value })
-                  }
+                <select
+                  id="providerSelect"
+                  value={formData.selectedProviderId}
+                  onChange={handleProviderChange}
                   className="form-input"
-                  placeholder="https://example.com/login"
                   required
-                />
+                >
+                  <option value="">Select a provider...</option>
+                  {providers.map((provider) => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="form-group">
-                <label htmlFor="billingUrl" className="form-label">
-                  Billing URL
-                </label>
-                <input
-                  type="url"
-                  id="billingUrl"
-                  value={formData.billingUrl}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                    setFormData({ ...formData, billingUrl: e.target.value })
-                  }
-                  className="form-input"
-                  placeholder="https://example.com/billing"
-                  required
-                />
-              </div>
+
 
               <div
                 style={{

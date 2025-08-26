@@ -52,6 +52,21 @@ class UserResponse(BaseModel):
     email: str
     created_at: datetime
 
+# Provider Models
+class ProviderCreate(BaseModel):
+    name: str
+    login_url: str
+    billing_url: str
+    extras: Optional[dict] = None
+
+class ProviderResponse(BaseModel):
+    id: str
+    name: str
+    login_url: str
+    billing_url: str
+    extras: Optional[dict]
+    created_at: datetime
+
 # Removed ImportSessionResponse - no longer needed
 
 class UserBillingCredentialResponse(BaseModel):
@@ -79,6 +94,16 @@ class User(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# Provider Table
+class Provider(Base):
+    __tablename__ = 'providers'
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    login_url = Column(String, nullable=False)
+    billing_url = Column(String, nullable=False)
+    extras = Column(JSON, nullable=True)  # Store additional configuration as JSON
     created_at = Column(DateTime, default=datetime.utcnow)
 
 # Removed ImportSession - no longer needed
