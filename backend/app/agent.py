@@ -228,10 +228,6 @@ from azure_storage_service import azure_storage_service
 # ---------------------------------------------------------------------------
 # DOWNLOAD_DIR = os.path.expanduser("~/duke_bills")
 DOWNLOAD_DIR = BILLS_DIR = Path("bills")# ~/duke_bills on any OS
-API_KEY  = os.environ.get(
-    "BROWSER_USE_API_KEY",
-    "bu_7xpa6a_pYy1Xz1mspGw0azXf_9EOZk_IVHwZh-5UVKM",
-)
 
 # ---------------------------------------------------------------------------
 # AGENT FUNCTION ------------------------------------------------------------
@@ -340,7 +336,7 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
                     local_filename = f"{clean_email}_{safe_time}.pdf"
                     pdf_content = file  # raw bytes
                     blob_name = f"{year}/{month_name}/{local_filename}"
-                    credential_id ="54c0d7fa-c282-438a-99ae-3a435774aa85"
+                    credential_id = user_cred.get('credential_id')  # Make sure this is set in user_cred
 
                     try:
                         uploaded_blob_name = azure_storage_service.upload_pdf_to_azure(
