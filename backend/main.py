@@ -126,7 +126,7 @@ scheduler = AsyncIOScheduler()
 # # ⏰ For production: run daily at 10 AM
 scheduler.add_job(
     daily_agent_job,
-    CronTrigger(hour=5, minute=18),
+    CronTrigger(hour=5, minute=25),
     # CronTrigger(hour=15, minute=20),
     id="daily_agent_job",
     replace_existing=True,
