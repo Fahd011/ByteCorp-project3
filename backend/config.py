@@ -14,6 +14,7 @@ class Config:
 
     ROOT_USER_EMAIL : str = os.getenv("ROOT_USER_EMAIL")
     ROOT_USER_PASSWORD : str = os.getenv("ROOT_USER_PASSWORD")
+    BROWSER_USE_API_KEY : str = os.getenv("BROWSER_USE_API_KEY")
     
     # Database Configuration
     DATABASE_URL: str = os.getenv("DATABASE_URL")
