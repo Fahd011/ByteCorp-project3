@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-from browser_use.llm import ChatOpenAI
+# from browser_use.llm import ChatOpenAI
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 # from apscheduler.schedulers.background import BackgroundScheduler
@@ -19,8 +19,8 @@ from app.routes.agent import router as agents_bp
 from config import config
 
 
-# Initialize LLM
-llm = ChatOpenAI(model="gpt-4.1-mini")
+# # Initialize LLM
+# llm = ChatOpenAI(model="gpt-4.1-mini")
 
 # FastAPI app
 
