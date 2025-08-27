@@ -82,11 +82,14 @@ def create_access_token(data: dict):
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
+        print(f"[verify_token] Called with credentials: {credentials}")
         payload = jwt.decode(credentials.credentials, config.SECRET_KEY, algorithms=[config.ALGORITHM])
         user_id: str = payload.get("sub")
         print(f"🔑 Token verified for user_id: {user_id}")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
+        if not credentials.credentials:
+            print("[verify_token] No token provided!")
         return user_id
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
