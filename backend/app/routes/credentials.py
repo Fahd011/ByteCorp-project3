@@ -1,7 +1,7 @@
 import uuid
 from app.db import get_db
 from app.agent_utils import simulate_agent_run
-from app.models import AgentAction, ImportSession, UserBillingCredential, UserBillingCredentialResponse
+from app.models import AgentAction, UserBillingCredential, UserBillingCredentialResponse
 from app.routes.auth import verify_token
 from fastapi import Depends,UploadFile, File, Form, APIRouter, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -17,26 +17,28 @@ router = APIRouter()
 
 @router.post("/api/credentials/upload")
 def upload_credentials(
-    background_tasks: BackgroundTasks,
-    # csv_file: UploadFile = File(...),
-    login_url: str = Form(...),
-    billing_url: str = Form(...),
-    user_id: str = Depends(verify_token),
-    db: Session = Depends(get_db)
+    # background_tasks: BackgroundTasks,
+    # # csv_file: UploadFile = File(...),
+    # login_url: str = Form(...),
+    # billing_url: str = Form(...),
+    # user_id: str = Depends(verify_token),
+    # db: Session = Depends(get_db)
 ):
-    # Check if user has existing credentials
-    existing_creds = db.query(UserBillingCredential).filter(
-        UserBillingCredential.user_id == user_id,
-        UserBillingCredential.is_deleted == False
-    ).all()
+    return {"message": "testing"}
     
-    # Check if any are running
-    running_creds = [cred for cred in existing_creds if cred.last_state == "running"]
-    if running_creds:
-        raise HTTPException(status_code=400, detail="Cannot upload while agents are running")
+    # # Check if user has existing credentials
+    # existing_creds = db.query(UserBillingCredential).filter(
+    #     UserBillingCredential.user_id == user_id,
+    #     UserBillingCredential.is_deleted == False
+    # ).all()
     
-    # Create a set of existing emails for duplicate checking
-    existing_emails = {cred.email for cred in existing_creds}
+    # # Check if any are running
+    # running_creds = [cred for cred in existing_creds if cred.last_state == "running"]
+    # if running_creds:
+    #     raise HTTPException(status_code=400, detail="Cannot upload while agents are running")
+    
+    # # Create a set of existing emails for duplicate checking
+    # existing_emails = {cred.email for cred in existing_creds}
     
     # # Save CSV file
     # csv_filename = f"uploads/{uuid.uuid4()}_{csv_file.filename}"
@@ -123,7 +125,6 @@ def upload_credentials(
     
     # return {"message": f"Uploaded {len(new_credentials)} credentials", "session_id": import_session.id}
 
-    return {"message": "testing"}
 
 @router.post("/api/credentials/{cred_id}/upload_pdf")
 def upload_pdf(
