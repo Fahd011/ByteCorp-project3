@@ -105,7 +105,6 @@ class AgentService:
             }
             response = await client.post("http://localhost:5000/api/agent/run", json=payload)
             response_data = response.json()
-            print("API response:", response_data)
         # You can handle the response here, e.g., save PDF, update credential, etc.
 
         pass

@@ -35,7 +35,11 @@ const BillingResults: React.FC = () => {
     }
   };
 
-  const handleUploadManualPDF = async (file: File, year: string, month: string) => {
+  const handleUploadManualPDF = async (
+    file: File,
+    year: string,
+    month: string
+  ) => {
     if (!credId) return;
 
     setUploading(true);
@@ -47,7 +51,7 @@ const BillingResults: React.FC = () => {
 
       await credentialsAPI.uploadManualPDF(credId, formData);
       toast.success("PDF uploaded successfully");
-      
+
       // Refresh the billing results
       fetchResults();
       setShowUploadModal(false);
@@ -106,15 +110,16 @@ const BillingResults: React.FC = () => {
                   Bill for {r.year} / {r.month}
                 </h3>
                 <span className={`status-badge ${r.status.toLowerCase()}`}>
-                  {r.status === 'manual_upload' ? 'Manual Upload' : r.status}
+                  {r.status === "manual_upload" ? "Manual Upload" : r.status}
                 </span>
               </div>
 
               <div className="billing-details">
                 <p>
-                  <strong>Date:</strong> {r.run_time}
+                  <strong>Date:</strong>{" "}
+                  {r.run_time ? new Date(r.run_time).toLocaleString() : "N/A"}
                 </p>
-                {r.status === 'manual_upload' && (
+                {r.status === "manual_upload" && (
                   <p>
                     <strong>Type:</strong> Manually uploaded
                   </p>

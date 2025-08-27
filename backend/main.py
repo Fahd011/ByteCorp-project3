@@ -107,7 +107,6 @@ async def daily_agent_job():
         for credential in credentials:
             # Use agent service to run the agent
             result = await agent_service.run_agent(credential, db)
-            print(f"Daily job result for {credential.email}: {result}")
             
     except Exception as e:
         print(f"Error in daily job: {e}")
@@ -125,7 +124,7 @@ scheduler = AsyncIOScheduler()
 
 scheduler.add_job(
     daily_agent_job,                     # the function to run
-    CronTrigger(hour=19, minute=3),      # schedule: every day at 22:00 (10 PM)
+    CronTrigger(hour=19, minute=0),      # schedule: every day at 19:00 (7PM)
     id="daily_agent_job",                # unique job identifier
     replace_existing=True                # replace existing job with same ID if already scheduled
 )

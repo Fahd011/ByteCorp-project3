@@ -27,7 +27,7 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
     try:
         if request.user_creds:
             first_user = request.user_creds[0]
-            print(f"[INFO] First user ----> username: {first_user['username']}, password: {first_user['password']}")
+            # print(f"[INFO] First user ----> username: {first_user['username']}, password: {first_user['password']}")
             
             # # Start agent in background process with the full user_creds array
             process = multiprocessing.Process(

@@ -67,7 +67,6 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    print(f"✅ Password verified successfully for user: {user.email}")
     access_token = create_access_token(data={"sub": user.id})
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -82,10 +81,8 @@ def create_access_token(data: dict):
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
-        print(f"[verify_token] Called with credentials: {credentials}")
         payload = jwt.decode(credentials.credentials, config.SECRET_KEY, algorithms=[config.ALGORITHM])
         user_id: str = payload.get("sub")
-        print(f"🔑 Token verified for user_id: {user_id}")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
         if not credentials.credentials:
