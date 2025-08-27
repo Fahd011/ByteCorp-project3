@@ -22,7 +22,7 @@ class Config:
     # Security Configuration
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 1 week
     
     # Storage Configuration
     # STORAGE_PROVIDER: str = os.getenv("STORAGE_PROVIDER", "local")  # "local", "azure", "aws"
