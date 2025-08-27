@@ -96,9 +96,6 @@ class AgentService:
         """
         Execute the actual agent work by calling the agent API endpoint.
         """
-        print("credential.email:", credential.email)
-        print("credential.password:", credential.password)
-
         import httpx
         async with httpx.AsyncClient() as client:
             payload = {
