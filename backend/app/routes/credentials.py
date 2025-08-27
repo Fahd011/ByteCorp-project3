@@ -17,113 +17,102 @@ router = APIRouter()
 
 @router.post("/api/credentials/upload")
 def upload_credentials(
-    # background_tasks: BackgroundTasks,
-    # # csv_file: UploadFile = File(...),
-    # login_url: str = Form(...),
-    # billing_url: str = Form(...),
-    # user_id: str = Depends(verify_token),
-    # db: Session = Depends(get_db)
+    background_tasks: BackgroundTasks,
+    # csv_file: UploadFile = File(...),
+    login_url: str = Form(...),
+    billing_url: str = Form(...),
+    user_id: str = Depends(verify_token),
+    db: Session = Depends(get_db)
 ):
-    return {"message": "testing"}
+    # Check if user has existing credentials
+    existing_creds = db.query(UserBillingCredential).filter(
+        UserBillingCredential.user_id == user_id,
+        UserBillingCredential.is_deleted == False
+    ).all()
     
-    # # Check if user has existing credentials
-    # existing_creds = db.query(UserBillingCredential).filter(
-    #     UserBillingCredential.user_id == user_id,
-    #     UserBillingCredential.is_deleted == False
-    # ).all()
+    # Check if any are running
+    running_creds = [cred for cred in existing_creds if cred.last_state == "running"]
+    if running_creds:
+        raise HTTPException(status_code=400, detail="Cannot upload while agents are running")
     
-    # # Check if any are running
-    # running_creds = [cred for cred in existing_creds if cred.last_state == "running"]
-    # if running_creds:
-    #     raise HTTPException(status_code=400, detail="Cannot upload while agents are running")
+    # Create a set of existing emails for duplicate checking
+    existing_emails = {cred.email for cred in existing_creds}
     
-    # # Create a set of existing emails for duplicate checking
-    # existing_emails = {cred.email for cred in existing_creds}
+    # Save CSV file
+    csv_filename = f"uploads/{uuid.uuid4()}_{csv_file.filename}"
+    with open(csv_filename, "wb") as buffer:
+        content = csv_file.file.read()
+        buffer.write(content)
     
-    # # Save CSV file
-    # csv_filename = f"uploads/{uuid.uuid4()}_{csv_file.filename}"
-    # with open(csv_filename, "wb") as buffer:
-    #     content = csv_file.file.read()
-    #     buffer.write(content)
-    
-    # # Parse CSV and create credentials
-    # try:
-    #     csv_content = content.decode('utf-8')
-    #     print(f"CSV Content (first 200 chars): {csv_content[:200]}")  # Debug log
+    # Parse CSV and create credentials
+    try:
+        csv_content = content.decode('utf-8')
+        print(f"CSV Content (first 200 chars): {csv_content[:200]}")  # Debug log
         
-    #     csv_reader = csv.DictReader(io.StringIO(csv_content))
+        csv_reader = csv.DictReader(io.StringIO(csv_content))
         
-    #     print(f"CSV Headers detected: {csv_reader.fieldnames}")  # Debug log
+        print(f"CSV Headers detected: {csv_reader.fieldnames}")  # Debug log
         
-    #     new_credentials = []
-    #     row_count = 0
+        new_credentials = []
+        row_count = 0
         
-    #     for row in csv_reader:
-    #         row_count += 1
-    #         print(f"Row {row_count}: {dict(row)}")  # Debug log
+        for row in csv_reader:
+            row_count += 1
+            print(f"Row {row_count}: {dict(row)}")  # Debug log
             
-    #         # Clean up the row data - remove extra spaces and quotes from all values
-    #         cleaned_row = {}
-    #         for key, value in row.items():
-    #             if value:
-    #                 cleaned_row[key.strip()] = value.strip().strip('"').strip()
-    #             else:
-    #                 cleaned_row[key.strip()] = ''
+            # Clean up the row data - remove extra spaces and quotes from all values
+            cleaned_row = {}
+            for key, value in row.items():
+                if value:
+                    cleaned_row[key.strip()] = value.strip().strip('"').strip()
+                else:
+                    cleaned_row[key.strip()] = ''
             
-    #         print(f"Cleaned row: {cleaned_row}")  # Debug log
+            print(f"Cleaned row: {cleaned_row}")  # Debug log
             
-    #         # Handle multiple CSV formats - check for different column names
-    #         email = (cleaned_row.get('cred_username', '') or 
-    #                 cleaned_row.get('cred_user', '') or 
-    #                 cleaned_row.get('email', '')).strip()
-    #         password = (cleaned_row.get('cred_password', '') or 
-    #                    cleaned_row.get('password', '')).strip()
+            # Handle multiple CSV formats - check for different column names
+            email = (cleaned_row.get('cred_username', '') or 
+                    cleaned_row.get('cred_user', '') or 
+                    cleaned_row.get('email', '')).strip()
+            password = (cleaned_row.get('cred_password', '') or 
+                       cleaned_row.get('password', '')).strip()
             
-    #         print(f"Extracted email: '{email}', password: '{password}'")  # Debug log
+            print(f"Extracted email: '{email}', password: '{password}'")  # Debug log
             
-    #         if email and password:
-    #             # Check if credential already exists
-    #             if email in existing_emails:
-    #                 print(f"⚠️ Skipped duplicate credential for: {email}")  # Debug log
-    #             else:
-    #                 credential = UserBillingCredential(
-    #                     user_id=user_id,
-    #                     email=email,
-    #                     password=password,
-    #                     billing_cycle_day=int(cleaned_row.get('billing_cycle_date', 10) or 10),  # 👈 convert to int
-    #                     client_name=cleaned_row.get('client_name', ''),
-    #                     utility_co_id=str(cleaned_row.get('utility_co_id', '')),
-    #                     utility_co_name=cleaned_row.get('utility_co_name', ''),
-    #                     cred_id=str(cleaned_row.get('cred_id', '')),
-    #                     login_url=login_url,
-    #                     billing_url=billing_url
-    #                 )
-    #                 new_credentials.append(credential)
-    #                 existing_emails.add(email)  # Add to set to prevent duplicates within same upload
-    #                 print(f"✅ Added credential #{len(new_credentials)} for: {email}")  # Debug log
-    #         else:
-    #             print(f"❌ Skipped row {row_count} - missing email or password")  # Debug log
+            if email and password:
+                # Check if credential already exists
+                if email in existing_emails:
+                    print(f"⚠️ Skipped duplicate credential for: {email}")  # Debug log
+                else:
+                    credential = UserBillingCredential(
+                        user_id=user_id,
+                        email=email,
+                        password=password,
+                        billing_cycle_day=int(cleaned_row.get('billing_cycle_date', 10) or 10),  # 👈 convert to int
+                        client_name=cleaned_row.get('client_name', ''),
+                        utility_co_id=str(cleaned_row.get('utility_co_id', '')),
+                        utility_co_name=cleaned_row.get('utility_co_name', ''),
+                        cred_id=str(cleaned_row.get('cred_id', '')),
+                        login_url=login_url,
+                        billing_url=billing_url
+                    )
+                    new_credentials.append(credential)
+                    existing_emails.add(email)  # Add to set to prevent duplicates within same upload
+                    print(f"✅ Added credential #{len(new_credentials)} for: {email}")  # Debug log
+            else:
+                print(f"❌ Skipped row {row_count} - missing email or password")  # Debug log
         
-    #     print(f"Total rows processed: {row_count}")  # Debug log
-    #     print(f"Total credentials created: {len(new_credentials)}")  # Debug log
+        print(f"Total rows processed: {row_count}")  # Debug log
+        print(f"Total credentials created: {len(new_credentials)}")  # Debug log
         
-    # except Exception as e:
-    #     print(f"Error parsing CSV: {e}")
-    #     raise HTTPException(status_code=400, detail=f"Error parsing CSV: {str(e)}")
+    except Exception as e:
+        print(f"Error parsing CSV: {e}")
+        raise HTTPException(status_code=400, detail=f"Error parsing CSV: {str(e)}")
     
-    # db.add_all(new_credentials)
+    db.add_all(new_credentials)
+    db.commit()
     
-    # # Create import session
-    # import_session = ImportSession(
-    #     user_id=user_id,
-    #     csv_url=csv_filename,
-    #     login_url=login_url,
-    #     billing_url=billing_url
-    # )
-    # db.add(import_session)
-    # db.commit()
-    
-    # return {"message": f"Uploaded {len(new_credentials)} credentials", "session_id": import_session.id}
+    return {"message": f"Uploaded {len(new_credentials)} credentials"}
 
 
 @router.post("/api/credentials/{cred_id}/upload_pdf")
