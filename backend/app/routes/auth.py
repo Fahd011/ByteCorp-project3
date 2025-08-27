@@ -15,7 +15,7 @@ import jwt
 router = APIRouter()
 
 # Security scheme
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 @router.post("api/auth/register", response_model=Token)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
