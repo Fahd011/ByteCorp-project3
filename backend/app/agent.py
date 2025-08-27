@@ -29,6 +29,8 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         # Ensure ~/duke_bills exists
         os.makedirs(DOWNLOAD_DIR, exist_ok=True)
         
+        print(f"[INFO] Using API Key: {API_KEY}")
+        
         client = AsyncBrowserUse(api_key=API_KEY)
 
         email = user_cred.get("username")
