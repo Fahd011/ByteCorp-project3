@@ -123,13 +123,11 @@ scheduler = AsyncIOScheduler()
 
 # Start scheduler in FastAPI startup event
 
-# # ⏰ For production: run daily at 10 AM
 scheduler.add_job(
-    daily_agent_job,
-    CronTrigger(hour=7, minute=42),
-    # CronTrigger(hour=12, minute=30),
-    id="daily_agent_job",
-    replace_existing=True,
+    daily_agent_job,                     # the function to run
+    CronTrigger(hour=22, minute=0),      # schedule: every day at 22:00 (10 PM)
+    id="daily_agent_job",                # unique job identifier
+    replace_existing=True                # replace existing job with same ID if already scheduled
 )
 
 # # ⏳ For testing: run every 30 seconds
