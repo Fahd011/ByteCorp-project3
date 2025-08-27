@@ -81,7 +81,7 @@ def schedule_weekly(
 
 
 # Import agent service after models are defined
-from agent_service import agent_service
+from app.services.agent_service import agent_service
 
 # Background task for agent simulation
 async def simulate_agent_run(credential_id: str, db: Session):

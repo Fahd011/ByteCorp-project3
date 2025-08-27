@@ -5,7 +5,7 @@ import requests
 from datetime import datetime
 from typing import Dict
 # Import Azure storage service
-from azure_storage_service import azure_storage_service
+from app.services.azure_storage_service import azure_storage_service
 
 from browser_use_sdk import AsyncBrowserUse
 from config import config

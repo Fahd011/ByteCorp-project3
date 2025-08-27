@@ -5,7 +5,6 @@ This file contains all configuration settings that can be easily modified
 
 import os
 from dotenv import load_dotenv
-from typing import Optional
 
 load_dotenv()
 

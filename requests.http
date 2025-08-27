@@ -1,4 +1,9 @@
-GET http://127.0.0.1:5000/api/azure/list
-Accept: application/json
+# GET http://127.0.0.1:5000/api/azure/list
+# Accept: application/json
 
 # DELETE http://127.0.0.1:5000/api/azure/delete-all
+
+# GET http://127.0.0.1:5000/api/billing-results/3aa2065f-fe59-4947-b537-b2364965c3ef
+# Accept: application/json
+
+# GET http://127.0.0.1:5000/api/azure/download/2025/08/2025/August/Rena_lopp_collins_com_24-08-25_01-51PM.pdf

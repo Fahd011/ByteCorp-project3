@@ -1,5 +1,5 @@
 from app.models import UserBillingCredential
-from agent_service import agent_service
+from app.services.agent_service import agent_service
 
 from sqlalchemy.orm import Session
 

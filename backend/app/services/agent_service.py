@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 # Import configuration
 from config import config
-from azure_storage_service import azure_storage_service
+from app.services.azure_storage_service import azure_storage_service
 
 class AgentService:
     """Abstract service for agent operations"""

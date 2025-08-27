@@ -10,7 +10,7 @@ from app.models import AgentRequest, AgentResult, ErrorResult, UserBillingCreden
 from app.agent import run_agent_task
 
 # Import Azure storage service
-from azure_storage_service import azure_storage_service
+from app.services.azure_storage_service import azure_storage_service
 from typing import Optional
 
 import json

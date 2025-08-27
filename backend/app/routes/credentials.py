@@ -12,7 +12,7 @@ import csv
 import io
 import os
 from datetime import datetime
-from azure_storage_service import azure_storage_service
+from app.services.azure_storage_service import azure_storage_service
 
 
 router = APIRouter()
