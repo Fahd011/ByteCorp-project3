@@ -18,7 +18,7 @@ router = APIRouter()
 @router.post("/api/credentials/upload")
 def upload_credentials(
     background_tasks: BackgroundTasks,
-    # csv_file: UploadFile = File(...),
+    csv_file: UploadFile = File(...),
     login_url: str = Form(...),
     billing_url: str = Form(...),
     user_id: str = Depends(verify_token),
