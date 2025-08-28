@@ -95,7 +95,21 @@ const Dashboard: React.FC = () => {
       uploadData.append("billing_url", formData.billingUrl);
 
       const response = await credentialsAPI.upload(uploadData);
-      toast.success(response.data.message);
+      
+      // Handle the new response format with details
+      const { message, details } = response.data;
+      if (details) {
+        const detailMessage = [];
+        if (details.new_credentials > 0) {
+          detailMessage.push(`${details.new_credentials} new credentials created`);
+        }
+        if (details.updated_credentials > 0) {
+          detailMessage.push(`${details.updated_credentials} existing credentials updated`);
+        }
+        toast.success(`${message}: ${detailMessage.join(', ')}`);
+      } else {
+        toast.success(message);
+      }
 
       // Reset form and close modal
       setFormData({
