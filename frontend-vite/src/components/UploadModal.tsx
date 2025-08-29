@@ -73,6 +73,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload, up
               id="pdfFile"
               accept=".pdf"
               onChange={handleFileChange}
+              className="form-input"
               required
               disabled={uploading}
             />
@@ -116,14 +117,14 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload, up
             <button
               type="button"
               onClick={handleClose}
-              className="btn-secondary"
+              className="btn btn-secondary"
               disabled={uploading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="btn-primary"
+              className="btn btn-primary"
               disabled={!selectedFile || uploading}
             >
               {uploading ? 'Uploading...' : 'Upload PDF'}

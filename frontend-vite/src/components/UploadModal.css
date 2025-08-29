@@ -85,6 +85,37 @@
   transition: border-color 0.2s;
 }
 
+/* Form input styling for file inputs */
+.form-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-input::file-selector-button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  background-color: #f9fafb;
+  color: #374151;
+  font-size: 0.875rem;
+  cursor: pointer;
+  margin-right: 1rem;
+}
+
+.form-input::file-selector-button:hover {
+  background-color: #f3f4f6;
+}
+
 .form-group input[type="file"]:focus,
 .form-group input[type="number"]:focus,
 .form-group select:focus {
