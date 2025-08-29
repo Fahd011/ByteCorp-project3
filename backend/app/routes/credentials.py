@@ -35,8 +35,6 @@ def upload_credentials(
     running_creds = [cred for cred in existing_creds if cred.last_state == "running"]
     if running_creds:
         raise HTTPException(status_code=400, detail="Cannot upload while agents are running")
-    # Create a set of existing emails for duplicate checking
-    existing_emails = {cred.email for cred in existing_creds}
     # Save CSV file to Azure storage
     content = csv_file.file.read()
     csv_filename = f"{uuid.uuid4()}_{csv_file.filename}"
@@ -53,6 +51,7 @@ def upload_credentials(
         csv_reader = csv.DictReader(io.StringIO(csv_content))
         print(f"CSV Headers detected: {csv_reader.fieldnames}")  # Debug log
         new_credentials = []
+        updated_credentials = []
         row_count = 0
         for row in csv_reader:
             row_count += 1
@@ -74,9 +73,26 @@ def upload_credentials(
             print(f"Extracted email: '{email}', password: '{password}'")  # Debug log
             if email and password:
                 # Check if credential already exists
-                if email in existing_emails:
-                    print(f":warning: Skipped duplicate credential for: {email}")  # Debug log
+                existing_credential = None
+                for cred in existing_creds:
+                    if cred.email == email:
+                        existing_credential = cred
+                        break
+                
+                if existing_credential:
+                    # Update existing credential
+                    existing_credential.password = password
+                    existing_credential.billing_cycle_day = int(cleaned_row.get('billing_cycle_date', 10) or 10)
+                    existing_credential.client_name = cleaned_row.get('client_name', '')
+                    existing_credential.utility_co_id = str(cleaned_row.get('utility_co_id', ''))
+                    existing_credential.utility_co_name = cleaned_row.get('utility_co_name', '')
+                    existing_credential.cred_id = str(cleaned_row.get('cred_id', ''))
+                    existing_credential.login_url = login_url
+                    existing_credential.billing_url = billing_url
+                    updated_credentials.append(existing_credential)
+                    print(f":arrows_counterclockwise: Updated existing credential for: {email}")  # Debug log
                 else:
+                    # Create new credential
                     credential = UserBillingCredential(
                         user_id=user_id,
                         email=email,
@@ -90,18 +106,26 @@ def upload_credentials(
                         billing_url=billing_url
                     )
                     new_credentials.append(credential)
-                    existing_emails.add(email)  # Add to set to prevent duplicates within same upload
-                    print(f":white_check_mark: Added credential #{len(new_credentials)} for: {email}")  # Debug log
+                    print(f":white_check_mark: Added new credential #{len(new_credentials)} for: {email}")  # Debug log
             else:
                 print(f":x: Skipped row {row_count} - missing email or password")  # Debug log
         print(f"Total rows processed: {row_count}")  # Debug log
-        print(f"Total credentials created: {len(new_credentials)}")  # Debug log
+        print(f"Total new credentials created: {len(new_credentials)}")  # Debug log
+        print(f"Total existing credentials updated: {len(updated_credentials)}")  # Debug log
     except Exception as e:
         print(f"Error parsing CSV: {e}")
         raise HTTPException(status_code=400, detail=f"Error parsing CSV: {str(e)}")
     db.add_all(new_credentials)
     db.commit()
-    return {"message": f"Uploaded {len(new_credentials)} credentials"}
+    
+    total_processed = len(new_credentials) + len(updated_credentials)
+    return {
+        "message": f"Processed {total_processed} credentials",
+        "details": {
+            "new_credentials": len(new_credentials),
+            "updated_credentials": len(updated_credentials)
+        }
+    }
 
 
 @router.post("/api/credentials/{cred_id}/upload_pdf")
