@@ -90,6 +90,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload, up
                 onChange={(e) => setYear(e.target.value)}
                 min="1900"
                 max="2100"
+                className="form-input"
                 required
                 disabled={uploading}
               />
@@ -101,6 +102,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload, up
                 id="month"
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
+                className="form-input"
                 required
                 disabled={uploading}
               >
@@ -119,6 +121,17 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload, up
               onClick={handleClose}
               className="btn btn-secondary"
               disabled={uploading}
+              style={{
+                padding: '10px 20px',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                cursor: 'pointer',
+                backgroundColor: '#f3f4f6',
+                color: '#374151',
+                transition: 'all 0.2s'
+              }}
             >
               Cancel
             </button>
@@ -126,6 +139,17 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload, up
               type="submit"
               className="btn btn-primary"
               disabled={!selectedFile || uploading}
+              style={{
+                padding: '10px 20px',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                cursor: 'pointer',
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                transition: 'all 0.2s'
+              }}
             >
               {uploading ? 'Uploading...' : 'Upload PDF'}
             </button>
