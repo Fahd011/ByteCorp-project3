@@ -6,6 +6,7 @@ import { credentialsAPI, providerAPI } from "../services/api";
 import { Provider } from "../types";
 // import { formatDate } from "../utils/helpers";
 import { useNavigate } from "react-router-dom";
+import "./Dashboard.css";
 
 const Dashboard: React.FC = () => {
   const [credentials, setCredentials] = useState<any[]>([]);
@@ -13,6 +14,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState({
     csvFile: null as File | null,
     selectedProviderId: "",
@@ -172,10 +174,38 @@ const Dashboard: React.FC = () => {
         return "status-completed";
       case "error":
         return "status-error";
+      case "pending":
+        return "status-pending";
       default:
         return "status-idle";
     }
   };
+
+  const getProviderIcon = (providerName: string) => {
+    const name = providerName.toLowerCase();
+    if (name.includes("duke") || name.includes("energy")) return "⚡";
+    if (name.includes("gas") || name.includes("piedmont")) return "🔥";
+    if (name.includes("water") || name.includes("charlotte")) return "💧";
+    return "⚡";
+  };
+
+  const getProviderBadgeClass = (providerName: string) => {
+    const name = providerName.toLowerCase();
+    if (name.includes("duke") || name.includes("energy")) return "provider-energy";
+    if (name.includes("gas") || name.includes("piedmont")) return "provider-gas";
+    if (name.includes("water") || name.includes("charlotte")) return "provider-water";
+    return "provider-energy";
+  };
+
+  const filteredCredentials = credentials.filter((cred) => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      cred.email.toLowerCase().includes(searchLower) ||
+      (cred.utility_co_name && cred.utility_co_name.toLowerCase().includes(searchLower)) ||
+      (cred.client_name && cred.client_name.toLowerCase().includes(searchLower))
+    );
+  });
 
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -187,7 +217,7 @@ const Dashboard: React.FC = () => {
       <div className="dashboard-header">
         <h1 className="dashboard-title">Dashboard</h1>
         <p className="dashboard-subtitle">
-          Welcome to Sagility - Your billing automation platform
+          Manage your utility providers and billing
         </p>
       </div>
 
@@ -240,9 +270,25 @@ const Dashboard: React.FC = () => {
         </div>
       </div> */}
 
-      {/* Credentials Section */}
+      {/* Search Section */}
+      <div className="search-section">
+        <div className="search-container">
+          <span className="search-icon">🔍</span>
+          <input
+            type="text"
+            placeholder="Search providers, clients, or account numbers..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
+        <div className="results-count">
+          Showing {filteredCredentials.length} of {credentials.length} providers
+        </div>
+      </div>
+
+      {/* Create Session Button */}
       <div className="credentials-header">
-        <h2 className="credentials-title">Credential Jobs</h2>
         <div className="credentials-actions">
           <button
             onClick={() => setShowModal(true)}
@@ -250,12 +296,12 @@ const Dashboard: React.FC = () => {
             style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
           >
             ➕ Create Session
-          </button>{" "}
+          </button>
         </div>
       </div>
 
       {/* Credentials Grid */}
-      {credentials.length === 0 ? (
+      {filteredCredentials.length === 0 ? (
         <div className="empty-state">
           <span
             style={{ color: "#6b7280", marginBottom: "1rem", fontSize: "48px" }}
@@ -263,33 +309,32 @@ const Dashboard: React.FC = () => {
             📧
           </span>
           <h3 style={{ color: "#374151", marginBottom: "0.5rem" }}>
-            No credentials found
+            {searchTerm ? "No matching providers found" : "No credentials found"}
           </h3>
           <p style={{ color: "#6b7280", marginBottom: "1.5rem" }}>
-            Get started by creating your first credential session.
+            {searchTerm ? "Try adjusting your search terms" : "Get started by creating your first credential session."}
           </p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="btn btn-primary"
-          >
-            Create Session
-          </button>
+          {!searchTerm && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="btn btn-primary"
+            >
+              Create Session
+            </button>
+          )}
         </div>
       ) : (
         <div className="credentials-grid">
-          {credentials.map((cred) => (
+          {filteredCredentials.map((cred) => (
             <div key={cred.id} className="credential-card">
               <div className="credential-header">
                 <h3 className="credential-email">{cred.email}</h3>
-
                 <span
                   className={`status-badge ${getStatusBadgeClass(
                     cred.last_state || "idle"
                   )}`}
                 >
-                  {cred.last_state
-                    ? `Last run: ${cred.last_state}`
-                    : "Never run (IDLE)"}
+                  ⏰ {cred.last_state ? cred.last_state : "Idle"}
                 </span>
               </div>
 
@@ -302,23 +347,14 @@ const Dashboard: React.FC = () => {
                 </div>
               )} */}
 
-              <div className="credential-details">
-                <div className="credential-detail">
-                  <span className="credential-label">Client:</span>
-                  <span className="credential-value">
-                    {cred.client_name || "N/A"}
-                  </span>
-                </div>
-                <div className="credential-detail">
-                  <span className="credential-label">Utility:</span>
-                  <span className="credential-value">
-                    {cred.utility_co_name || "N/A"}
-                  </span>
-                </div>
-                <span
-                  className="credential-info"
-                  style={{ color: "#6b7280", fontSize: "0.75em" }}
-                >
+              <div className="credential-provider-section">
+                <span className={`provider-badge ${getProviderBadgeClass(cred.utility_co_name || "")}`}>
+                  {getProviderIcon(cred.utility_co_name || "")} {cred.utility_co_name || "Provider"}
+                </span>
+              </div>
+
+              <div className="billing-cycle-info">
+                <span className="cycle-text">
                   {cred.billing_cycle_day
                     ? (() => {
                         const today = new Date();
@@ -352,7 +388,7 @@ const Dashboard: React.FC = () => {
                               remainingDays > 1 ? "s" : ""
                             }.`;
                       })()
-                    : ""}
+                    : "Bill cycle information not available."}
                 </span>
               </div>
 
@@ -363,7 +399,7 @@ const Dashboard: React.FC = () => {
                   rel="noopener noreferrer"
                   className="credential-link"
                 >
-                  Login: {cred.login_url}
+                  🔗 Login Portal
                 </a>
                 <a
                   href={cred.billing_url}
@@ -371,7 +407,7 @@ const Dashboard: React.FC = () => {
                   rel="noopener noreferrer"
                   className="credential-link"
                 >
-                  Billing: {cred.billing_url}
+                  🔗 Billing History
                 </a>
               </div>
 
