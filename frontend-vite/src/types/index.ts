@@ -25,6 +25,8 @@ export interface UserBillingCredential {
   client_name?: string;
   utility_co_id?: string;
   utility_co_name?: string;
+  provider_id?: string;
+  provider_name?: string;
   cred_id?: string;
   login_url?: string;
   billing_url?: string;

@@ -6,7 +6,7 @@ import { credentialsAPI, providerAPI } from "../services/api";
 import { Provider } from "../types";
 // import { formatDate } from "../utils/helpers";
 import { useNavigate } from "react-router-dom";
-import "./Dashboard.css";
+
 
 const Dashboard: React.FC = () => {
   const [credentials, setCredentials] = useState<any[]>([]);
@@ -15,6 +15,7 @@ const Dashboard: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [credentialProviders, setCredentialProviders] = useState<{[key: string]: string}>({});
   const [formData, setFormData] = useState({
     csvFile: null as File | null,
     selectedProviderId: "",
@@ -95,6 +96,7 @@ const Dashboard: React.FC = () => {
       uploadData.append("csv_file", formData.csvFile);
       uploadData.append("login_url", formData.loginUrl);
       uploadData.append("billing_url", formData.billingUrl);
+      uploadData.append("provider_id", formData.selectedProviderId);
 
       const response = await credentialsAPI.upload(uploadData);
       
@@ -113,6 +115,10 @@ const Dashboard: React.FC = () => {
         toast.success(message);
       }
 
+      // Get the selected provider name
+      const selectedProvider = providers.find(p => p.id === formData.selectedProviderId);
+      const providerName = selectedProvider?.name || "Unknown Provider";
+
       // Reset form and close modal
       setFormData({
         csvFile: null,
@@ -122,8 +128,22 @@ const Dashboard: React.FC = () => {
       });
       setShowModal(false);
 
-      // Refresh credentials list
-      fetchCredentials();
+      // Refresh credentials list and store provider mapping
+      await fetchCredentials();
+      
+      // Store provider name for newly created credentials
+      const newCredentials = await credentialsAPI.getAll();
+      const latestCredentials = newCredentials.data || [];
+      const updatedProviders = { ...credentialProviders };
+      
+      // Map the latest credentials to the selected provider
+      latestCredentials.forEach((cred: any) => {
+        if (!credentialProviders[cred.id]) {
+          updatedProviders[cred.id] = providerName;
+        }
+      });
+      
+      setCredentialProviders(updatedProviders);
     } catch (error: any) {
       toast.error(error.response?.data?.detail || "Upload failed");
     } finally {
@@ -189,6 +209,18 @@ const Dashboard: React.FC = () => {
     return "⚡";
   };
 
+  const getProviderName = (utilityCoName: string) => {
+    // Map utility company names to provider names
+    const name = utilityCoName.toLowerCase();
+    if (name.includes("duke")) return "Duke Energy";
+    if (name.includes("piedmont")) return "Piedmont Gas";
+    if (name.includes("charlotte")) return "Charlotte Water";
+    if (name.includes("energy")) return "Energy Provider";
+    if (name.includes("gas")) return "Gas Provider";
+    if (name.includes("water")) return "Water Provider";
+    return utilityCoName || "Provider";
+  };
+
   const getProviderBadgeClass = (providerName: string) => {
     const name = providerName.toLowerCase();
     if (name.includes("duke") || name.includes("energy")) return "provider-energy";
@@ -208,15 +240,15 @@ const Dashboard: React.FC = () => {
   });
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <div className="loading flex justify-center items-center h-48 text-slate-500">Loading...</div>;
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* Dashboard Header */}
-      <div className="dashboard-header">
-        <h1 className="dashboard-title">Dashboard</h1>
-        <p className="dashboard-subtitle">
+      <div className="mb-8">
+        <h1 className="text-4xl font-semibold text-slate-800 m-0 mb-2">Dashboard</h1>
+        <p className=" text-slate-500 text-base m-0">
           Manage your utility providers and billing
         </p>
       </div>
@@ -271,28 +303,28 @@ const Dashboard: React.FC = () => {
       </div> */}
 
       {/* Search Section */}
-      <div className="search-section">
-        <div className="search-container">
-          <span className="search-icon">🔍</span>
+      <div className="flex justify-between items-center mb-8 gap-4">
+        <div className="relative flex-1 max-w-[800px]">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-base">🔍</span>
           <input
             type="text"
             placeholder="Search providers, clients, or account numbers..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
+            className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg text-sm bg-white transition focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
           />
         </div>
-        <div className="results-count">
+        <div className=" text-slate-500 text-sm whitespace-nowrap">
           Showing {filteredCredentials.length} of {credentials.length} providers
         </div>
       </div>
 
       {/* Create Session Button */}
-      <div className="credentials-header">
-        <div className="credentials-actions">
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex gap-4">
           <button
             onClick={() => setShowModal(true)}
-            className="btn btn-primary"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 transition"
             style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
           >
             ➕ Create Session
@@ -302,7 +334,7 @@ const Dashboard: React.FC = () => {
 
       {/* Credentials Grid */}
       {filteredCredentials.length === 0 ? (
-        <div className="empty-state">
+        <div className="text-center py-12 text-slate-500">
           <span
             style={{ color: "#6b7280", marginBottom: "1rem", fontSize: "48px" }}
           >
@@ -317,20 +349,20 @@ const Dashboard: React.FC = () => {
           {!searchTerm && (
             <button
               onClick={() => setShowModal(true)}
-              className="btn btn-primary"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 transition"
             >
               Create Session
             </button>
           )}
         </div>
       ) : (
-        <div className="credentials-grid">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
           {filteredCredentials.map((cred) => (
-            <div key={cred.id} className="credential-card">
-              <div className="credential-header">
-                <h3 className="credential-email">{cred.email}</h3>
+            <div key={cred.id} className=" bg-white rounded-xl p-6 shadow-sm border border-slate-200 transition hover:shadow-lg">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="font-semibold text-slate-800 m-0 text-base">{cred.email}</h3>
                 <span
-                  className={`status-badge ${getStatusBadgeClass(
+                  className={`px-3 py-1 rounded-full text-xs font-medium capitalize flex items-center gap-1 ${getStatusBadgeClass(
                     cred.last_state || "idle"
                   )}`}
                 >
@@ -347,14 +379,14 @@ const Dashboard: React.FC = () => {
                 </div>
               )} */}
 
-              <div className="credential-provider-section">
-                <span className={`provider-badge ${getProviderBadgeClass(cred.utility_co_name || "")}`}>
-                  {getProviderIcon(cred.utility_co_name || "")} {cred.utility_co_name || "Provider"}
+              <div className="flex justify-between items-center mb-4">
+                <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${getProviderBadgeClass(credentialProviders[cred.id] || cred.provider_name || cred.utility_co_name || "")}`}>
+                  {getProviderIcon(credentialProviders[cred.id] || cred.provider_name || cred.utility_co_name || "")} {credentialProviders[cred.id] || cred.provider_name || getProviderName(cred.utility_co_name || "")}
                 </span>
               </div>
 
-              <div className="billing-cycle-info">
-                <span className="cycle-text">
+              <div className=" bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4">
+                <span className=" text-slate-500 text-sm">
                   {cred.billing_cycle_day
                     ? (() => {
                         const today = new Date();
@@ -392,12 +424,12 @@ const Dashboard: React.FC = () => {
                 </span>
               </div>
 
-              <div className="credential-links">
+              <div className="mb-4 flex flex-row gap-4">
                 <a
                   href={cred.login_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="credential-link"
+                  className="flex items-center gap-2 text-blue-500 hover:underline text-sm font-medium"
                 >
                   🔗 Login Portal
                 </a>
@@ -405,16 +437,16 @@ const Dashboard: React.FC = () => {
                   href={cred.billing_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="credential-link"
+                  className="flex items-center gap-2 text-blue-500 hover:underline text-sm font-medium"
                 >
                   🔗 Billing History
                 </a>
               </div>
 
-              <div className="credential-actions">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => navigate(`/billing-results/${cred.id}`)}
-                  className="btn btn-primary"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 transition w-full"
                 >
                   View Bills
                 </button>
@@ -448,21 +480,21 @@ const Dashboard: React.FC = () => {
 
       {/* Create Session Modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Create New Session</h2>
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-xl p-0 max-w-lg w-11/12 max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-6 py-5 border-b border-slate-200">
+              <h2 className="m-0 text-xl font-semibold text-slate-800">Create New Session</h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="modal-close"
+                className="bg-transparent border-none text-2xl cursor-pointer text-slate-500 p-1 rounded hover:bg-slate-100 hover:text-slate-600 transition"
               >
                 &times;
               </button>
             </div>
 
-            <form onSubmit={handleCreateSession}>
-              <div className="form-group">
-                <label htmlFor="csvFile" className="form-label">
+            <form onSubmit={handleCreateSession} className="p-6">
+              <div className="mb-5">
+                <label htmlFor="csvFile" className="block mb-2 font-medium text-slate-700 text-sm">
                   CSV File
                 </label>
                 <input
@@ -470,50 +502,48 @@ const Dashboard: React.FC = () => {
                   id="csvFile"
                   accept=".csv"
                   onChange={handleFileChange}
-                  className="form-input"
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm font-medium bg-gradient-to-br from-white to-slate-50 transition-all duration-300 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 hover:border-blue-500 hover:-translate-y-px focus:-translate-y-px shadow-sm hover:shadow-md file:px-4 file:py-2 file:border file:border-slate-300 file:rounded-md file:bg-slate-50 file:text-slate-700 file:text-sm file:font-medium file:cursor-pointer file:hover:bg-slate-100 file:transition-colors"
                   required
                 />
               </div>
 
-              <div className="form-group">
-                <label htmlFor="providerSelect" className="form-label">
+              <div className="mb-5">
+                <label htmlFor="providerSelect" className="block mb-2 font-medium text-slate-700 text-sm">
                   Provider
                 </label>
                 <select
                   id="providerSelect"
                   value={formData.selectedProviderId}
                   onChange={handleProviderChange}
-                  className="form-input"
+                  className="w-full px-4 py-3 pr-12 border-2 border-slate-200 rounded-xl text-sm font-medium bg-white appearance-none cursor-pointer transition-all duration-300 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 hover:border-blue-500 hover:-translate-y-px focus:-translate-y-px shadow-sm hover:shadow-md"
+                  style={{ 
+                    backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3e%3c/svg%3e\")",
+                    backgroundPosition: "right 1rem center",
+                    backgroundRepeat: "no-repeat",
+                    backgroundSize: "1.25em 1.25em"
+                  }}
                   required
                 >
-                  <option value="">Select a provider...</option>
+                  <option value="" className="py-2 px-3 bg-white text-slate-700 font-medium">Select a provider...</option>
                   {providers.map((provider) => (
-                    <option key={provider.id} value={provider.id}>
+                    <option key={provider.id} value={provider.id} className="py-2 px-3 bg-white text-slate-700 font-medium hover:bg-blue-50 hover:text-blue-700">
                       {provider.name}
                     </option>
                   ))}
                 </select>
               </div>
 
-
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "1rem",
-                  justifyContent: "flex-end",
-                }}
-              >
+              <div className="flex justify-end gap-3 mt-6 pt-5 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="btn btn-secondary"
+                  className="px-5 py-2.5 border-none rounded-md text-sm font-medium cursor-pointer bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary"
+                  className="px-5 py-2.5 border-none rounded-md text-sm font-medium cursor-pointer bg-blue-500 text-white hover:bg-blue-600 disabled:bg-slate-400 disabled:cursor-not-allowed transition"
                   disabled={uploading}
                 >
                   {uploading ? "Creating..." : "Create Session"}

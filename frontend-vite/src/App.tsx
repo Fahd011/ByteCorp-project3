@@ -10,7 +10,7 @@ import Navigation from "./components/Navigation";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import "./App.css";
+
 import BillingResults from "./pages/BillingResults";
 
 const AppLayout: React.FC = () => {
