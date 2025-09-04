@@ -393,3 +393,78 @@
 .array-item {
   display: none;
 }
+
+.extract-all-section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.extract-all-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 12px 0;
+}
+
+.extract-all-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.extract-all-btn {
+  padding: 10px 20px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  min-width: 200px;
+}
+
+.extract-all-btn:hover:not(:disabled) {
+  background: #6d28d9;
+  transform: translateY(-1px);
+}
+
+.extract-all-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.extract-all-info {
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Disable individual extract buttons when extracting all */
+.extract-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.extract-btn:disabled:hover {
+  background: #9ca3af;
+}
+
+/* Responsive design for extract all section */
+@media (max-width: 768px) {
+  .extract-all-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .extract-all-btn {
+    min-width: auto;
+    width: 100%;
+  }
+}

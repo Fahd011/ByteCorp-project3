@@ -23,6 +23,7 @@ const BillingResults: React.FC = () => {
   const [checkingExtraction, setCheckingExtraction] = useState<{
     [key: string]: boolean;
   }>({});
+  const [extractingAll, setExtractingAll] = useState(false);
 
   useEffect(() => {
     fetchResults();
@@ -81,6 +82,51 @@ const BillingResults: React.FC = () => {
     } finally {
       setExtracting(null);
     }
+  };
+
+  const handleExtractAllData = async () => {
+    setExtractingAll(true);
+    const billsToExtract = results.filter((r) => !extractedData[r.id]);
+
+    if (billsToExtract.length === 0) {
+      toast.success("All bills have already been extracted!");
+      setExtractingAll(false);
+      return;
+    }
+
+    toast.success(`Starting extraction for ${billsToExtract.length} bills...`);
+
+    for (let i = 0; i < billsToExtract.length; i++) {
+      const bill = billsToExtract[i];
+      try {
+        console.log(
+          `Extracting data for bill ${i + 1}/${billsToExtract.length}:`,
+          bill
+        );
+        const response = await pdfExtractionAPI.extractData(bill);
+
+        if (response.data.results && response.data.results.length > 0) {
+          const extracted = response.data.results[0].extracted_data;
+          setExtractedData((prev) => ({
+            ...prev,
+            [bill.id]: extracted,
+          }));
+        }
+
+        // Small delay between extractions to avoid overwhelming the server
+        if (i < billsToExtract.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      } catch (error: any) {
+        console.error(`Error extracting data for bill ${bill.id}:`, error);
+        toast.error(
+          `Failed to extract data for bill ${bill.year}/${bill.month}`
+        );
+      }
+    }
+
+    toast.success(`Completed extraction for ${billsToExtract.length} bills!`);
+    setExtractingAll(false);
   };
 
   const toggleExtractedData = (billingId: string) => {
@@ -228,6 +274,33 @@ const BillingResults: React.FC = () => {
         </div>
       </div>
 
+      {/* Extract All Data Section */}
+      {results.length > 0 && (
+        <div className="extract-all-section">
+          <h3 className="extract-all-title">Bulk Data Extraction</h3>
+          <div className="extract-all-actions">
+            <button
+              onClick={handleExtractAllData}
+              disabled={
+                extractingAll ||
+                results.filter((r) => !extractedData[r.id]).length === 0
+              }
+              className="extract-all-btn"
+            >
+              {extractingAll
+                ? "Extracting All..."
+                : `Extract All Data (${
+                    results.filter((r) => !extractedData[r.id]).length
+                  } bills)`}
+            </button>
+            <div className="extract-all-info">
+              {results.filter((r) => extractedData[r.id]).length} of{" "}
+              {results.length} bills already extracted
+            </div>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="loading-spinner-container">
           <div className="loading-spinner"></div>
@@ -271,7 +344,7 @@ const BillingResults: React.FC = () => {
                   <button
                     onClick={() => handleExtractData(r)}
                     className="extract-btn"
-                    disabled={extracting === r.azure_blob_url}
+                    disabled={extracting === r.azure_blob_url || extractingAll}
                   >
                     {extracting === r.azure_blob_url
                       ? "Extracting..."
