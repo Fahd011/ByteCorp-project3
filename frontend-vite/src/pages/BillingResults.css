@@ -22,7 +22,7 @@
   color: #854d0e;
   padding: 12px 16px;
   border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .billing-grid {
@@ -35,12 +35,12 @@
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
   transition: all 0.2s ease-in-out;
 }
 
 .billing-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .billing-header {
@@ -105,7 +105,45 @@
   background: #1d4ed8;
 }
 
+.extract-btn {
+  padding: 8px 16px;
+  background: #059669;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease-in-out;
+}
 
+.extract-btn:hover {
+  background: #047857;
+}
+
+.extract-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.extract-btn:disabled:hover {
+  background: #9ca3af;
+}
+
+/* Add a subtle animation for the checking state */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.extract-btn:disabled {
+  animation: pulse 1.5s ease-in-out infinite;
+}
 
 .loading-spinner-container {
   display: flex;
@@ -130,8 +168,12 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Manual PDF Management Section */
@@ -191,9 +233,238 @@
   .manual-pdf-actions {
     flex-direction: column;
   }
-  
+
   .upload-btn {
     width: 100%;
     justify-content: center;
+  }
+}
+
+.billing-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.view-data-btn {
+  padding: 8px 16px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease-in-out;
+}
+
+.view-data-btn:hover {
+  background: #6d28d9;
+}
+
+.extracted-data-section {
+  margin-top: 20px;
+  padding: 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.extracted-data-section h4 {
+  margin: 0;
+  padding: 16px 20px;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: 1rem;
+  font-weight: 600;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.extracted-data-table {
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+}
+
+.table-header {
+  display: flex;
+  background: #f1f5f9;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.table-row {
+  display: flex;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.2s ease;
+}
+
+.table-row:hover {
+  background: #f8fafc;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.table-cell {
+  padding: 12px 20px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.header-cell {
+  font-weight: 600;
+  color: #374151;
+  background: #f1f5f9;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.field-cell {
+  flex: 0 0 40%;
+  font-weight: 500;
+  color: #4b5563;
+  background: #fafbfc;
+  border-right: 1px solid #f1f5f9;
+  font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
+  font-size: 0.85rem;
+}
+
+.value-cell {
+  flex: 1;
+  color: #1f2937;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.null-value {
+  color: #9ca3af;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.no-data {
+  padding: 20px;
+  text-align: center;
+  color: #6b7280;
+  font-style: italic;
+  margin: 0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .extracted-data-section {
+    margin: 16px -16px 0 -16px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .table-header,
+  .table-row {
+    flex-direction: column;
+  }
+
+  .field-cell {
+    flex: none;
+    border-right: none;
+    border-bottom: 1px solid #f1f5f9;
+    background: #f8fafc;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .value-cell {
+    flex: none;
+    padding-top: 8px;
+  }
+
+  .table-cell {
+    padding: 10px 16px;
+  }
+}
+
+/* Remove old styles that are no longer needed */
+.extracted-data,
+.nested-object,
+.array-container,
+.array-item {
+  display: none;
+}
+
+.extract-all-section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.extract-all-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 12px 0;
+}
+
+.extract-all-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.extract-all-btn {
+  padding: 10px 20px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  min-width: 200px;
+}
+
+.extract-all-btn:hover:not(:disabled) {
+  background: #6d28d9;
+  transform: translateY(-1px);
+}
+
+.extract-all-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.extract-all-info {
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Disable individual extract buttons when extracting all */
+.extract-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.extract-btn:disabled:hover {
+  background: #9ca3af;
+}
+
+/* Responsive design for extract all section */
+@media (max-width: 768px) {
+  .extract-all-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .extract-all-btn {
+    min-width: auto;
+    width: 100%;
   }
 }

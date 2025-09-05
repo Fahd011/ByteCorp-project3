@@ -1,0 +1,209 @@
+{
+  "utility_bill_schema": {
+    "description": "Data model for extracting information from utility bills",
+    "version": "1.0",
+    "fields": {
+      "bill_header": {
+        "utility_company": {
+          "type": "string",
+          "description": "Name of the utility company (e.g., Duke Energy)",
+          "required": true
+        },
+        "bill_type": {
+          "type": "string",
+          "description": "Type of utility bill (e.g., Energy Bill, Electric Bill)",
+          "required": true
+        },
+        "account_number": {
+          "type": "string",
+          "description": "Customer account number",
+          "required": true
+        },
+        "bill_date": {
+          "type": "string",
+          "description": "Date when the bill was generated (format: MM/DD/YYYY)",
+          "required": true
+        },
+        "service_period": {
+          "type": "object",
+          "description": "Service period for which the bill is generated",
+          "properties": {
+            "start_date": {
+              "type": "string",
+              "description": "Start date of service period (format: MM/DD/YYYY)"
+            },
+            "end_date": {
+              "type": "string", 
+              "description": "End date of service period (format: MM/DD/YYYY)"
+            },
+            "days": {
+              "type": "integer",
+              "description": "Number of days in the service period"
+            }
+          },
+          "required": true
+        }
+      },
+      "customer_info": {
+        "customer_name": {
+          "type": "string",
+          "description": "Name of the customer or business",
+          "required": true
+        },
+        "service_address": {
+          "type": "object",
+          "description": "Service address details",
+          "properties": {
+            "street_address": {
+              "type": "string",
+              "description": "Street address"
+            },
+            "city": {
+              "type": "string",
+              "description": "City"
+            },
+            "state": {
+              "type": "string",
+              "description": "State (2-letter code)"
+            },
+            "zip_code": {
+              "type": "string",
+              "description": "ZIP code"
+            }
+          },
+          "required": true
+        }
+      },
+      "billing_summary": {
+        "previous_amount_due": {
+          "type": "number",
+          "description": "Previous amount due from last bill",
+          "required": true
+        },
+        "payment_received": {
+          "type": "object",
+          "description": "Payment information",
+          "properties": {
+            "amount": {
+              "type": "number",
+              "description": "Payment amount received"
+            },
+            "date": {
+              "type": "string",
+              "description": "Date payment was received (format: MM/DD/YYYY)"
+            }
+          },
+          "required": false
+        },
+        "current_charges": {
+          "type": "object",
+          "description": "Current period charges",
+          "properties": {
+            "electric_charges": {
+              "type": "number",
+              "description": "Current electric charges"
+            },
+            "gas_charges": {
+              "type": "number",
+              "description": "Current gas charges (if applicable)"
+            },
+            "other_charges": {
+              "type": "number",
+              "description": "Other service charges"
+            }
+          },
+          "required": true
+        },
+        "taxes": {
+          "type": "number",
+          "description": "Tax amount",
+          "required": true
+        },
+        "total_amount_due": {
+          "type": "number",
+          "description": "Total amount due",
+          "required": true
+        },
+        "due_date": {
+          "type": "string",
+          "description": "Due date for payment (format: MM/DD/YYYY)",
+          "required": true
+        }
+      },
+      "usage_information": {
+        "current_month_usage": {
+          "type": "object",
+          "description": "Current month usage details",
+          "properties": {
+            "month": {
+              "type": "string",
+              "description": "Month of usage (e.g., Jul 2024)"
+            },
+            "electric_kwh": {
+              "type": "number",
+              "description": "Electric usage in kWh"
+            },
+            "gas_therms": {
+              "type": "number",
+              "description": "Gas usage in therms (if applicable)"
+            }
+          },
+          "required": true
+        },
+        "historical_usage": {
+          "type": "object",
+          "description": "Historical usage information",
+          "properties": {
+            "twelve_month_usage": {
+              "type": "number",
+              "description": "12-month total usage"
+            },
+            "average_monthly_usage": {
+              "type": "number",
+              "description": "Average monthly usage"
+            }
+          },
+          "required": false
+        }
+      },
+      "payment_options": {
+        "automatic_draft": {
+          "type": "object",
+          "description": "Automatic payment information",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether automatic draft is enabled"
+            },
+            "amount": {
+              "type": "number",
+              "description": "Amount to be automatically drafted"
+            },
+            "date": {
+              "type": "string",
+              "description": "Date of automatic draft (format: MM/DD/YYYY)"
+            }
+          },
+          "required": false
+        }
+      },
+      "contact_information": {
+        "customer_service_phone": {
+          "type": "string",
+          "description": "Customer service phone number",
+          "required": false
+        },
+        "emergency_phone": {
+          "type": "string",
+          "description": "Emergency/outage phone number",
+          "required": false
+        },
+        "website": {
+          "type": "string",
+          "description": "Company website",
+          "required": false
+        }
+      }
+    }
+  }
+} 

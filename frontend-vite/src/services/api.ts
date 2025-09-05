@@ -59,8 +59,7 @@ export const authAPI = {
 
 // Provider API
 export const providerAPI = {
-  getAll: (): Promise<AxiosResponse<any[]>> =>
-    api.get("/providers"),
+  getAll: (): Promise<AxiosResponse<any[]>> => api.get("/providers"),
   getById: (providerId: string): Promise<AxiosResponse<any>> =>
     api.get(`/providers/${providerId}`),
 };
@@ -99,7 +98,7 @@ export const credentialsAPI = {
     api.get(`/azure/download/${encodeURIComponent(blobName)}`, {
       responseType: "blob",
     }),
-  
+
   // Manual credential PDF upload
   uploadManualPDF: (
     credId: string,
@@ -110,6 +109,16 @@ export const credentialsAPI = {
         "Content-Type": "multipart/form-data",
       },
     }),
+};
+
+// PDF Extraction API
+export const pdfExtractionAPI = {
+  extractData: (billingResult: any): Promise<AxiosResponse<any>> =>
+    api.post("/pdf-extraction/upload", {
+      billing_result: billingResult,
+    }),
+  getResults: (sessionId: string): Promise<AxiosResponse<any>> =>
+    api.get(`/pdf-extraction/results/${sessionId}`),
 };
 
 // Removed sessionsAPI - no longer needed

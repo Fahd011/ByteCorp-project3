@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { credentialsAPI } from "../services/api";
+import { credentialsAPI, pdfExtractionAPI } from "../services/api";
 import "./BillingResults.css"; // custom CSS file
 import toast from "react-hot-toast";
 import UploadModal from "../components/UploadModal";
@@ -13,10 +13,190 @@ const BillingResults: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [extracting, setExtracting] = useState<string | null>(null);
+  const [extractedData, setExtractedData] = useState<{ [key: string]: any }>(
+    {}
+  );
+  const [showExtractedData, setShowExtractedData] = useState<string | null>(
+    null
+  );
+  const [checkingExtraction, setCheckingExtraction] = useState<{
+    [key: string]: boolean;
+  }>({});
+  const [extractingAll, setExtractingAll] = useState(false);
 
   useEffect(() => {
     fetchResults();
   }, [credId]);
+
+  // Check for existing extraction results when results are loaded
+  useEffect(() => {
+    if (results.length > 0) {
+      checkExistingExtractions();
+    }
+  }, [results]);
+
+  const checkExistingExtractions = async () => {
+    for (const result of results) {
+      setCheckingExtraction((prev) => ({ ...prev, [result.id]: true }));
+      try {
+        const response = await pdfExtractionAPI.getResults(result.id);
+        if (response.data.results && response.data.results.length > 0) {
+          const extracted = response.data.results[0].extracted_data;
+          setExtractedData((prev) => ({
+            ...prev,
+            [result.id]: extracted,
+          }));
+        }
+      } catch (error) {
+        // No existing extraction found, which is fine
+        console.log(`No existing extraction for billing result ${result.id}`);
+      } finally {
+        setCheckingExtraction((prev) => ({ ...prev, [result.id]: false }));
+      }
+    }
+  };
+
+  const handleExtractData = async (billingResult: any) => {
+    setExtracting(billingResult.azure_blob_url);
+    try {
+      console.log("Extracting data for billing result:", billingResult);
+      const response = await pdfExtractionAPI.extractData(billingResult);
+
+      console.log("Extraction response:", response.data);
+      toast.success("Data extracted successfully!");
+
+      // Store the extracted data
+      if (response.data.results && response.data.results.length > 0) {
+        const extracted = response.data.results[0].extracted_data;
+        setExtractedData((prev) => ({
+          ...prev,
+          [billingResult.id]: extracted,
+        }));
+        console.log("Extracted data:", extracted);
+        console.log("Billing context:", response.data.billing_result);
+      }
+    } catch (error: any) {
+      console.error("Extraction error:", error);
+      toast.error(error.response?.data?.detail || "Failed to extract data");
+    } finally {
+      setExtracting(null);
+    }
+  };
+
+  const handleExtractAllData = async () => {
+    setExtractingAll(true);
+    const billsToExtract = results.filter((r) => !extractedData[r.id]);
+
+    if (billsToExtract.length === 0) {
+      toast.success("All bills have already been extracted!");
+      setExtractingAll(false);
+      return;
+    }
+
+    toast.success(`Starting extraction for ${billsToExtract.length} bills...`);
+
+    for (let i = 0; i < billsToExtract.length; i++) {
+      const bill = billsToExtract[i];
+      try {
+        console.log(
+          `Extracting data for bill ${i + 1}/${billsToExtract.length}:`,
+          bill
+        );
+        const response = await pdfExtractionAPI.extractData(bill);
+
+        if (response.data.results && response.data.results.length > 0) {
+          const extracted = response.data.results[0].extracted_data;
+          setExtractedData((prev) => ({
+            ...prev,
+            [bill.id]: extracted,
+          }));
+        }
+
+        // Small delay between extractions to avoid overwhelming the server
+        if (i < billsToExtract.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      } catch (error: any) {
+        console.error(`Error extracting data for bill ${bill.id}:`, error);
+        toast.error(
+          `Failed to extract data for bill ${bill.year}/${bill.month}`
+        );
+      }
+    }
+
+    toast.success(`Completed extraction for ${billsToExtract.length} bills!`);
+    setExtractingAll(false);
+  };
+
+  const toggleExtractedData = (billingId: string) => {
+    setShowExtractedData((prev) => (prev === billingId ? null : billingId));
+  };
+
+  const renderExtractedData = (data: any) => {
+    if (!data) return <p className="no-data">No data available</p>;
+
+    const flattenObject = (
+      obj: any,
+      prefix = ""
+    ): Array<{ key: string; value: any; displayKey: string }> => {
+      const result: Array<{ key: string; value: any; displayKey: string }> = [];
+
+      for (const [k, v] of Object.entries(obj)) {
+        const key = prefix ? `${prefix}.${k}` : k;
+        const displayKey = k; // Only use the last element for display
+
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          result.push(...flattenObject(v, key));
+        } else if (Array.isArray(v)) {
+          if (v.length === 0) {
+            result.push({ key, value: "No items", displayKey });
+          } else {
+            v.forEach((item, index) => {
+              if (typeof item === "object") {
+                result.push(...flattenObject(item, `${key}[${index}]`));
+              } else {
+                result.push({
+                  key: `${key}[${index}]`,
+                  value: item,
+                  displayKey: `${k}[${index}]`,
+                });
+              }
+            });
+          }
+        } else {
+          result.push({ key, value: v, displayKey });
+        }
+      }
+
+      return result;
+    };
+
+    const flattenedData = flattenObject(data);
+
+    return (
+      <div className="extracted-data-table">
+        <div className="table-header">
+          <div className="table-cell header-cell">Field</div>
+          <div className="table-cell header-cell">Value</div>
+        </div>
+        {flattenedData.map((item, index) => (
+          <div key={index} className="table-row">
+            <div className="table-cell field-cell">
+              {item.displayKey.replace(/_/g, " ")}
+            </div>
+            <div className="table-cell value-cell">
+              {item.value === null || item.value === undefined ? (
+                <span className="null-value">—</span>
+              ) : (
+                <span>{String(item.value)}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   const handleDownloadPDF = async (blobName: string) => {
     try {
@@ -94,6 +274,33 @@ const BillingResults: React.FC = () => {
         </div>
       </div>
 
+      {/* Extract All Data Section */}
+      {results.length > 0 && (
+        <div className="extract-all-section">
+          <h3 className="extract-all-title">Bulk Data Extraction</h3>
+          <div className="extract-all-actions">
+            <button
+              onClick={handleExtractAllData}
+              disabled={
+                extractingAll ||
+                results.filter((r) => !extractedData[r.id]).length === 0
+              }
+              className="extract-all-btn"
+            >
+              {extractingAll
+                ? "Extracting All..."
+                : `Extract All Data (${
+                    results.filter((r) => !extractedData[r.id]).length
+                  } bills)`}
+            </button>
+            <div className="extract-all-info">
+              {results.filter((r) => extractedData[r.id]).length} of{" "}
+              {results.length} bills already extracted
+            </div>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="loading-spinner-container">
           <div className="loading-spinner"></div>
@@ -126,12 +333,46 @@ const BillingResults: React.FC = () => {
                 )}
               </div>
 
-              <button
-                onClick={() => handleDownloadPDF(r.azure_blob_url)}
-                className="download-btn"
-              >
-                Download Bill
-              </button>
+              <div className="billing-actions">
+                <button
+                  onClick={() => handleDownloadPDF(r.azure_blob_url)}
+                  className="download-btn"
+                >
+                  Download Bill
+                </button>
+                {!extractedData[r.id] && !checkingExtraction[r.id] && (
+                  <button
+                    onClick={() => handleExtractData(r)}
+                    className="extract-btn"
+                    disabled={extracting === r.azure_blob_url || extractingAll}
+                  >
+                    {extracting === r.azure_blob_url
+                      ? "Extracting..."
+                      : "Extract Data"}
+                  </button>
+                )}
+                {checkingExtraction[r.id] && (
+                  <button className="extract-btn" disabled>
+                    Checking...
+                  </button>
+                )}
+                {extractedData[r.id] && (
+                  <button
+                    onClick={() => toggleExtractedData(r.id)}
+                    className="view-data-btn"
+                  >
+                    {showExtractedData === r.id ? "Hide Data" : "View Data"}
+                  </button>
+                )}
+              </div>
+
+              {/* Extracted Data Section */}
+              {showExtractedData === r.id && extractedData[r.id] && (
+                <div className="extracted-data-section">
+                  <h4>Extracted Data:</h4>
+                  {renderExtractedData(extractedData[r.id])}
+                </div>
+              )}
             </div>
           ))}
         </div>

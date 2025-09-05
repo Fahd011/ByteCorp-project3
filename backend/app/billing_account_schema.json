@@ -1,0 +1,195 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Billing Account Data",
+    "description": "A schema representing billing and account information.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Unique identifier for the record."
+      },
+      "summaryAccountId": {
+        "type": "string",
+        "description": "The unique identifier of the summary account."
+      },
+      "summaryAccountNumber": {
+        "type": "string",
+        "description": "The number or identifier assigned to the summary account by the provider."
+      },
+      "normalizedSummaryAccountNumber": {
+        "type": "string",
+        "description": "The normalized version of the Summary account number (removing things like hyphens, underscores, and leading zeros)."
+      },
+      "customerNumber": {
+        "type": "string",
+        "description": "The bill contains a unique identifier for the customer associated with the account. This is not the account number."
+      },
+      "invoiceNumber": {
+        "type": "string",
+        "description": "The unique identifier or number assigned to a specific invoice."
+      },
+      "type": {
+        "type": "string",
+        "description": "Describes the source document.",
+        "enum": [
+          "BILL",
+          "NOTICE",
+          "ADJUSTMENT",
+          "PREPAID"
+        ]
+      },
+      "isFinalBill": {
+        "type": "boolean",
+        "description": "Indicates if this is the final bill for the account."
+      },
+      "statementDate": {
+        "type": "string",
+        "format": "date",
+        "description": "The date of the statement."
+      },
+      "previousStatementDate": {
+        "type": "string",
+        "format": "date",
+        "description": "The date of the previous bill."
+      },
+      "dueDate": {
+        "type": "string",
+        "format": "date",
+        "description": "The due date for payment associated with the account."
+      },
+      "periodStartDate": {
+        "type": "string",
+        "format": "date",
+        "description": "The start date of the measuring period."
+      },
+      "periodEndDate": {
+        "type": "string",
+        "format": "date",
+        "description": "The end date of the measuring period."
+      },
+      "previousBalance": {
+        "type": "number",
+        "description": "The balance carried forward from the previous billing period."
+      },
+      "newCharges": {
+        "type": "number",
+        "description": "Any new charges applied to the account since the last billing cycle or statement."
+      },
+      "totalCharges": {
+        "type": "number",
+        "description": "The total charges applied for a specific billing period."
+      },
+      "amountDue": {
+        "type": "number",
+        "description": "The monetary amount that is required to be paid."
+      },
+      "amountDueBeforeDueDate": {
+        "type": "number",
+        "description": "The total amount due for the account before the due date, excluding any late fees or penalties."
+      },
+      "amountDueAfterDueDate": {
+        "type": "number",
+        "description": "The total amount due for the account after the due date, excluding any late fees or penalties."
+      },
+      "outstandingBalance": {
+        "type": "number",
+        "description": "The remaining balance yet to be paid for the account."
+      },
+      "discountBeforeDueDate": {
+        "type": "number",
+        "description": "Any discounts applied to the account if the outstanding balance is paid before the due date."
+      },
+      "charges": {
+        "type": "array",
+        "description": "Details of charges applied, including amounts, currency, etc.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "description": {
+              "type": "string"
+            },
+            "amount": {
+              "type": "number"
+            },
+            "currency": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "usages": {
+        "type": "array",
+        "description": "Details of usage data.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "service": {
+              "type": "string"
+            },
+            "usage": {
+              "type": "number"
+            },
+            "unit": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "accountData": {
+        "type": "object",
+        "description": "Data related to individual accounts, including billing information, usage history, etc.",
+        "properties": {}
+      },
+      "cycleNumber": {
+        "type": "string",
+        "description": "The code or ID for a meter reading schedule."
+      },
+      "disconnectDate": {
+        "type": "string",
+        "format": "date",
+        "description": "The date on which the service for the account was disconnected."
+      },
+      "provider": {
+        "type": "string",
+        "description": "The service provider."
+      },
+      "sourceType": {
+        "type": "string",
+        "description": "The data format of the data extraction source we used."
+      },
+      "dataIngestionMethod": {
+        "type": "string",
+        "description": "Indicates the method you used to send data to us."
+      },
+      "credentialIds": {
+        "type": "array",
+        "description": "A unique identifier for a credential.",
+        "items": {
+          "type": "string"
+        }
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time",
+        "description": "A timestamp indicating when the entity account was created."
+      },
+      "discoveredAt": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Timestamp indicating when the account data was discovered and added to the system."
+      },
+      "lastModifiedAt": {
+        "type": "string",
+        "format": "date-time",
+        "description": "The timestamp indicating when this resource was last modified."
+      }
+    },
+    "required": [
+      "id",
+      "summaryAccountNumber",
+      "invoiceNumber",
+      "statementDate",
+      "dueDate",
+      "amountDue"
+    ]
+  }
