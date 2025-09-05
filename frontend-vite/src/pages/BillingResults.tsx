@@ -215,6 +215,40 @@ const BillingResults: React.FC = () => {
     }
   };
 
+  const handleExportToExcel = async (sessionId: string) => {
+    try {
+      const response = await pdfExtractionAPI.exportToExcel(sessionId);
+
+      // Extract filename from Content-Disposition header
+      const contentDisposition = response.headers["content-disposition"];
+      let filename = `utility_bills_extraction_${sessionId}.xlsx`; // fallback
+
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(
+          /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
+        );
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, "");
+        }
+      }
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success("Excel file downloaded successfully!");
+    } catch (error: any) {
+      console.error("Export error:", error);
+      toast.error(error.response?.data?.detail || "Failed to export to Excel");
+    }
+  };
+
   const handleUploadManualPDF = async (
     file: File,
     year: string,
@@ -357,12 +391,20 @@ const BillingResults: React.FC = () => {
                   </button>
                 )}
                 {extractedData[r.id] && (
-                  <button
-                    onClick={() => toggleExtractedData(r.id)}
-                    className="view-data-btn"
-                  >
-                    {showExtractedData === r.id ? "Hide Data" : "View Data"}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => toggleExtractedData(r.id)}
+                      className="view-data-btn"
+                    >
+                      {showExtractedData === r.id ? "Hide Data" : "View Data"}
+                    </button>
+                    <button
+                      onClick={() => handleExportToExcel(r.id)}
+                      className="export-btn"
+                    >
+                      Export to Excel
+                    </button>
+                  </>
                 )}
               </div>
 
