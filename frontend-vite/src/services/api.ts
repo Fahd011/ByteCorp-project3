@@ -119,6 +119,10 @@ export const pdfExtractionAPI = {
     }),
   getResults: (sessionId: string): Promise<AxiosResponse<any>> =>
     api.get(`/pdf-extraction/results/${sessionId}`),
+  exportToExcel: (sessionId: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/pdf-extraction/export/${sessionId}`, {
+      responseType: "blob",
+    }),
 };
 
 // Removed sessionsAPI - no longer needed
