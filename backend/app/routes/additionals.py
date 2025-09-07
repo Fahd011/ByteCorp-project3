@@ -1,6 +1,6 @@
 # Fetch all billing results for a credential_id
 from fastapi import APIRouter, Depends, HTTPException
-from app.models import BillingResult, Provider, ProviderResponse
+from app.models import BillingResult, Provider, ProviderResponse, UserBillingCredential
 from app.db import get_db
 from sqlalchemy.orm import Session
 
@@ -55,6 +55,11 @@ def create_test_user(db: Session = Depends(get_db)):
 @router.get("/api/billing-results/{credential_id}")
 def get_billing_results(credential_id: str, db: Session = Depends(get_db)):
     results = db.query(BillingResult).filter(BillingResult.user_billing_credential_id == credential_id).order_by(BillingResult.run_time.desc()).all()
+    
+    # Get the credential to access email/username
+    credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
+    username = credential.email if credential else "unknown"
+    
     return [
         {
             "id": r.id,
@@ -63,7 +68,8 @@ def get_billing_results(credential_id: str, db: Session = Depends(get_db)):
             "status": r.status,
             "year": r.year,
             "month": r.month,
-            "created_at": r.created_at
+            "created_at": r.created_at,
+            "username": username
         }
         for r in results
     ]

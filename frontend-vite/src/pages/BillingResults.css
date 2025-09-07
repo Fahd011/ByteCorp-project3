@@ -468,3 +468,19 @@
     width: 100%;
   }
 }
+
+.export-btn {
+  padding: 8px 16px;
+  background: #217346;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease-in-out;
+}
+
+.export-btn:hover {
+  background: #1d4ed8;
+}
