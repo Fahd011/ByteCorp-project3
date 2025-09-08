@@ -12,7 +12,7 @@ const Navigation: React.FC = () => {
   return (
     <nav className="nav">
       <div className="nav-header">
-        <h1 className="nav-title">Sagility</h1>
+        <h1 className="nav-title">Sagiliti</h1>
       </div>
 
       <ul className="nav-menu">

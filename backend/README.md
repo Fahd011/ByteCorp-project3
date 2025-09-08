@@ -1,4 +1,4 @@
-# Sagility Backend
+# Sagiliti Backend
 
 A FastAPI-based backend for billing automation with modular agent integration and cloud storage support.
 
