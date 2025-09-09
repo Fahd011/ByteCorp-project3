@@ -135,6 +135,8 @@ class BillingResult(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_billing_credential_id = Column(String, ForeignKey('user_billing_credentials.id'), nullable=False)
     azure_blob_url = Column(String, nullable=False)
+    excel_blob_url = Column(String, nullable=True)   # Excel file
+    json_blob_url = Column(String, nullable=True)    # JSON data file
     run_time = Column(DateTime, default=datetime.utcnow)
     status = Column(String, nullable=False)
     year = Column(String, nullable=False)

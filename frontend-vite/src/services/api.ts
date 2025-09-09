@@ -109,6 +109,16 @@ export const credentialsAPI = {
         "Content-Type": "multipart/form-data",
       },
     }),
+
+  downloadExcel: (blobName: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/azure/download/${encodeURIComponent(blobName)}`, {
+      responseType: "blob",
+    }),
+
+  downloadJSON: (blobName: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/azure/download/${encodeURIComponent(blobName)}`, {
+      responseType: "blob",
+    }),
 };
 
 // PDF Extraction API

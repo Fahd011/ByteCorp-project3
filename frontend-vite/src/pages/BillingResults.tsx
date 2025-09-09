@@ -20,7 +20,10 @@ const BillingResults: React.FC = () => {
   const [showExtractedData, setShowExtractedData] = useState<string | null>(
     null
   );
-  // const [extractingAll, setExtractingAll] = useState(false);
+  const [checkingExtraction, setCheckingExtraction] = useState<{
+    [key: string]: boolean;
+  }>({});
+  const [extractingAll, setExtractingAll] = useState(false);
 
   useEffect(() => {
     fetchResults();
@@ -35,31 +38,21 @@ const BillingResults: React.FC = () => {
 
   const checkExistingExtractions = async () => {
     for (const result of results) {
+      setCheckingExtraction((prev) => ({ ...prev, [result.id]: true }));
       try {
         const response = await pdfExtractionAPI.getResults(result.id);
         if (response.data.results && response.data.results.length > 0) {
-          // Data already extracted - just display it
           const extracted = response.data.results[0].extracted_data;
           setExtractedData((prev) => ({
             ...prev,
             [result.id]: extracted,
           }));
-          console.log(
-            `Found existing extraction for billing result ${result.id}`
-          );
-        } else {
-          // No existing extraction - start auto-extraction
-          console.log(
-            `No existing extraction found for ${result.id}, starting auto-extraction...`
-          );
-          await handleExtractData(result);
         }
       } catch (error) {
-        // No existing extraction found - start auto-extraction
-        console.log(
-          `No existing extraction for billing result ${result.id}, starting auto-extraction...`
-        );
-        await handleExtractData(result);
+        // No existing extraction found, which is fine
+        console.log(`No existing extraction for billing result ${result.id}`);
+      } finally {
+        setCheckingExtraction((prev) => ({ ...prev, [result.id]: false }));
       }
     }
   };
@@ -91,50 +84,50 @@ const BillingResults: React.FC = () => {
     }
   };
 
-  // const handleExtractAllData = async () => {
-  //   setExtractingAll(true);
-  //   const billsToExtract = results.filter((r) => !extractedData[r.id]);
+  const handleExtractAllData = async () => {
+    setExtractingAll(true);
+    const billsToExtract = results.filter((r) => !extractedData[r.id]);
 
-  //   if (billsToExtract.length === 0) {
-  //     toast.success("All bills have already been extracted!");
-  //     setExtractingAll(false);
-  //     return;
-  //   }
+    if (billsToExtract.length === 0) {
+      toast.success("All bills have already been extracted!");
+      setExtractingAll(false);
+      return;
+    }
 
-  //   toast.success(`Starting extraction for ${billsToExtract.length} bills...`);
+    toast.success(`Starting extraction for ${billsToExtract.length} bills...`);
 
-  //   for (let i = 0; i < billsToExtract.length; i++) {
-  //     const bill = billsToExtract[i];
-  //     try {
-  //       console.log(
-  //         `Extracting data for bill ${i + 1}/${billsToExtract.length}:`,
-  //         bill
-  //       );
-  //       const response = await pdfExtractionAPI.extractData(bill);
+    for (let i = 0; i < billsToExtract.length; i++) {
+      const bill = billsToExtract[i];
+      try {
+        console.log(
+          `Extracting data for bill ${i + 1}/${billsToExtract.length}:`,
+          bill
+        );
+        const response = await pdfExtractionAPI.extractData(bill);
 
-  //       if (response.data.results && response.data.results.length > 0) {
-  //         const extracted = response.data.results[0].extracted_data;
-  //         setExtractedData((prev) => ({
-  //           ...prev,
-  //           [bill.id]: extracted,
-  //         }));
-  //       }
+        if (response.data.results && response.data.results.length > 0) {
+          const extracted = response.data.results[0].extracted_data;
+          setExtractedData((prev) => ({
+            ...prev,
+            [bill.id]: extracted,
+          }));
+        }
 
-  //       // Small delay between extractions to avoid overwhelming the server
-  //       if (i < billsToExtract.length - 1) {
-  //         await new Promise((resolve) => setTimeout(resolve, 1000));
-  //       }
-  //     } catch (error: any) {
-  //       console.error(`Error extracting data for bill ${bill.id}:`, error);
-  //       toast.error(
-  //         `Failed to extract data for bill ${bill.year}/${bill.month}`
-  //       );
-  //     }
-  //   }
+        // Small delay between extractions to avoid overwhelming the server
+        if (i < billsToExtract.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      } catch (error: any) {
+        console.error(`Error extracting data for bill ${bill.id}:`, error);
+        toast.error(
+          `Failed to extract data for bill ${bill.year}/${bill.month}`
+        );
+      }
+    }
 
-  //   toast.success(`Completed extraction for ${billsToExtract.length} bills!`);
-  //   setExtractingAll(false);
-  // };
+    toast.success(`Completed extraction for ${billsToExtract.length} bills!`);
+    setExtractingAll(false);
+  };
 
   const toggleExtractedData = (billingId: string) => {
     setShowExtractedData((prev) => (prev === billingId ? null : billingId));
@@ -222,35 +215,93 @@ const BillingResults: React.FC = () => {
     }
   };
 
-  const handleExportToExcel = async (sessionId: string) => {
+  const handleExportToExcel = async (result: any) => {
     try {
-      const response = await pdfExtractionAPI.exportToExcel(sessionId);
+      // Check if we have an Excel blob URL in the database
+      if (result.excel_blob_url) {
+        // Download from Azure using the stored blob URL
+        const response = await credentialsAPI.downloadExcel(
+          result.excel_blob_url
+        );
 
-      // Extract filename from Content-Disposition header
-      const contentDisposition = response.headers['content-disposition'];
-      let filename = `utility_bills_extraction_${sessionId}.xlsx`; // fallback
-      
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (filenameMatch && filenameMatch[1]) {
-          filename = filenameMatch[1].replace(/['"]/g, '');
+        // Extract filename from the blob URL or create one
+        const filename =
+          result.excel_blob_url.split("/").pop() ||
+          `utility_bills_extraction_${result.id}.xlsx`;
+
+        // Create download link
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+
+        toast.success("Excel file downloaded successfully!");
+      } else {
+        // Fallback to the old method if no Excel blob URL exists
+        const response = await pdfExtractionAPI.exportToExcel(result.id);
+
+        // Extract filename from Content-Disposition header
+        const contentDisposition = response.headers["content-disposition"];
+        let filename = `utility_bills_extraction_${result.id}.xlsx`; // fallback
+
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(
+            /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
+          );
+          if (filenameMatch && filenameMatch[1]) {
+            filename = filenameMatch[1].replace(/['"]/g, "");
+          }
         }
+
+        // Create download link
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+
+        toast.success("Excel file downloaded successfully!");
       }
-
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      toast.success("Excel file downloaded successfully!");
     } catch (error: any) {
       console.error("Export error:", error);
       toast.error(error.response?.data?.detail || "Failed to export to Excel");
+    }
+  };
+
+  const handleDownloadJSON = async (result: any) => {
+    try {
+      if (result.json_blob_url) {
+        const response = await credentialsAPI.downloadJSON(
+          result.json_blob_url
+        );
+
+        const filename =
+          result.json_blob_url.split("/").pop() ||
+          `utility_bills_data_${result.id}.json`;
+
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+
+        toast.success("JSON data downloaded successfully!");
+      } else {
+        toast.error("No JSON data available for this billing result");
+      }
+    } catch (error: any) {
+      console.error("JSON download error:", error);
+      toast.error("Failed to download JSON data");
     }
   };
 
@@ -314,7 +365,7 @@ const BillingResults: React.FC = () => {
       </div>
 
       {/* Extract All Data Section */}
-      {/* {results.length > 0 && (
+      {results.length > 0 && (
         <div className="extract-all-section">
           <h3 className="extract-all-title">Bulk Data Extraction</h3>
           <div className="extract-all-actions">
@@ -338,7 +389,7 @@ const BillingResults: React.FC = () => {
             </div>
           </div>
         </div>
-      )} */}
+      )}
 
       {loading ? (
         <div className="loading-spinner-container">
@@ -379,15 +430,22 @@ const BillingResults: React.FC = () => {
                 >
                   Download Bill
                 </button>
-
-                {/* Show extracting button when extraction is in progress */}
-                {extracting === r.azure_blob_url && (
-                  <button className="extract-btn" disabled>
-                    Extracting Data...
+                {!extractedData[r.id] && !checkingExtraction[r.id] && (
+                  <button
+                    onClick={() => handleExtractData(r)}
+                    className="extract-btn"
+                    disabled={extracting === r.azure_blob_url || extractingAll}
+                  >
+                    {extracting === r.azure_blob_url
+                      ? "Extracting..."
+                      : "Extract Data"}
                   </button>
                 )}
-
-                {/* Show view data and export buttons when data is extracted */}
+                {checkingExtraction[r.id] && (
+                  <button className="extract-btn" disabled>
+                    Checking...
+                  </button>
+                )}
                 {extractedData[r.id] && (
                   <>
                     <button
@@ -397,11 +455,20 @@ const BillingResults: React.FC = () => {
                       {showExtractedData === r.id ? "Hide Data" : "View Data"}
                     </button>
                     <button
-                      onClick={() => handleExportToExcel(r.id)}
+                      onClick={() => handleExportToExcel(r)}
                       className="export-btn"
                     >
                       Export to Excel
                     </button>
+                    {r.json_blob_url && (
+                      <button
+                        onClick={() => handleDownloadJSON(r)}
+                        className="download-json-btn"
+                        style={{ marginLeft: "8px" }}
+                      >
+                        Download JSON
+                      </button>
+                    )}
                   </>
                 )}
               </div>

@@ -46,6 +46,9 @@ class BillingResultRequest(BaseModel):
 # Store extraction results in memory (in production, use a database)
 extraction_results: Dict[str, List[ExtractionResult]] = {}
 
+# Add a global dictionary to store usernames for sessions
+session_usernames = {}
+
 def extract_text_from_pdf(pdf_file_path: str) -> str:
     """Extract text from PDF file using PyPDF2 with pdfplumber fallback"""
     try:
@@ -150,6 +153,9 @@ async def upload_files(request: BillingResultRequest):
     # Create a unique session ID for this batch
     session_id = billing_result.get("id");
     extraction_results[session_id] = []
+    
+    # Store username for this session
+    session_usernames[session_id] = username
     
     try:
         # Download PDF from Azure blob storage
@@ -294,9 +300,13 @@ async def export_to_excel(session_id: str):
         # Create DataFrame and export to Excel
         df = pd.DataFrame(excel_data)
         
-        # Create temporary Excel file (cross-platform)
-        excel_filename = f"extracted_{session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        # Get username and clean it for filename
+        username = session_usernames.get(session_id, session_id)
+        clean_username = username.replace('@', '_').replace('+', '_').replace('.', '_').replace(' ', '_')
         
+        # Create Excel filename with username
+        excel_filename = f"extracted_{clean_username}_bill.xlsx"
+        print(f"📁 Final filename: {excel_filename}")
         # Use tempfile for cross-platform compatibility
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
             excel_path = tmp_file.name
