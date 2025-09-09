@@ -24,7 +24,13 @@ router = APIRouter()
 def load_data_model():
     """Load the data model from JSON file"""
     import os
+    from pathlib import Path
+    # Get path from env or default
     data_model_path = os.getenv("DATA_MODEL_PATH", "../data_model.json")
+    # Always resolve to absolute path relative to this file if not already absolute
+    data_model_path = Path(data_model_path)
+    if not data_model_path.is_absolute():
+        data_model_path = (Path(__file__).parent / data_model_path).resolve()
     try:
         with open(data_model_path, "r") as f:
             return json.load(f)

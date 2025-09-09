@@ -1,5 +1,5 @@
 """
-Configuration file for Sagility Backend
+Configuration file for Sagiliti Backend
 This file contains all configuration settings that can be easily modified
 """
 

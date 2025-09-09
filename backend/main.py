@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
     yield
     # Optionally: scheduler.shutdown() or other cleanup
 
-app = FastAPI(title="Sagility Backend", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Sagiliti Backend", version="1.0.0", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
