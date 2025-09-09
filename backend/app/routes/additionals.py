@@ -64,6 +64,8 @@ def get_billing_results(credential_id: str, db: Session = Depends(get_db)):
         {
             "id": r.id,
             "azure_blob_url": r.azure_blob_url,
+            "excel_blob_url": r.excel_blob_url, 
+            "json_blob_url": r.json_blob_url,    
             "run_time": r.run_time,
             "status": r.status,
             "year": r.year,

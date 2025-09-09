@@ -215,37 +215,93 @@ const BillingResults: React.FC = () => {
     }
   };
 
-  const handleExportToExcel = async (sessionId: string) => {
+  const handleExportToExcel = async (result: any) => {
     try {
-      const response = await pdfExtractionAPI.exportToExcel(sessionId);
-
-      // Extract filename from Content-Disposition header
-      const contentDisposition = response.headers["content-disposition"];
-      let filename = `utility_bills_extraction_${sessionId}.xlsx`; // fallback
-
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(
-          /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
+      // Check if we have an Excel blob URL in the database
+      if (result.excel_blob_url) {
+        // Download from Azure using the stored blob URL
+        const response = await credentialsAPI.downloadExcel(
+          result.excel_blob_url
         );
-        if (filenameMatch && filenameMatch[1]) {
-          filename = filenameMatch[1].replace(/['"]/g, "");
+
+        // Extract filename from the blob URL or create one
+        const filename =
+          result.excel_blob_url.split("/").pop() ||
+          `utility_bills_extraction_${result.id}.xlsx`;
+
+        // Create download link
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+
+        toast.success("Excel file downloaded successfully!");
+      } else {
+        // Fallback to the old method if no Excel blob URL exists
+        const response = await pdfExtractionAPI.exportToExcel(result.id);
+
+        // Extract filename from Content-Disposition header
+        const contentDisposition = response.headers["content-disposition"];
+        let filename = `utility_bills_extraction_${result.id}.xlsx`; // fallback
+
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(
+            /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
+          );
+          if (filenameMatch && filenameMatch[1]) {
+            filename = filenameMatch[1].replace(/['"]/g, "");
+          }
         }
+
+        // Create download link
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+
+        toast.success("Excel file downloaded successfully!");
       }
-
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      toast.success("Excel file downloaded successfully!");
     } catch (error: any) {
       console.error("Export error:", error);
       toast.error(error.response?.data?.detail || "Failed to export to Excel");
+    }
+  };
+
+  const handleDownloadJSON = async (result: any) => {
+    try {
+      if (result.json_blob_url) {
+        const response = await credentialsAPI.downloadJSON(
+          result.json_blob_url
+        );
+
+        const filename =
+          result.json_blob_url.split("/").pop() ||
+          `utility_bills_data_${result.id}.json`;
+
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+
+        toast.success("JSON data downloaded successfully!");
+      } else {
+        toast.error("No JSON data available for this billing result");
+      }
+    } catch (error: any) {
+      console.error("JSON download error:", error);
+      toast.error("Failed to download JSON data");
     }
   };
 
@@ -399,11 +455,20 @@ const BillingResults: React.FC = () => {
                       {showExtractedData === r.id ? "Hide Data" : "View Data"}
                     </button>
                     <button
-                      onClick={() => handleExportToExcel(r.id)}
+                      onClick={() => handleExportToExcel(r)}
                       className="export-btn"
                     >
                       Export to Excel
                     </button>
+                    {r.json_blob_url && (
+                      <button
+                        onClick={() => handleDownloadJSON(r)}
+                        className="download-json-btn"
+                        style={{ marginLeft: "8px" }}
+                      >
+                        Download JSON
+                      </button>
+                    )}
                   </>
                 )}
               </div>

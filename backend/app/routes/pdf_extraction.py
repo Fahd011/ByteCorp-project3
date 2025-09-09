@@ -311,7 +311,7 @@ async def export_to_excel(session_id: str):
         clean_username = username.replace('@', '_').replace('+', '_').replace('.', '_').replace(' ', '_')
         
         # Create Excel filename with username
-        excel_filename = f"extracted_{clean_username}_bill_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        excel_filename = f"extracted_{clean_username}_bill.xlsx"
         print(f"📁 Final filename: {excel_filename}")
         # Use tempfile for cross-platform compatibility
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:

@@ -482,5 +482,21 @@
 }
 
 .export-btn:hover {
-  background: #1d4ed8;
+  background: #1b5e3a;
+}
+
+.download-json-btn {
+  padding: 8px 16px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease-in-out;
+}
+
+.download-json-btn:hover {
+  background: #d97706;
 }
