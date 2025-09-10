@@ -16,6 +16,7 @@ from app.routes.credentials import router as credentials_bp
 from app.db import SessionLocal, get_db
 from app.routes.agent import router as agents_bp
 from app.routes.pdf_extraction import router as pdf_extraction_bp
+from datetime import datetime
 
 from config import config
 
@@ -141,26 +142,34 @@ async def retry_agent_job():
 # --- Schedules ---
 
 
+
 # Scheduler (AsyncIO version)
 scheduler = AsyncIOScheduler()
 
-# Start scheduler in FastAPI startup event
+def print_remaining_times():
+    for job in scheduler.get_jobs():
+        if job.next_run_time:
+            remaining = job.next_run_time - datetime.utcnow()
+            print(f"⏳ Job '{job.id}' will run in {remaining}")
+        else:
+            print(f"⚠️ Job '{job.id}' has no next run scheduled")
 
+# Example jobs
 scheduler.add_job(
-    daily_agent_job,                     # the function to run
-    CronTrigger(hour=16, minute=59),      # schedule: every day at 19:5 (7:05PM)
-    id="daily_agent_job",                # unique job identifier
-    replace_existing=True                # replace existing job with same ID if already scheduled
+    lambda: print("Daily agent executed"),
+    CronTrigger(hour=16, minute=59),
+    id="daily_agent_job",
+    replace_existing=True,
 )
 
-# ⏳ For testing: run every 5 minutes
 scheduler.add_job(
-    retry_agent_job,
-    IntervalTrigger(minutes=5),
+    lambda: print("Retry agent executed"),
+    IntervalTrigger(minutes=60),
     id="retry_agent_job",
     replace_existing=True,
 )
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+scheduler.start()
+
+# Print remaining time on startup
+print_remaining_times()
