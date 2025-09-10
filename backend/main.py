@@ -141,33 +141,26 @@ async def retry_agent_job():
 # --- Schedules ---
 
 
-
 # Scheduler (AsyncIO version)
 scheduler = AsyncIOScheduler()
 
-# Jobs
-scheduler.add_job(
-    lambda: print("Daily agent executed"),
-    CronTrigger(hour=16, minute=59),
-    id="daily_agent_job",
-    replace_existing=True,
-)
+# Start scheduler in FastAPI startup event
 
 scheduler.add_job(
-    lambda: print("Retry agent executed"),
+    daily_agent_job,                     # the function to run
+    CronTrigger(hour=16, minute=59),      # schedule: every day at 19:5 (7:05PM)
+    id="daily_agent_job",                # unique job identifier
+    replace_existing=True                # replace existing job with same ID if already scheduled
+)
+
+# ⏳ For testing: run every 5 minutes
+scheduler.add_job(
+    retry_agent_job,
     IntervalTrigger(minutes=60),
     id="retry_agent_job",
     replace_existing=True,
 )
 
-@app.on_event("startup")
-async def start_scheduler():
-    scheduler.start()
-
-    # Print remaining times
-    for job in scheduler.get_jobs():
-        if job.next_run_time:
-            remaining = job.next_run_time - datetime.utcnow()
-            print(f"⏳ Job '{job.id}' will run in {remaining}")
-        else:
-            print(f"⚠️ Job '{job.id}' has no next run scheduled")
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)
