@@ -16,7 +16,8 @@ pandas
 openai
 python-dotenv
 alembic==1.16.4
-azure-storage-blob
+azure-core>=1.26.0
+azure-storage-blob>=12.16.0
 reportlab
 PyPDF2==3.0.1
 pdfplumber==0.10.3
