@@ -108,13 +108,35 @@ async def daily_agent_job():
         
         for credential in credentials:
             # Use agent service to run the agent
-            result = await agent_service.run_agent(credential, db)
+            if credential.is_eligible_for_retry:
+                result = await agent_service.retry_agent(credential, db)
+            else:
+                result = await agent_service.run_agent(credential, db)
             
     except Exception as e:
         print(f"Error in daily job: {e}")
     finally:
         db.close()
 
+async def retry_agent_job():
+    """Daily job to run agents for idle credentials"""
+    db = SessionLocal()
+    try:
+        credentials = db.query(UserBillingCredential).filter(
+            UserBillingCredential.is_eligible_for_retry == True
+            # UserBillingCredential.last_state.in_(["idle", "completed", "error"])
+        ).all()
+        
+        print(f"Retry job found {len(credentials)} credentials to process")
+        
+        for credential in credentials:
+            # Use agent service to run the agent
+            result = await agent_service.retry_agent(credential, db)
+            
+    except Exception as e:
+        print(f"Error in daily job: {e}")
+    finally:
+        db.close()
 
 # --- Schedules ---
 
@@ -126,18 +148,18 @@ scheduler = AsyncIOScheduler()
 
 scheduler.add_job(
     daily_agent_job,                     # the function to run
-    CronTrigger(hour=8, minute=20),      # schedule: every day at 19:00 (7PM)
+    CronTrigger(hour=16, minute=41),      # schedule: every day at 19:00 (7PM)
     id="daily_agent_job",                # unique job identifier
     replace_existing=True                # replace existing job with same ID if already scheduled
 )
 
-# # ⏳ For testing: run every 30 seconds
-# scheduler.add_job(
-#     daily_agent_job,
-#     IntervalTrigger(seconds=5),
-#     id="daily_agent_job_test",
-#     replace_existing=True,
-# )
+# ⏳ For testing: run every 5 minutes
+scheduler.add_job(
+    retry_agent_job,
+    IntervalTrigger(minutes=5),
+    id="retry_agent_job",
+    replace_existing=True,
+)
 
 if __name__ == "__main__":
     import uvicorn
