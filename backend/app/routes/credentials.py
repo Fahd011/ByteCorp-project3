@@ -104,6 +104,7 @@ def upload_credentials(
                         cred_id=str(cleaned_row.get('cred_id', '')),
                         login_url=login_url,
                         billing_url=billing_url
+                        is_eligible_for_retry=True  # New field set to True on creation
                     )
                     new_credentials.append(credential)
                     print(f":white_check_mark: Added new credential #{len(new_credentials)} for: {email}")  # Debug log
