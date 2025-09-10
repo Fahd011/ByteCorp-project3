@@ -127,7 +127,7 @@ class UserBillingCredential(Base):
     is_deleted = Column(Boolean, default=False)
     last_state = Column(String, default="idle")  # idle, running, completed, error
     last_error = Column(String)
-    is_eligible_for_retry = Column(Boolean, default=False)
+    is_eligible_for_retry = Column(Boolean, default=False, nullable=True)
     last_run_time = Column(DateTime)
     uploaded_bill_url = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
