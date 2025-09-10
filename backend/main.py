@@ -109,7 +109,7 @@ async def daily_agent_job():
         for credential in credentials:
             # Use agent service to run the agent
             if credential.is_eligible_for_retry:
-                result = await agent_service.retry_agent(credential, db)
+                result = None   # or just skip entirely
             else:
                 result = await agent_service.run_agent(credential, db)
             
