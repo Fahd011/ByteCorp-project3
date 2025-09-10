@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
     yield
     # Optionally: scheduler.shutdown() or other cleanup
 
-app = FastAPI(title="Sagility Backend", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Sagiliti Backend", version="1.0.0", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -148,7 +148,7 @@ scheduler = AsyncIOScheduler()
 
 scheduler.add_job(
     daily_agent_job,                     # the function to run
-    CronTrigger(hour=16, minute=41),      # schedule: every day at 19:00 (7PM)
+    CronTrigger(hour=8, minute=30),      # schedule: every day at 19:5 (7:05PM)
     id="daily_agent_job",                # unique job identifier
     replace_existing=True                # replace existing job with same ID if already scheduled
 )

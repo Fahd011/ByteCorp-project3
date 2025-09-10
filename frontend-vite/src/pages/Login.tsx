@@ -58,7 +58,7 @@ const Login: React.FC = () => {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h1 className="auth-logo">Sagility</h1>
+          <h1 className="auth-logo">Sagiliti</h1>
           <p className="auth-subtitle">Welcome back! Please sign in to your account.</p>
         </div>
         
