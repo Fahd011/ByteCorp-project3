@@ -12,7 +12,7 @@ from typing import Dict
 from azure_storage_service import azure_storage_service
 
 from config import config
-from app.models import BillingResult
+from app.models import BillingResult, UserBillingCredential
 from app.db import SessionLocal
 
 
@@ -66,8 +66,6 @@ def wait_for_completion(task_id: str, poll_interval: int = 2):
             
             count += 1
             status = details.get('status', 'unknown')
-            
-            print(f"[INFO] Status check #{count}: {status}")
             
             if status in ['finished', 'failed', 'stopped']:
                 print(f"[INFO] Task completed with status: {status}")
@@ -142,13 +140,14 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
 3. Log-in with:
      • email    : {email}
      • password : {password}
-4. Wait until dashboard finishes loading
-5. Navigate to {billing_history_url}
-6. Wait until the text "Billing & Payment Activity" is visible
-7. If "Oops, something went wrong." appears, STOP the task
-8. Click only the "View Bill" button in the FIRST row
-9. Wait until the bill PDF finishes downloading
-10. Use the 'done' action to mark the task as finished with message "Successfully downloaded one bill"
+4. If unable to login, STOP the task with status "Failed"
+5. Wait until dashboard finishes loading
+6. Navigate to {billing_history_url}
+7. Wait until the text "Billing & Payment Activity" is visible
+8. If "Oops, something went wrong." appears, STOP the task with status "Failed"
+9. Click only the "View Bill" button in the FIRST row
+10. Wait until the bill PDF finishes downloading
+11. Use the 'done' action to mark the task as finished with message "Successfully downloaded one bill"
 """
 
         print("[INFO] Starting remote browser task …")
@@ -195,9 +194,27 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
             
             # Create mock client for compatibility
             client = MockClient(task_id)
-            
-            # Call handle_task_result with the same arguments as before
-            await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
+
+            # Check if task failed based on done_output content and update credential error
+            if result.done_output and any(keyword in result.done_output for keyword in ["Failed to log in", "Failed", "failed", "error", "locked out", "incorrect sign-in"]):
+                try:
+                    db = SessionLocal()
+                    credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
+                    if credential:
+                        credential.last_error = result.done_output
+                        credential.last_state = "error"
+                        db.commit()
+                        print(f"[INFO] Updated credential {credential_id} with error: {result.done_output}")
+                    else:
+                        print(f"[WARNING] Credential {credential_id} not found")
+                    db.close()
+                except Exception as e:
+                    print(f"[ERROR] Failed to update credential error: {e}")
+                    if 'db' in locals():
+                        db.close()
+            else:
+                # Call handle_task_result with the same arguments as before
+                await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
             
         except Exception as e:
             print(f"[ERROR] Task execution failed: {e}")
@@ -275,7 +292,16 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
                                     db.add(billing_result)
                                     db.commit()
                                     
-                                    # �� AUTOMATIC PDF EXTRACTION
+                                    # Reset is_eligible_for_retry to false on successful retry
+                                    credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
+                                    if credential:
+                                        credential.is_eligible_for_retry = False
+                                        credential.last_state = "completed"
+                                        credential.last_error = None  # Clear any previous error
+                                        db.commit()
+                                        print(f"[INFO] Reset is_eligible_for_retry to false for credential {credential_id} after successful retry")
+                                    
+                                    # AUTOMATIC PDF EXTRACTION
                                     print(f"[INFO] Triggering automatic PDF extraction for billing result {billing_result.id}")
                                     await trigger_automatic_extraction(billing_result, email)
 
@@ -299,6 +325,30 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
                 print(f"[INFO] Skipping non-PDF file: {file_name}")
     else:
         print("[INFO] No output files found in task result")
+        
+        # Update is_eligible_for_retry to true when no output files found
+        try:
+            db = SessionLocal()
+            credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
+            if credential and credential.is_eligible_for_retry == False:
+                credential.is_eligible_for_retry = True
+                credential.last_state = "retrying"
+                db.commit()
+                print(f"[INFO] Updated is_eligible_for_retry to true for credential {credential_id} and will be retried")
+            elif credential and credential.is_eligible_for_retry == True:
+                credential.is_eligible_for_retry = False
+                credential.last_state = "Failed"
+                credential.last_error = "Unable to download the bill"
+                db.commit()
+                print(f"[INFO] Credential {credential_id} retried and failed again")
+            else:
+                print(f"[WARNING] Credential {credential_id} not found")
+            db.close()
+        except Exception as e:
+            print(f"[ERROR] Failed to update is_eligible_for_retry: {e}")
+            if 'db' in locals():
+                db.close()
+
 
 async def trigger_automatic_extraction(billing_result, email):
     """Automatically extract data from the newly created billing result"""

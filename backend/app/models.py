@@ -82,6 +82,7 @@ class UserBillingCredentialResponse(BaseModel):
     is_deleted: bool
     last_state: str
     last_error: Optional[str]
+    is_eligible_for_retry: bool
     last_run_time: Optional[datetime]
     uploaded_bill_url: Optional[str]
     created_at: datetime
@@ -126,6 +127,7 @@ class UserBillingCredential(Base):
     is_deleted = Column(Boolean, default=False)
     last_state = Column(String, default="idle")  # idle, running, completed, error
     last_error = Column(String)
+    is_eligible_for_retry = Column(Boolean, default=False)
     last_run_time = Column(DateTime)
     uploaded_bill_url = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
