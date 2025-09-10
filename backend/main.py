@@ -146,18 +146,37 @@ scheduler = AsyncIOScheduler()
 
 # Start scheduler in FastAPI startup event
 
+# scheduler.add_job(
+#     daily_agent_job,                     # the function to run
+#     CronTrigger(hour=17, minute=15),      # schedule: every day at 19:5 (7:05PM)
+#     id="daily_agent_job",                # unique job identifier
+#     replace_existing=True                # replace existing job with same ID if already scheduled
+# )
+
+def test_job():
+    print("🧪 Test job executed!")
+
+# Run every 5 seconds
 scheduler.add_job(
-    daily_agent_job,                     # the function to run
-    CronTrigger(hour=17, minute=15),      # schedule: every day at 19:5 (7:05PM)
-    id="daily_agent_job",                # unique job identifier
-    replace_existing=True                # replace existing job with same ID if already scheduled
+    test_job,
+    IntervalTrigger(seconds=5),
+    id="test_job",
+    replace_existing=True,
 )
 
-# ⏳ For testing: run every 5 minutes
+# runs every 5 minutes
 scheduler.add_job(
     retry_agent_job,
-    IntervalTrigger(minutes=60),
+    IntervalTrigger(minutes=5),
     id="retry_agent_job",
+    replace_existing=True,
+)
+
+# runs every 24 hours (from when the scheduler starts)
+scheduler.add_job(
+    daily_agent_job,
+    IntervalTrigger(hours=24),
+    id="daily_agent_job",
     replace_existing=True,
 )
 
