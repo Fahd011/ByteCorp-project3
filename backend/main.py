@@ -16,7 +16,6 @@ from app.routes.credentials import router as credentials_bp
 from app.db import SessionLocal, get_db
 from app.routes.agent import router as agents_bp
 from app.routes.pdf_extraction import router as pdf_extraction_bp
-from datetime import datetime
 
 from config import config
 
@@ -146,15 +145,7 @@ async def retry_agent_job():
 # Scheduler (AsyncIO version)
 scheduler = AsyncIOScheduler()
 
-def print_remaining_times():
-    for job in scheduler.get_jobs():
-        if job.next_run_time:
-            remaining = job.next_run_time - datetime.utcnow()
-            print(f"⏳ Job '{job.id}' will run in {remaining}")
-        else:
-            print(f"⚠️ Job '{job.id}' has no next run scheduled")
-
-# Example jobs
+# Jobs
 scheduler.add_job(
     lambda: print("Daily agent executed"),
     CronTrigger(hour=16, minute=59),
@@ -169,7 +160,14 @@ scheduler.add_job(
     replace_existing=True,
 )
 
-scheduler.start()
+@app.on_event("startup")
+async def start_scheduler():
+    scheduler.start()
 
-# Print remaining time on startup
-print_remaining_times()
+    # Print remaining times
+    for job in scheduler.get_jobs():
+        if job.next_run_time:
+            remaining = job.next_run_time - datetime.utcnow()
+            print(f"⏳ Job '{job.id}' will run in {remaining}")
+        else:
+            print(f"⚠️ Job '{job.id}' has no next run scheduled")
