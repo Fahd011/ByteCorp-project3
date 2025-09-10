@@ -126,7 +126,7 @@ scheduler = AsyncIOScheduler()
 
 scheduler.add_job(
     daily_agent_job,                     # the function to run
-    CronTrigger(hour=5, minute=59),      # schedule: every day at 19:5 (7:05PM)
+    CronTrigger(hour=6, minute=59),      # schedule: every day at 19:5 (7:05PM)
     id="daily_agent_job",                # unique job identifier
     replace_existing=True                # replace existing job with same ID if already scheduled
 )
