@@ -123,7 +123,7 @@ async def retry_agent_job():
 # 🔹 Run every 5 minutes (for testing)
 scheduler.add_job(
     retry_agent_job,
-    IntervalTrigger(minutes=2),
+    IntervalTrigger(minutes=10),
     id="retry_agent_job",
     replace_existing=True,
 )
