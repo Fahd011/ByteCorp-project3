@@ -97,6 +97,8 @@ async def simulate_agent_run(credential_id: str, db: Session):
 # Scheduler job
 async def daily_agent_job():
     """Daily job to run agents for idle credentials"""
+    print("Daily job started")
+    
     db = SessionLocal()
     try:
         credentials = db.query(UserBillingCredential).filter(
@@ -153,7 +155,7 @@ def daily_cron_test_job():
 
 scheduler.add_job(
     daily_agent_job,         
-    CronTrigger(hour=6, minute=35),  # will run at 06:30 UTC today
+    CronTrigger(hour=6, minute=40),  # will run at 06:30 UTC today
     id="daily_agent_job",    
     replace_existing=True        
 )
@@ -163,17 +165,6 @@ scheduler.add_job(
 #     id="daily_agent_job",                # unique job identifier
 #     replace_existing=True                # replace existing job with same ID if already scheduled
 # )
-
-def test_job():
-    print("🧪 Test job executed!")
-
-# Run every 5 seconds
-scheduler.add_job(
-    test_job,
-    IntervalTrigger(seconds=5),
-    id="test_job",
-    replace_existing=True,
-)
 
 # runs every 5 minutes
 scheduler.add_job(
