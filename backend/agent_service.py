@@ -67,12 +67,6 @@ class AgentService:
             # Do the work
             await self._execute_agent_work(credential)
 
-            # Update state → completed
-            credential.last_state = "completed"
-            credential.last_run_time = datetime.utcnow()
-            credential.last_error = None
-            db.commit()
-
             return {
                 "success": True,
                 "message": "Agent completed successfully",

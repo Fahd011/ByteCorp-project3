@@ -336,6 +336,9 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
                 db.commit()
                 print(f"[INFO] Updated is_eligible_for_retry to true for credential {credential_id} and will be retried")
             elif credential and credential.is_eligible_for_retry == True:
+                print(f"[RETRY FAILED] Credential 1{credential.is_eligible_for_retry} retried and failed again")
+                print(f"[RETRY FAILED] Credential 2{credential.last_state} retried and failed again")
+                print(f"[RETRY FAILED] Credential 3{credential.last_error} retried and failed again")
                 credential.is_eligible_for_retry = False
                 credential.last_state = "Failed"
                 credential.last_error = "Unable to download the bill"
