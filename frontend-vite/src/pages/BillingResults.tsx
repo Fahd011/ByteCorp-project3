@@ -446,31 +446,32 @@ const BillingResults: React.FC = () => {
                     Checking...
                   </button>
                 )}
-                {extractedData[r.id] && (
-                  <>
-                    <button
-                      onClick={() => toggleExtractedData(r.id)}
-                      className="view-data-btn"
-                    >
-                      {showExtractedData === r.id ? "Hide Data" : "View Data"}
-                    </button>
+                <>
+                  <button
+                    onClick={() => toggleExtractedData(r.id)}
+                    className="view-data-btn"
+                  >
+                    {showExtractedData === r.id ? "Hide Data" : "View Data"}
+                  </button>
+
+                  {r.excel_blob_url && (
                     <button
                       onClick={() => handleExportToExcel(r)}
                       className="export-btn"
                     >
                       Export to Excel
                     </button>
-                    {r.json_blob_url && (
-                      <button
-                        onClick={() => handleDownloadJSON(r)}
-                        className="download-json-btn"
-                        style={{ marginLeft: "8px" }}
-                      >
-                        Download JSON
-                      </button>
-                    )}
-                  </>
-                )}
+                  )}
+                  {r.json_blob_url && (
+                    <button
+                      onClick={() => handleDownloadJSON(r)}
+                      className="download-json-btn"
+                      style={{ marginLeft: "8px" }}
+                    >
+                      Download JSON
+                    </button>
+                  )}
+                </>
               </div>
 
               {/* Extracted Data Section */}
