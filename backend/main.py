@@ -131,22 +131,27 @@ import asyncio
 scheduler = AsyncIOScheduler()
 
 # --- Jobs ---
-async def daily_cron_test_job():
+def daily_cron_test_job():
     """Test job to confirm scheduler works"""
     print("🧪 Daily cron test job fired!")
-
-# wrap async jobs so scheduler knows how to run them
-def schedule_async(func):
-    def wrapper(*args, **kwargs):
-        asyncio.create_task(func(*args, **kwargs))
-    return wrapper
+async def daily_cron_test_job_async():
+    """Test job to confirm scheduler works"""
+    print("🧪 Daily cron test job fired!")
 
 # --- Add jobs ---
 
 # 🔹 Run every 5 seconds (for testing)
 scheduler.add_job(
-    schedule_async(daily_cron_test_job),
+    daily_cron_test_job_async,
     IntervalTrigger(seconds=5),
+    id="daily_cron_test_job_async",
+    replace_existing=True
+)
+
+# 🔹 Run every 5 seconds (for testing)
+scheduler.add_job(
+    daily_cron_test_job,
+    IntervalTrigger(seconds=2),
     id="daily_cron_test_job",
     replace_existing=True
 )
