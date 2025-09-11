@@ -137,9 +137,33 @@ def daily_cron_test_job():
 async def daily_cron_test_job_async():
     """Test job to confirm scheduler works"""
     print("🧪 Async daily_cron_test_job_async!")
+    
+    
 async def cron_test_job_async():
-    """Test job to confirm scheduler works"""
-    print("🧪 Async cron_test_job_async!")
+    """Daily job to run agents for idle credentials"""
+    print("Daily job started")
+    
+    db = SessionLocal()
+    try:
+        credentials = db.query(UserBillingCredential).filter(
+            UserBillingCredential.is_deleted == False
+            # UserBillingCredential.last_state.in_(["idle", "completed", "error"])
+        ).all()
+        
+        print(f"Daily job found {len(credentials)} credentials to process")
+        
+        for credential in credentials:
+            result = await agent_service.run_agent(credential, db)
+            # # Use agent service to run the agent
+            # if credential.is_eligible_for_retry:
+            #     result = None   # or just skip entirely
+            # else:
+            #     result = await agent_service.run_agent(credential, db)
+            
+    except Exception as e:
+        print(f"Error in daily job: {e}")
+    finally:
+        db.close()
 
 # --- Add jobs ---
 
@@ -162,7 +186,7 @@ scheduler.add_job(
 # 🔹 Cron job
 scheduler.add_job(
     cron_test_job_async,         
-    CronTrigger(hour=7, minute=15),  # will run at 06:30 UTC today
+    CronTrigger(hour=7, minute=17),  # will run at 06:30 UTC today
     id="cron_test_job_async",    
     replace_existing=True        
 )
