@@ -131,7 +131,7 @@ async def retry_agent_job():
         
         for credential in credentials:
             # Use agent service to run the agent
-            result = await agent_service.retry_agent(credential, db)
+            result = await agent_service.run_agent(credential, db)
             
     except Exception as e:
         print(f"Error in daily job: {e}")
