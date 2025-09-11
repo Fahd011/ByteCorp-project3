@@ -136,10 +136,10 @@ def daily_cron_test_job():
     print("🧪 Daily cron test job fired!")
 async def daily_cron_test_job_async():
     """Test job to confirm scheduler works"""
-    print("🧪 Async Daily cron test job fired!")
+    print("🧪 Async daily_cron_test_job_async!")
 async def cron_test_job_async():
     """Test job to confirm scheduler works"""
-    print("🧪 Async Daily cron test job fired!")
+    print("🧪 Async cron_test_job_async!")
 
 # --- Add jobs ---
 
@@ -162,7 +162,7 @@ scheduler.add_job(
 # 🔹 Cron job
 scheduler.add_job(
     cron_test_job_async,         
-    CronTrigger(hour=7, minute=13),  # will run at 06:30 UTC today
+    CronTrigger(hour=7, minute=15),  # will run at 06:30 UTC today
     id="cron_test_job_async",    
     replace_existing=True        
 )
