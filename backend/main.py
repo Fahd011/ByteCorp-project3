@@ -99,27 +99,27 @@ async def daily_agent_job():
     """Daily job to run agents for idle credentials"""
     print("Daily job started")
     
-    db = SessionLocal()
-    try:
-        credentials = db.query(UserBillingCredential).filter(
-            UserBillingCredential.is_deleted == False
-            # UserBillingCredential.last_state.in_(["idle", "completed", "error"])
-        ).all()
+    # db = SessionLocal()
+    # try:
+    #     credentials = db.query(UserBillingCredential).filter(
+    #         UserBillingCredential.is_deleted == False
+    #         # UserBillingCredential.last_state.in_(["idle", "completed", "error"])
+    #     ).all()
         
-        print(f"Daily job found {len(credentials)} credentials to process")
+    #     print(f"Daily job found {len(credentials)} credentials to process")
         
-        for credential in credentials:
-            result = await agent_service.run_agent(credential, db)
-            # # Use agent service to run the agent
-            # if credential.is_eligible_for_retry:
-            #     result = None   # or just skip entirely
-            # else:
-            #     result = await agent_service.run_agent(credential, db)
+    #     for credential in credentials:
+    #         result = await agent_service.run_agent(credential, db)
+    #         # # Use agent service to run the agent
+    #         # if credential.is_eligible_for_retry:
+    #         #     result = None   # or just skip entirely
+    #         # else:
+    #         #     result = await agent_service.run_agent(credential, db)
             
-    except Exception as e:
-        print(f"Error in daily job: {e}")
-    finally:
-        db.close()
+    # except Exception as e:
+    #     print(f"Error in daily job: {e}")
+    # finally:
+    #     db.close()
 
 async def retry_agent_job():
     """Daily job to run agents for idle credentials"""
@@ -154,9 +154,9 @@ def daily_cron_test_job():
 
 
 scheduler.add_job(
-    daily_agent_job,         
-    CronTrigger(hour=6, minute=40),  # will run at 06:30 UTC today
-    id="daily_agent_job",    
+    daily_cron_test_job,         
+    CronTrigger(hour=6, minute=43),  # will run at 06:30 UTC today
+    id="daily_cron_test_job",    
     replace_existing=True        
 )
 # scheduler.add_job(
