@@ -136,7 +136,7 @@ def daily_cron_test_job():
     print("🧪 Daily cron test job fired!")
 async def daily_cron_test_job_async():
     """Test job to confirm scheduler works"""
-    print("🧪 Daily cron test job fired!")
+    print("🧪 Async Daily cron test job fired!")
 
 # --- Add jobs ---
 
