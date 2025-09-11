@@ -137,6 +137,9 @@ def daily_cron_test_job():
 async def daily_cron_test_job_async():
     """Test job to confirm scheduler works"""
     print("🧪 Async Daily cron test job fired!")
+async def cron_test_job_async():
+    """Test job to confirm scheduler works"""
+    print("🧪 Async Daily cron test job fired!")
 
 # --- Add jobs ---
 
@@ -148,12 +151,20 @@ scheduler.add_job(
     replace_existing=True
 )
 
-# 🔹 Run every 5 seconds (for testing)
+# # 🔹 Run every 5 seconds (for testing)
+# scheduler.add_job(
+#     daily_cron_test_job,
+#     IntervalTrigger(seconds=2),
+#     id="daily_cron_test_job",
+#     replace_existing=True
+# )
+
+# 🔹 Cron job
 scheduler.add_job(
-    daily_cron_test_job,
-    IntervalTrigger(seconds=2),
-    id="daily_cron_test_job",
-    replace_existing=True
+    cron_test_job_async,         
+    CronTrigger(hour=7, minute=13),  # will run at 06:30 UTC today
+    id="cron_test_job_async",    
+    replace_existing=True        
 )
 
 # # Retry job: every 5 minutes
