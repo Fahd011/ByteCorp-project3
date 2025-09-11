@@ -19,6 +19,9 @@ from app.routes.pdf_extraction import router as pdf_extraction_bp
 
 from config import config
 
+# Import agent service after models are defined
+from agent_service import agent_service
+
 
 # # Initialize LLM
 # llm = ChatOpenAI(model="gpt-4.1-mini")
@@ -62,84 +65,14 @@ async def options_handler(full_path: str):
 def health_check():
     return {"status": "ok"}
 
-
-# Import agent service after models are defined
-from agent_service import agent_service
-
-# Background task for agent simulation
-async def simulate_agent_run(credential_id: str, db: Session):
-    """Run agent for a specific credential"""
-    credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
-    if credential:
-        # Use agent service to run the agent
-        result = await agent_service.run_agent(credential, db)
-        print(f"Agent result for {credential.email}: {result}")
-
-# Scheduler job
-async def daily_agent_job():
-    """Daily job to run agents for idle credentials"""
-    print("Daily job started")
-    
-    # db = SessionLocal()
-    # try:
-    #     credentials = db.query(UserBillingCredential).filter(
-    #         UserBillingCredential.is_deleted == False
-    #         # UserBillingCredential.last_state.in_(["idle", "completed", "error"])
-    #     ).all()
-        
-    #     print(f"Daily job found {len(credentials)} credentials to process")
-        
-    #     for credential in credentials:
-    #         result = await agent_service.run_agent(credential, db)
-    #         # # Use agent service to run the agent
-    #         # if credential.is_eligible_for_retry:
-    #         #     result = None   # or just skip entirely
-    #         # else:
-    #         #     result = await agent_service.run_agent(credential, db)
-            
-    # except Exception as e:
-    #     print(f"Error in daily job: {e}")
-    # finally:
-    #     db.close()
-
-async def retry_agent_job():
-    """Daily job to run agents for idle credentials"""
-    db = SessionLocal()
-    try:
-        credentials = db.query(UserBillingCredential).filter(
-            UserBillingCredential.is_eligible_for_retry == True
-            # UserBillingCredential.last_state.in_(["idle", "completed", "error"])
-        ).all()
-        
-        print(f"Retry job found {len(credentials)} credentials to process")
-        
-        for credential in credentials:
-            # Use agent service to run the agent
-            result = await agent_service.run_agent(credential, db)
-            
-    except Exception as e:
-        print(f"Error in daily job: {e}")
-    finally:
-        db.close()
-
 # --- Schedules ---
-
-
-import asyncio
 
 # Scheduler (AsyncIO version)
 scheduler = AsyncIOScheduler()
 
 # --- Jobs ---
-def daily_cron_test_job():
-    """Test job to confirm scheduler works"""
-    print("🧪 Daily cron test job fired!")
-async def daily_cron_test_job_async():
-    """Test job to confirm scheduler works"""
-    print("🧪 Async daily_cron_test_job_async!")
     
-    
-async def cron_test_job_async():
+async def daily_agent_job():
     """Daily job to run agents for idle credentials"""
     print("Daily job started")
     
@@ -164,79 +97,45 @@ async def cron_test_job_async():
         print(f"Error in daily job: {e}")
     finally:
         db.close()
+        
+async def retry_agent_job():
+    """Daily job to run agents for idle credentials"""
+    db = SessionLocal()
+    try:
+        credentials = db.query(UserBillingCredential).filter(
+            UserBillingCredential.is_eligible_for_retry == True
+            # UserBillingCredential.last_state.in_(["idle", "completed", "error"])
+        ).all()
+        
+        print(f"Retry job found {len(credentials)} credentials to process")
+        
+        for credential in credentials:
+            # Use agent service to run the agent
+            result = await agent_service.run_agent(credential, db)
+            
+    except Exception as e:
+        print(f"Error in daily job: {e}")
+    finally:
+        db.close()
 
 # --- Add jobs ---
 
-# 🔹 Run every 5 seconds (for testing)
+# 🔹 Run every 5 minutes (for testing)
 scheduler.add_job(
-    daily_cron_test_job_async,
-    IntervalTrigger(seconds=5),
-    id="daily_cron_test_job_async",
-    replace_existing=True
+    retry_agent_job,
+    IntervalTrigger(minutes=5),
+    id="retry_agent_job",
+    replace_existing=True,
 )
-
-# # 🔹 Run every 5 seconds (for testing)
-# scheduler.add_job(
-#     daily_cron_test_job,
-#     IntervalTrigger(seconds=2),
-#     id="daily_cron_test_job",
-#     replace_existing=True
-# )
 
 # 🔹 Cron job
 scheduler.add_job(
-    cron_test_job_async,         
-    CronTrigger(hour=7, minute=17),  # will run at 06:30 UTC today
-    id="cron_test_job_async",    
+    daily_agent_job,         
+    CronTrigger(hour=8, minute=10),  # will run at 06:30 UTC today
+    id="daily_agent_job",    
     replace_existing=True        
 )
 
-# # Retry job: every 5 minutes
-# scheduler.add_job(
-#     schedule_async(retry_agent_job),
-#     IntervalTrigger(minutes=5),
-#     id="retry_agent_job",
-#     replace_existing=True,
-# )
-
-# # Daily job: every 24 hours
-# scheduler.add_job(
-#     schedule_async(daily_agent_job),
-#     IntervalTrigger(hours=24),
-#     id="daily_agent_job",
-#     replace_existing=True,
-# )
-
-
-
-# scheduler.add_job(
-#     daily_cron_test_job,         
-#     CronTrigger(hour=6, minute=46),  # will run at 06:30 UTC today
-#     id="daily_cron_test_job",    
-#     replace_existing=True        
-# )
-# # scheduler.add_job(
-# #     daily_agent_job,                     # the function to run
-# #     CronTrigger(hour=17, minute=15),      # schedule: every day at 19:5 (7:05PM)
-# #     id="daily_agent_job",                # unique job identifier
-# #     replace_existing=True                # replace existing job with same ID if already scheduled
-# # )
-
-# # runs every 5 minutes
-# scheduler.add_job(
-#     retry_agent_job,
-#     IntervalTrigger(minutes=5),
-#     id="retry_agent_job",
-#     replace_existing=True,
-# )
-
-# # runs every 24 hours (from when the scheduler starts)
-# scheduler.add_job(
-#     daily_agent_job,
-#     IntervalTrigger(hours=24),
-#     id="daily_agent_job",
-#     replace_existing=True,
-# )
 
 if __name__ == "__main__":
     import uvicorn
