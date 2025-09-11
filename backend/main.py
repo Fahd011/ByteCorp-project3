@@ -212,7 +212,7 @@ async def startup_event():
     # Add job (you can add more jobs here)
     scheduler.add_job(
         daily_cron_test_job,
-        CronTrigger(hour=6, minute=46),  # Adjust UTC time
+        CronTrigger(hour=6, minute=50),  # Adjust UTC time
         id="daily_cron_test_job",
         replace_existing=True,
     )
