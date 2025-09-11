@@ -151,10 +151,10 @@ def daily_cron_test_job():
 
 
 scheduler.add_job(
-    daily_cron_test_job,                     # the function to run
-    CronTrigger(hour=6, minute=27),      # schedule: every day at 19:5 (7:05PM)
-    id="daily_cron_test_job",                # unique job identifier
-    replace_existing=True                # replace existing job with same ID if already scheduled
+    daily_cron_test_job,         
+    CronTrigger(hour=6, minute=32),  # will run at 06:30 UTC today
+    id="daily_cron_test_job",    
+    replace_existing=True        
 )
 # scheduler.add_job(
 #     daily_agent_job,                     # the function to run
