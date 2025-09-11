@@ -430,48 +430,24 @@ const BillingResults: React.FC = () => {
                 >
                   Download Bill
                 </button>
-                {!extractedData[r.id] && !checkingExtraction[r.id] && (
-                  <button
-                    onClick={() => handleExtractData(r)}
-                    className="extract-btn"
-                    disabled={extracting === r.azure_blob_url || extractingAll}
-                  >
-                    {extracting === r.azure_blob_url
-                      ? "Extracting..."
-                      : "Extract Data"}
-                  </button>
-                )}
-                {checkingExtraction[r.id] && (
-                  <button className="extract-btn" disabled>
-                    Checking...
-                  </button>
-                )}
-                <>
-                  <button
-                    onClick={() => toggleExtractedData(r.id)}
-                    className="view-data-btn"
-                  >
-                    {showExtractedData === r.id ? "Hide Data" : "View Data"}
-                  </button>
 
-                  {r.excel_blob_url && (
-                    <button
-                      onClick={() => handleExportToExcel(r)}
-                      className="export-btn"
-                    >
-                      Export to Excel
-                    </button>
-                  )}
-                  {r.json_blob_url && (
-                    <button
-                      onClick={() => handleDownloadJSON(r)}
-                      className="download-json-btn"
-                      style={{ marginLeft: "8px" }}
-                    >
-                      Download JSON
-                    </button>
-                  )}
-                </>
+                {r.excel_blob_url && (
+                  <button
+                    onClick={() => handleExportToExcel(r)}
+                    className="export-btn"
+                  >
+                    Export to Excel
+                  </button>
+                )}
+                {r.json_blob_url && (
+                  <button
+                    onClick={() => handleDownloadJSON(r)}
+                    className="download-json-btn"
+                    style={{ marginLeft: "8px" }}
+                  >
+                    Download JSON
+                  </button>
+                )}
               </div>
 
               {/* Extracted Data Section */}
