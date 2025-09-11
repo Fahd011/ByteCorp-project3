@@ -13,76 +13,77 @@ const BillingResults: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [extracting, setExtracting] = useState<string | null>(null);
+  // const [extracting, setExtracting] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<{ [key: string]: any }>(
     {}
   );
-  const [showExtractedData, setShowExtractedData] = useState<string | null>(
-    null
-  );
-  const [checkingExtraction, setCheckingExtraction] = useState<{
-    [key: string]: boolean;
-  }>({});
+  // const [showExtractedData, setShowExtractedData] = useState<string | null>(
+  //   null
+  // );
+  // const [checkingExtraction, setCheckingExtraction] = useState<{
+  //   [key: string]: boolean;
+  // }>({});
   const [extractingAll, setExtractingAll] = useState(false);
 
   useEffect(() => {
     fetchResults();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [credId]);
 
   // Check for existing extraction results when results are loaded
-  useEffect(() => {
-    if (results.length > 0) {
-      checkExistingExtractions();
-    }
-  }, [results]);
+  // useEffect(() => {
+  //   if (results.length > 0) {
+  //     checkExistingExtractions();
+  //   }
+  // }, [results]);
 
-  const checkExistingExtractions = async () => {
-    for (const result of results) {
-      setCheckingExtraction((prev) => ({ ...prev, [result.id]: true }));
-      try {
-        const response = await pdfExtractionAPI.getResults(result.id);
-        if (response.data.results && response.data.results.length > 0) {
-          const extracted = response.data.results[0].extracted_data;
-          setExtractedData((prev) => ({
-            ...prev,
-            [result.id]: extracted,
-          }));
-        }
-      } catch (error) {
-        // No existing extraction found, which is fine
-        console.log(`No existing extraction for billing result ${result.id}`);
-      } finally {
-        setCheckingExtraction((prev) => ({ ...prev, [result.id]: false }));
-      }
-    }
-  };
+  // const checkExistingExtractions = async () => {
+  //   for (const result of results) {
+  //     setCheckingExtraction((prev) => ({ ...prev, [result.id]: true }));
+  //     try {
+  //       const response = await pdfExtractionAPI.getResults(result.id);
+  //       if (response.data.results && response.data.results.length > 0) {
+  //         const extracted = response.data.results[0].extracted_data;
+  //         setExtractedData((prev) => ({
+  //           ...prev,
+  //           [result.id]: extracted,
+  //         }));
+  //       }
+  //     } catch (error) {
+  //       // No existing extraction found, which is fine
+  //       console.log(`No existing extraction for billing result ${result.id}`);
+  //     } finally {
+  //       setCheckingExtraction((prev) => ({ ...prev, [result.id]: false }));
+  //     }
+  //   }
+  // };
 
-  const handleExtractData = async (billingResult: any) => {
-    setExtracting(billingResult.azure_blob_url);
-    try {
-      console.log("Extracting data for billing result:", billingResult);
-      const response = await pdfExtractionAPI.extractData(billingResult);
+  // const handleExtractData = async (billingResult: any) => {
+  //   setExtracting(billingResult.azure_blob_url);
+  //   try {
+  //     console.log("Extracting data for billing result:", billingResult);
+  //     const response = await pdfExtractionAPI.extractData(billingResult);
 
-      console.log("Extraction response:", response.data);
-      toast.success("Data extracted successfully!");
+  //     console.log("Extraction response:", response.data);
+  //     toast.success("Data extracted successfully!");
 
-      // Store the extracted data
-      if (response.data.results && response.data.results.length > 0) {
-        const extracted = response.data.results[0].extracted_data;
-        setExtractedData((prev) => ({
-          ...prev,
-          [billingResult.id]: extracted,
-        }));
-        console.log("Extracted data:", extracted);
-        console.log("Billing context:", response.data.billing_result);
-      }
-    } catch (error: any) {
-      console.error("Extraction error:", error);
-      toast.error(error.response?.data?.detail || "Failed to extract data");
-    } finally {
-      setExtracting(null);
-    }
-  };
+  //     // Store the extracted data
+  //     if (response.data.results && response.data.results.length > 0) {
+  //       const extracted = response.data.results[0].extracted_data;
+  //       setExtractedData((prev) => ({
+  //         ...prev,
+  //         [billingResult.id]: extracted,
+  //       }));
+  //       console.log("Extracted data:", extracted);
+  //       console.log("Billing context:", response.data.billing_result);
+  //     }
+  //   } catch (error: any) {
+  //     console.error("Extraction error:", error);
+  //     toast.error(error.response?.data?.detail || "Failed to extract data");
+  //   } finally {
+  //     setExtracting(null);
+  //   }
+  // };
 
   const handleExtractAllData = async () => {
     setExtractingAll(true);
@@ -129,74 +130,74 @@ const BillingResults: React.FC = () => {
     setExtractingAll(false);
   };
 
-  const toggleExtractedData = (billingId: string) => {
-    setShowExtractedData((prev) => (prev === billingId ? null : billingId));
-  };
+  // const toggleExtractedData = (billingId: string) => {
+  //   setShowExtractedData((prev) => (prev === billingId ? null : billingId));
+  // };
 
-  const renderExtractedData = (data: any) => {
-    if (!data) return <p className="no-data">No data available</p>;
+  // const renderExtractedData = (data: any) => {
+  //   if (!data) return <p className="no-data">No data available</p>;
 
-    const flattenObject = (
-      obj: any,
-      prefix = ""
-    ): Array<{ key: string; value: any; displayKey: string }> => {
-      const result: Array<{ key: string; value: any; displayKey: string }> = [];
+  //   const flattenObject = (
+  //     obj: any,
+  //     prefix = ""
+  //   ): Array<{ key: string; value: any; displayKey: string }> => {
+  //     const result: Array<{ key: string; value: any; displayKey: string }> = [];
 
-      for (const [k, v] of Object.entries(obj)) {
-        const key = prefix ? `${prefix}.${k}` : k;
-        const displayKey = k; // Only use the last element for display
+  //     for (const [k, v] of Object.entries(obj)) {
+  //       const key = prefix ? `${prefix}.${k}` : k;
+  //       const displayKey = k; // Only use the last element for display
 
-        if (v && typeof v === "object" && !Array.isArray(v)) {
-          result.push(...flattenObject(v, key));
-        } else if (Array.isArray(v)) {
-          if (v.length === 0) {
-            result.push({ key, value: "No items", displayKey });
-          } else {
-            v.forEach((item, index) => {
-              if (typeof item === "object") {
-                result.push(...flattenObject(item, `${key}[${index}]`));
-              } else {
-                result.push({
-                  key: `${key}[${index}]`,
-                  value: item,
-                  displayKey: `${k}[${index}]`,
-                });
-              }
-            });
-          }
-        } else {
-          result.push({ key, value: v, displayKey });
-        }
-      }
+  //       if (v && typeof v === "object" && !Array.isArray(v)) {
+  //         result.push(...flattenObject(v, key));
+  //       } else if (Array.isArray(v)) {
+  //         if (v.length === 0) {
+  //           result.push({ key, value: "No items", displayKey });
+  //         } else {
+  //           v.forEach((item, index) => {
+  //             if (typeof item === "object") {
+  //               result.push(...flattenObject(item, `${key}[${index}]`));
+  //             } else {
+  //               result.push({
+  //                 key: `${key}[${index}]`,
+  //                 value: item,
+  //                 displayKey: `${k}[${index}]`,
+  //               });
+  //             }
+  //           });
+  //         }
+  //       } else {
+  //         result.push({ key, value: v, displayKey });
+  //       }
+  //     }
 
-      return result;
-    };
+  //     return result;
+  //   };
 
-    const flattenedData = flattenObject(data);
+  //   const flattenedData = flattenObject(data);
 
-    return (
-      <div className="extracted-data-table">
-        <div className="table-header">
-          <div className="table-cell header-cell">Field</div>
-          <div className="table-cell header-cell">Value</div>
-        </div>
-        {flattenedData.map((item, index) => (
-          <div key={index} className="table-row">
-            <div className="table-cell field-cell">
-              {item.displayKey.replace(/_/g, " ")}
-            </div>
-            <div className="table-cell value-cell">
-              {item.value === null || item.value === undefined ? (
-                <span className="null-value">—</span>
-              ) : (
-                <span>{String(item.value)}</span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
+  //   return (
+  //     <div className="extracted-data-table">
+  //       <div className="table-header">
+  //         <div className="table-cell header-cell">Field</div>
+  //         <div className="table-cell header-cell">Value</div>
+  //       </div>
+  //       {flattenedData.map((item, index) => (
+  //         <div key={index} className="table-row">
+  //           <div className="table-cell field-cell">
+  //             {item.displayKey.replace(/_/g, " ")}
+  //           </div>
+  //           <div className="table-cell value-cell">
+  //             {item.value === null || item.value === undefined ? (
+  //               <span className="null-value">—</span>
+  //             ) : (
+  //               <span>{String(item.value)}</span>
+  //             )}
+  //           </div>
+  //         </div>
+  //       ))}
+  //     </div>
+  //   );
+  // };
 
   const handleDownloadPDF = async (blobName: string) => {
     try {
@@ -450,13 +451,13 @@ const BillingResults: React.FC = () => {
                 )}
               </div>
 
-              {/* Extracted Data Section */}
+              {/* Extracted Data Section
               {showExtractedData === r.id && extractedData[r.id] && (
                 <div className="extracted-data-section">
                   <h4>Extracted Data:</h4>
                   {renderExtractedData(extractedData[r.id])}
                 </div>
-              )}
+              )} */}
             </div>
           ))}
         </div>
