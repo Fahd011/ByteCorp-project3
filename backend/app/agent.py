@@ -196,7 +196,7 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
             client = MockClient(task_id)
 
             # Check if task failed based on done_output content and update credential error
-            if result.done_output and any(keyword in result.done_output for keyword in ["Failed to log in", "Failed", "failed", "error", "locked out", "incorrect sign-in"]):
+            if result.done_output and any(keyword in result.done_output for keyword in ["Failed to log in", "Failed", "failed"]): # Removed extra unncessary keywords
                 try:
                     db = SessionLocal()
                     credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()

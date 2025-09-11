@@ -89,7 +89,7 @@ def upload_credentials(
                     existing_credential.cred_id = str(cleaned_row.get('cred_id', ''))
                     existing_credential.login_url = login_url
                     existing_credential.billing_url = billing_url
-                    existing_credential.is_eligible_for_retry = True   # 👈 force set here
+                    existing_credential.is_eligible_for_retry = False   # 👈 force set here
                     updated_credentials.append(existing_credential)
                     print(f":arrows_counterclockwise: Updated existing credential for: {email}")  # Debug log
                 else:
@@ -105,7 +105,7 @@ def upload_credentials(
                         cred_id=str(cleaned_row.get('cred_id', '')),
                         login_url=login_url,
                         billing_url=billing_url,
-                        is_eligible_for_retry=True   # 👈 force set here
+                        is_eligible_for_retry=False   # 👈 force set here
                     )
                     new_credentials.append(credential)
                     print(f":white_check_mark: Added new credential #{len(new_credentials)} for: {email}")  # Debug log

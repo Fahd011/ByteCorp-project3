@@ -120,18 +120,18 @@ async def retry_agent_job():
 
 # --- Add jobs ---
 
-# # 🔹 Run every 5 minutes (for testing)
-# scheduler.add_job(
-#     retry_agent_job,
-#     IntervalTrigger(minutes=5),
-#     id="retry_agent_job",
-#     replace_existing=True,
-# )
+# 🔹 Run every 5 minutes (for testing)
+scheduler.add_job(
+    retry_agent_job,
+    IntervalTrigger(minutes=5),
+    id="retry_agent_job",
+    replace_existing=True,
+)
 
 # 🔹 Cron job
 scheduler.add_job(
     daily_agent_job,         
-    CronTrigger(hour=10, minute=50),  # will run at 06:30 UTC today
+    CronTrigger(hour=17, minute=3),  # will run at 06:30 UTC today
     id="daily_agent_job",    
     replace_existing=True        
 )
