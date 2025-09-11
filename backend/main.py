@@ -107,11 +107,12 @@ async def daily_agent_job():
         print(f"Daily job found {len(credentials)} credentials to process")
         
         for credential in credentials:
-            # Use agent service to run the agent
-            if credential.is_eligible_for_retry:
-                result = None   # or just skip entirely
-            else:
-                result = await agent_service.run_agent(credential, db)
+            result = await agent_service.run_agent(credential, db)
+            # # Use agent service to run the agent
+            # if credential.is_eligible_for_retry:
+            #     result = None   # or just skip entirely
+            # else:
+            #     result = await agent_service.run_agent(credential, db)
             
     except Exception as e:
         print(f"Error in daily job: {e}")
@@ -151,9 +152,9 @@ def daily_cron_test_job():
 
 
 scheduler.add_job(
-    daily_cron_test_job,         
-    CronTrigger(hour=6, minute=32),  # will run at 06:30 UTC today
-    id="daily_cron_test_job",    
+    daily_agent_job,         
+    CronTrigger(hour=6, minute=35),  # will run at 06:30 UTC today
+    id="daily_agent_job",    
     replace_existing=True        
 )
 # scheduler.add_job(
