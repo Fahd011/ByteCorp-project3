@@ -195,42 +195,13 @@
 
 
 
-
-
-from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+from fastapi import FastAPI
 
-scheduler = AsyncIOScheduler()
-
-# Async job
-async def daily_cron_test_job():
-    print("✅ Daily async job started")
-
-# Lifespan context manager (replaces startup/shutdown events)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    scheduler.add_job(
-        daily_cron_test_job,
-        IntervalTrigger(seconds=10),  # for testing
-        id="daily_cron_test_job",
-        replace_existing=True,
-    )
-    scheduler.start()
-    print("🚀 Scheduler started")
+    print("🚀 App startup")
+    yield
+    print("🛑 App shutdown")
 
-    yield  # <-- Run the app
-
-    # Shutdown
-    scheduler.shutdown()
-    print("🛑 Scheduler stopped")
-
-# Create app with lifespan
 app = FastAPI(lifespan=lifespan)
-
-@app.get("/")
-async def root():
-    return {"message": "FastAPI + APScheduler running!"}
-
