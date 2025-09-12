@@ -86,12 +86,13 @@ async def daily_agent_job():
         print(f"Daily job found {len(credentials)} credentials to process")
         
         for credential in credentials:
+            if credential.last_run_time:
+                current_month = datetime.now().month
+                if credential.last_run_time.month == current_month:
+                    print(f"Credential {credential.id} has already been run this month")
+            
             result = await agent_service.run_agent(credential, db)
-            # # Use agent service to run the agent
-            # if credential.is_eligible_for_retry:
-            #     result = None   # or just skip entirely
-            # else:
-            #     result = await agent_service.run_agent(credential, db)
+
             
     except Exception as e:
         print(f"Error in daily job: {e}")
@@ -131,7 +132,7 @@ scheduler.add_job(
 # 🔹 Cron job
 scheduler.add_job(
     daily_agent_job,         
-    CronTrigger(hour=14, minute=15),  # will run at 06:30 UTC today
+    CronTrigger(hour=16, minute=38),  # will run at 06:30 UTC today
     id="daily_agent_job",    
     replace_existing=True        
 )
