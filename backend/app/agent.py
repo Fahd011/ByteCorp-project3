@@ -265,14 +265,15 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
                         clean_email = email.replace('@', '_').replace('+', '_').replace('.', '_')
                         safe_time = now.strftime("%d-%m-%y_%I-%M%p")
                         local_filename = f"{clean_email}_{safe_time}.pdf"
-                        blob_name = f"{year}/{month_name}/{local_filename}"
+                        blob_name = local_filename
 
                         # Upload to Azure
                         try:
                             success, blob_url, uploaded_blob_name = azure_storage_service.upload_pdf_to_azure(
                                 pdf_content=pdf_content,
                                 email=email,
-                                original_filename=blob_name
+                                original_filename=blob_name,
+                                provider="Duke Energy"
                             )
 
                             if success:
@@ -392,13 +393,14 @@ async def trigger_automatic_extraction(billing_result, email):
                         clean_email = email.replace('@', '_').replace('+', '_').replace('.', '_')
                         safe_time = now.strftime("%d-%m-%y_%I-%M%p")
                         excel_content = excel_response.content
-                        excel_blob_name = f"{billing_result.year}/{billing_result.month}/{clean_email}_{safe_time}_extracted_data.xlsx"
+                        excel_blob_name = f"/{clean_email}_{safe_time}_extracted_data.xlsx"
                         
                         try:
                             success, excel_blob_url, uploaded_excel_name = azure_storage_service.upload_pdf_to_azure(
                                 pdf_content=excel_content,
                                 email=email,
-                                original_filename=excel_blob_name
+                                original_filename=excel_blob_name,
+                                provider="Duke Energy"
                             )
                             
                             if success:
@@ -415,12 +417,13 @@ async def trigger_automatic_extraction(billing_result, email):
                                     json_data = {}
                                     json_content = json.dumps(json_data, indent=2).encode('utf-8')
 
-                                json_blob_name = f"{billing_result.year}/{billing_result.month}/{clean_email}_{safe_time}_extracted_data.json"
+                                json_blob_name = f"{clean_email}_{safe_time}_extracted_data.json"
                                 
                                 json_success, json_blob_url, uploaded_json_name = azure_storage_service.upload_pdf_to_azure(
                                     pdf_content=json_content,
                                     email=email,
-                                    original_filename=json_blob_name
+                                    original_filename=json_blob_name,
+                                    provider="Duke Energy"
                                 )
                                 
                                 if json_success:
