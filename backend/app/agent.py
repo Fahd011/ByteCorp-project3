@@ -14,6 +14,7 @@ from azure_storage_service import azure_storage_service
 from config import config
 from app.models import BillingResult, UserBillingCredential
 from app.db import SessionLocal
+from app.prompts import get_provider_prompt
 
 
 # ---------------------------------------------------------------------------
@@ -120,9 +121,9 @@ class MockClient:
 # ---------------------------------------------------------------------------
 # AGENT FUNCTION ------------------------------------------------------------
 # ---------------------------------------------------------------------------
-def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_url: str):
+def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_url: str, provider_name: str):
     """
-    Runs the Duke Energy agent for a single user's credentials.
+    Runs the agent for a single user's credentials.
     Designed to be called in a separate process (multiprocessing).
     """
     async def _run():
@@ -133,22 +134,14 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         password = user_cred.get("password")
         credential_id = user_cred.get("credential_id")
 
-        # Create the task instructions - FIXED VERSION
-        task_instructions = f"""
-1. Go to {signin_url}
-2. Wait for the page to fully load (this site is slow)
-3. Log-in with:
-     • email    : {email}
-     • password : {password}
-4. If unable to login, STOP the task with status "Failed"
-5. Wait until dashboard finishes loading
-6. Navigate to {billing_history_url}
-7. Wait until the text "Billing & Payment Activity" is visible
-8. If "Oops, something went wrong." appears, STOP the task with status "Failed"
-9. Click only the "View Bill" button in the FIRST row
-10. Wait until the bill PDF finishes downloading
-11. Use the 'done' action to mark the task as finished with message "Successfully downloaded one bill"
-"""
+        # Create the task instructions using provider-specific template
+        task_instructions = get_provider_prompt(provider_name)
+        task_instructions = task_instructions.format(
+            signin_url=signin_url,
+            email=email,
+            password=password,
+            billing_history_url=billing_history_url
+        )
 
         print("[INFO] Starting remote browser task …")
         
@@ -214,7 +207,7 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
                         db.close()
             else:
                 # Call handle_task_result with the same arguments as before
-                await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
+                await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id, provider_name)
             
         except Exception as e:
             print(f"[ERROR] Task execution failed: {e}")
@@ -226,13 +219,13 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
                 done_output=f"Task failed: {str(e)}"
             )
             client = MockClient("unknown")
-            await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
+            await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id, provider_name)
 
     # Run the async function in a new event loop (needed for multiprocessing)
     asyncio.run(_run())
 
 
-async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id):
+async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id, provider_name):
     print("handle_task_result called")
     if hasattr(result, 'output_files') and result.output_files:
         print(f"  output_files      = {len(result.output_files)} files found")
@@ -273,7 +266,7 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
                                 pdf_content=pdf_content,
                                 email=email,
                                 original_filename=blob_name,
-                                provider="Duke Energy"
+                                provider=provider_name
                             )
 
                             if success:
@@ -304,7 +297,7 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
                                     
                                     # AUTOMATIC PDF EXTRACTION
                                     print(f"[INFO] Triggering automatic PDF extraction for billing result {billing_result.id}")
-                                    await trigger_automatic_extraction(billing_result, email)
+                                    await trigger_automatic_extraction(billing_result, email, provider_name)
 
                                     db.close()
 
@@ -354,7 +347,7 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id)
                 db.close()
 
 
-async def trigger_automatic_extraction(billing_result, email):
+async def trigger_automatic_extraction(billing_result, email, provider_name):
     """Automatically extract data from the newly created billing result"""
     try:
         # Prepare the billing result data for extraction
@@ -400,7 +393,7 @@ async def trigger_automatic_extraction(billing_result, email):
                                 pdf_content=excel_content,
                                 email=email,
                                 original_filename=excel_blob_name,
-                                provider="Duke Energy"
+                                provider=provider_name
                             )
                             
                             if success:
@@ -423,7 +416,7 @@ async def trigger_automatic_extraction(billing_result, email):
                                     pdf_content=json_content,
                                     email=email,
                                     original_filename=json_blob_name,
-                                    provider="Duke Energy"
+                                    provider=provider_name
                                 )
                                 
                                 if json_success:

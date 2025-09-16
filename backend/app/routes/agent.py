@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.db import SessionLocal
-from app.models import AgentRequest, AgentResult, ErrorResult, UserBillingCredential
+from app.models import AgentRequest, AgentResult, ErrorResult, UserBillingCredential, Provider
 from app.agent import run_agent_task
 
 # Import Azure storage service
@@ -29,10 +29,16 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
             first_user = request.user_creds[0]
             # print(f"[INFO] First user ----> username: {first_user['username']}, password: {first_user['password']}")
             
+            db = SessionLocal()
+            try:
+                provider = db.query(Provider).filter(Provider.login_url == request.signin_url).first()
+                provider_name = provider.name
+            finally:
+                db.close()
             # # Start agent in background process with the full user_creds array
             process = multiprocessing.Process(
                 target=run_agent_task,
-                args=(first_user, request.signin_url, request.billing_history_url)  # one user at a time
+                args=(first_user, request.signin_url, request.billing_history_url, provider_name)  # one user at a time
             )
             process.start()
             
