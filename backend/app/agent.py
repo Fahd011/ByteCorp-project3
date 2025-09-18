@@ -363,7 +363,7 @@ async def trigger_automatic_extraction(billing_result, email, provider_name):
         print(f"[INFO] Starting automatic PDF extraction for {billing_result.id}")
         
         # Call the PDF extraction API
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
                 "http://localhost:5000/api/pdf-extraction/upload",
                 json={"billing_result": billing_data}

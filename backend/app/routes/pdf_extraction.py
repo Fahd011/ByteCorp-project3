@@ -85,24 +85,29 @@ def extract_data_with_openai(text: str, data_model: dict) -> Dict[str, Any]:
     
     # Create a comprehensive prompt for data extraction
     prompt = f"""
-    You are an expert at extracting structured data from utility bills. 
-    
-    Please extract the following information from the provided utility bill text and return it as a JSON object.
-    
-    Data Model:
+    You are an expert at extracting structured data from utility bills.
+
+    Your task:
+    - Extract data into the given JSON schema.
+    - Capture **all charges** as individual items (connection charge, tiered energy charges, riders, late fee, state tax).
+    - Capture **meter data** (meter number, prev reading, current reading, billed kWh, next read date).
+    - Capture **usages** (period start/end, measured kWh, number of days).
+    - Capture **disconnect notices** (past due amounts, dates, reconnection fees).
+    - Capture **payment coupon** details (amount due, remit-to address, scanline if present).
+    - Capture **all messages and notices** (e.g., Call 811, energy theft warnings, Spanish-language info).
+
+    Schema:
     {json.dumps(data_model, indent=2)}
-    
+
     Utility Bill Text:
     {text}
-    
-    Instructions:
-    1. Extract all the information according to the data model structure
-    2. Convert monetary amounts to numbers (remove $ and commas)
-    3. Convert dates to MM/DD/YYYY format
-    4. If a field is not found, set it to null
-    5. Return ONLY valid JSON without any additional text or explanations
-    
-    Return the extracted data as a JSON object following the data model structure:
+
+    Rules:
+    1. Return ONLY valid JSON strictly following the schema.
+    2. Monetary values must be numbers (strip $ and commas).
+    3. Dates must be in MM/DD/YYYY format.
+    4. If a field is missing in the bill, set it to null.
+    5. Do not leave arrays like "charges", "meterData", "usages" empty if values exist in the bill.
     """
     
     try:
