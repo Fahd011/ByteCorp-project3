@@ -1,178 +1,115 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.frctn.ai/utility-bill.schema.json",
-  "title": "Utility Bill (Arcadia Compatible)",
-  "type": "object",
-  "required": ["statements"],
-  "properties": {
-    "statements": { "type": "array", "items": { "$ref": "#/$defs/statement" } }
+  "type": "BILL",
+  "provider": {
+    "name": "string",
+    "country": "string"
   },
-  "$defs": {
-    "address": {
-      "type": "object",
-      "properties": {
-        "addressType": { "type": "string" },
-        "streetLine1": { "type": ["string", "null"] },
-        "streetLine2": { "type": ["string", "null"] },
-        "city": { "type": ["string", "null"] },
-        "state": { "type": ["string", "null"] },
-        "postalCode": { "type": ["string", "null"] },
-        "country": { "type": ["string", "null"] },
-        "recipient": { "type": ["string", "null"] },
-        "fullAddress": { "type": ["string", "null"] }
+  "currencyCode": "string",
+  "statementDate": "YYYY-MM-DD",
+  "previousStatementDate": "YYYY-MM-DD | null",
+  "dueDate": "YYYY-MM-DD",
+  "periodStartDate": "YYYY-MM-DD",
+  "periodEndDate": "YYYY-MM-DD",
+  "totalCharges": "number",
+  "amountDue": "number",
+  "previousBalance": "number | null",
+  "lastPaymentAmount": "number | null",
+  "lastPaymentDate": "YYYY-MM-DD | null",
+
+  "charges": [
+    {
+      "chargeNameAsPrinted": "string",
+      "chargeType": "DEBIT | CREDIT",
+      "chargeAmount": "number",
+      "chargeCurrencyCode": "string",
+      "usageUnit": "string | null",
+      "chargeRate": "number | null",
+      "unitsPerRate": "number | null",
+      "chargeGroupHeading": "string | null"
+    }
+  ],
+
+  "accountData": [
+    {
+      "accountNumber": "string",
+      "billingAddress": {
+        "addressType": "FULL | PARTIAL",
+        "streetLine1": "string",
+        "streetLine2": "string | null",
+        "city": "string | null",
+        "state": "string | null",
+        "postalCode": "string | null",
+        "country": "string",
+        "recipient": "string | null"
       },
-      "required": ["addressType", "country"]
-    },
-    "charge": {
-      "type": "object",
-      "properties": {
-        "chargeNameAsPrinted": { "type": "string" },
-        "chargeType": { "type": "string", "enum": ["DEBIT", "CREDIT"] },
-        "chargeAmount": { "type": "number" },
-        "chargeCurrencyCode": { "type": "string" },
-        "usageUnit": { "type": ["string", "null"] },
-        "chargeRate": { "type": ["number", "null"] },
-        "unitsPerRate": { "type": ["number", "null"] },
-        "chargeGroupHeading": { "type": ["string", "null"] },
-        "rateOrTariffNameAsPrinted": { "type": ["string", "null"] }
-      },
-      "required": [
-        "chargeNameAsPrinted",
-        "chargeType",
-        "chargeAmount",
-        "chargeCurrencyCode"
-      ]
-    },
-    "usage": {
-      "type": "object",
-      "properties": {
-        "periodStartDate": { "type": "string" },
-        "periodEndDate": { "type": "string" },
-        "measuredUsage": { "type": ["number", "null"] },
-        "usageUnit": { "type": ["string", "null"] },
-        "numberOfDaysInPeriod": { "type": ["number", "null"] },
-        "meterReadDate": { "type": ["string", "null"] },
-        "prevReadDate": { "type": ["string", "null"] },
-        "readTypeAsPrinted": { "type": ["string", "null"] },
-        "billedKWh": { "type": ["number", "null"] }
-      },
-      "required": ["periodStartDate", "periodEndDate"]
-    },
-    "meterData": {
-      "type": "object",
-      "properties": {
-        "serviceType": { "type": "string" },
-        "serviceAddress": { "$ref": "#/$defs/address" },
-        "meterNumber": { "type": ["string", "null"] },
-        "periodStartDate": { "type": "string" },
-        "periodEndDate": { "type": "string" },
-        "statementDate": { "type": ["string", "null"] },
-        "dueDate": { "type": ["string", "null"] },
-        "nextReadDate": { "type": ["string", "null"] },
-        "rateOrTariffNameAsPrinted": { "type": ["string", "null"] },
-        "totalUsage": { "type": ["number", "null"] },
-        "totalUsageUnit": { "type": ["string", "null"] },
-        "charges": { "type": "array", "items": { "$ref": "#/$defs/charge" } },
-        "usages": { "type": "array", "items": { "$ref": "#/$defs/usage" } }
-      },
-      "required": [
-        "serviceType",
-        "serviceAddress",
-        "periodStartDate",
-        "periodEndDate",
-        "usages"
-      ]
-    },
-    "accountData": {
-      "type": "object",
-      "properties": {
-        "accountNumber": { "type": "string" },
-        "billingAddress": { "$ref": "#/$defs/address" },
-        "periodStartDate": { "type": "string" },
-        "periodEndDate": { "type": "string" },
-        "dueDate": { "type": "string" },
-        "statementDate": { "type": ["string", "null"] },
-        "disconnectDate": { "type": ["string", "null"] },
-        "outstandingBalance": { "type": ["number", "null"] },
-        "currencyCode": { "type": "string" },
-        "totalCharges": { "type": "number" },
-        "charges": { "type": "array", "items": { "$ref": "#/$defs/charge" } },
-        "meterData": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/meterData" }
-        }
-      },
-      "required": [
-        "accountNumber",
-        "billingAddress",
-        "periodStartDate",
-        "periodEndDate",
-        "dueDate",
-        "currencyCode",
-        "totalCharges",
-        "meterData"
-      ]
-    },
-    "statement": {
-      "type": "object",
-      "properties": {
-        "type": { "type": "string", "enum": ["BILL"] },
-        "provider": {
-          "type": "object",
-          "properties": {
-            "name": { "type": "string" },
-            "country": { "type": "string" }
+      "periodStartDate": "YYYY-MM-DD",
+      "periodEndDate": "YYYY-MM-DD",
+      "dueDate": "YYYY-MM-DD",
+      "statementDate": "YYYY-MM-DD | null",
+      "disconnectDate": "YYYY-MM-DD | null",
+      "outstandingBalance": "number | null",
+      "currencyCode": "string",
+      "totalCharges": "number",
+
+      "meterData": [
+        {
+          "serviceType": "ELECTRICITY | GAS | WATER",
+          "serviceAddress": {
+            "addressType": "FULL",
+            "streetLine1": "string",
+            "city": "string",
+            "state": "string",
+            "postalCode": "string",
+            "country": "string"
           },
-          "required": ["name", "country"]
-        },
-        "currencyCode": { "type": "string" },
-        "statementDate": { "type": "string" },
-        "previousStatementDate": { "type": ["string", "null"] },
-        "dueDate": { "type": "string" },
-        "periodStartDate": { "type": "string" },
-        "periodEndDate": { "type": "string" },
-        "totalCharges": { "type": "number" },
-        "amountDue": { "type": "number" },
-        "disconnectNotice": {
-          "type": "object",
-          "properties": {
-            "pastDueAmount": { "type": "number" },
-            "disconnectDate": { "type": "string" },
-            "reconnectionFeeRemote": { "type": ["number", "null"] },
-            "reconnectionFeeNonRemote": { "type": ["number", "null"] },
-            "reconnectionFeeAfterHours": { "type": ["number", "null"] }
-          }
-        },
-        "paymentCoupon": {
-          "type": "object",
-          "properties": {
-            "amountDue": { "type": "number" },
-            "dueDate": { "type": "string" },
-            "remitToAddress": { "$ref": "#/$defs/address" },
-            "scanline": { "type": ["string", "null"] }
-          }
-        },
-        "charges": { "type": "array", "items": { "$ref": "#/$defs/charge" } },
-        "accountData": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/accountData" }
-        },
-        "messages": { "type": "array", "items": { "type": "string" } },
-        "dataIngestionMethod": { "type": ["string", "null"] },
-        "sourceType": { "type": ["string", "null"] }
-      },
-      "required": [
-        "type",
-        "provider",
-        "currencyCode",
-        "statementDate",
-        "dueDate",
-        "periodStartDate",
-        "periodEndDate",
-        "totalCharges",
-        "amountDue",
-        "accountData"
+          "meterNumber": "string | null",
+          "periodStartDate": "YYYY-MM-DD",
+          "periodEndDate": "YYYY-MM-DD",
+          "totalUsage": "number | null",
+          "totalUsageUnit": "string | null",
+          "demandKW": "number | null",
+          "charges": [
+            {
+              "chargeNameAsPrinted": "string",
+              "chargeAmount": "number"
+            }
+          ],
+          "usages": [
+            {
+              "periodStartDate": "YYYY-MM-DD",
+              "periodEndDate": "YYYY-MM-DD",
+              "measuredUsage": "number",
+              "usageUnit": "string",
+              "numberOfDaysInPeriod": "number"
+            }
+          ]
+        }
       ]
     }
-  }
+  ],
+
+  "paymentCoupon": {
+    "amountDue": "number",
+    "dueDate": "YYYY-MM-DD",
+    "remitToAddress": {
+      "addressType": "FULL",
+      "streetLine1": "string",
+      "city": "string",
+      "state": "string",
+      "postalCode": "string",
+      "country": "string"
+    },
+    "scanline": "string | null"
+  },
+
+  "disconnectNotice": {
+    "pastDueAmount": "number | null",
+    "disconnectDate": "YYYY-MM-DD | null",
+    "reconnectionFee": "number | null",
+    "currencyCode": "string | null"
+  },
+
+  "messages": ["string"],
+  "dataIngestionMethod": "PDF_CAPTURE | BILL_UPLOAD | null",
+  "sourceType": "PDF_CAPTURE | API | null"
 }

@@ -56,59 +56,62 @@ extraction_results: Dict[str, List[ExtractionResult]] = {}
 session_usernames = {}
 
 def extract_text_from_pdf(pdf_file_path: str) -> str:
-    """Extract text from PDF file using PyPDF2 with pdfplumber fallback"""
+    """Extract text from PDF file using pdfplumber first (preferred) with PyPDF2 fallback"""
     try:
-        # Try PyPDF2 first
-        with open(pdf_file_path, 'rb') as file:
-            reader = PyPDF2.PdfReader(file)
-            text = ""
-            for page in reader.pages:
-                text += page.extract_text()
+        import pdfplumber
+        with pdfplumber.open(pdf_file_path) as pdf:
+            text = "\n".join([page.extract_text() or "" for page in pdf.pages])
+        print(text)
         return text
     except Exception as e:
-        print(f"PyPDF2 failed, trying pdfplumber: {str(e)}")
+        print(f"pdfplumber failed, trying PyPDF2: {str(e)}")
         try:
-            # Fallback to pdfplumber
-            import pdfplumber
-            with pdfplumber.open(pdf_file_path) as pdf:
+            import PyPDF2
+            with open(pdf_file_path, 'rb') as file:
+                reader = PyPDF2.PdfReader(file)
                 text = ""
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text
+                for page in reader.pages:
+                    text += page.extract_text() or ""
             return text
         except Exception as e2:
-            raise HTTPException(status_code=400, detail=f"Error extracting text from PDF with both PyPDF2 and pdfplumber: {str(e2)}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Error extracting text from PDF with both pdfplumber and PyPDF2: {str(e2)}"
+            )
 
 def extract_data_with_openai(text: str, data_model: dict) -> Dict[str, Any]:
     """Extract structured data from PDF text using OpenAI"""
     
     # Create a comprehensive prompt for data extraction
     prompt = f"""
-    You are an expert at extracting structured data from utility bills.
+You are an expert in extracting structured data from utility bills.
 
-    Your task:
-    - Extract data into the given JSON schema.
-    - Capture **all charges** as individual items (connection charge, tiered energy charges, riders, late fee, state tax).
-    - Capture **meter data** (meter number, prev reading, current reading, billed kWh, next read date).
-    - Capture **usages** (period start/end, measured kWh, number of days).
-    - Capture **disconnect notices** (past due amounts, dates, reconnection fees).
-    - Capture **payment coupon** details (amount due, remit-to address, scanline if present).
-    - Capture **all messages and notices** (e.g., Call 811, energy theft warnings, Spanish-language info).
+Your task:
+- Extract bill data into the provided JSON schema.
+- Capture all relevant entities:
+  • Charges → each line item (customer charge, tiered energy charges, riders, late fees, taxes).
+  • Meter data → meter number, service address, prev/current readings, billed kWh, next read date.
+  • Usages → start/end dates, measured usage, billed kWh, number of days, read type.
+  • Disconnect notices → past due amounts, disconnect dates, reconnection fees.
+  • Payment coupon → amount due, remit-to address, scanline.
 
-    Schema:
-    {json.dumps(data_model, indent=2)}
+Schema:
+{json.dumps(data_model, indent=2)}
 
-    Utility Bill Text:
-    {text}
+Utility Bill Text:
+{text}
 
-    Rules:
-    1. Return ONLY valid JSON strictly following the schema.
-    2. Monetary values must be numbers (strip $ and commas).
-    3. Dates must be in MM/DD/YYYY format.
-    4. If a field is missing in the bill, set it to null.
-    5. Do not leave arrays like "charges", "meterData", "usages" empty if values exist in the bill.
-    """
+Formatting Rules:
+1. Output ONLY valid JSON strictly following the schema.
+2. Monetary values → numbers only (remove $ and commas).
+3. Dates → "YYYY-MM-DD" format.
+4. If a field is missing, do not include it in the JSON.
+5. Do not output empty arrays if values exist in the bill.
+6. Taxes must always be included as charges (e.g. "Sales Tax").
+7. Be compact:
+   - Do not repeat identical objects across hierarchy unless required.
+   - Keep charges concise: name, type, amount, currency, and minimal rate/usage info.
+"""
     
     try:
         response = openai_client.chat.completions.create(
