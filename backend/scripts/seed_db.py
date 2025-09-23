@@ -12,6 +12,14 @@ PROVIDERS_DATA = [
         "extras": {
             "wait_text": "Billing & Payment Activity"
         }
+    },
+    {
+        "name": "Xcel Energy",
+        "login_url": "https://my.xcelenergy.com/MyAccount/XE_Login?template=XE_MA_Template",
+        "billing_url": "https://my.xcelenergy.com/MyAccount/s/billing-and-payment",
+        "extras": {
+            "wait_text": "Billing History"
+        }
     }
     # Add more providers here in the future
     # {

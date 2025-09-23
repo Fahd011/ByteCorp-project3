@@ -79,25 +79,32 @@ class AzureStorageService:
             print(f"❌ Error creating dummy PDF: {e}")
             raise
     
-    def upload_pdf_to_azure(self, pdf_content: bytes, email: str, original_filename: str) -> Tuple[bool, str, str]:
+    def upload_pdf_to_azure(self, pdf_content: bytes, email: str, original_filename: str, provider: str = "Other") -> Tuple[bool, str, str]:
         """
-        Upload PDF to Azure Blob Storage with year/month organization
+        Upload PDF to Azure Blob Storage with provider/year/month/email organization
         
         Args:
             pdf_content: PDF file content as bytes
             email: User's email
             original_filename: Original filename
+            provider: Provider name (default: "Duke Energy")
             
         Returns:
             Tuple of (success, blob_url, blob_name)
         """
         try:
-            # Create year/month path
+            # Get testing environment prefix
+            provider_env = os.getenv("PROVIDER_ENV", "")
+            if provider_env:
+                provider = f"{provider}{provider_env}"
+            # Create provider/year/month/email path
             current_date = datetime.now()
-            year_month_path = f"{current_date.year}/{current_date.month:02d}"
+            year_month_path = f"{current_date.year}/{current_date.strftime("%B")}"
+            # Clean email for use in path
+            clean_email = email.replace('@', '_').replace('+', '_').replace('.', '_')
             
-            # Create blob name with path
-            blob_name = f"{year_month_path}/{original_filename}"
+            # Create blob name with provider/year/month/email path
+            blob_name = f"{provider}/{year_month_path}/{clean_email}/{original_filename}"
             
             # Get blob client
             blob_client = self.container_client.get_blob_client(blob_name)
