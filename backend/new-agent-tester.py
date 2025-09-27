@@ -6,7 +6,7 @@ from datetime import datetime
 import calendar
 
 # Browser Use Cloud API Configuration
-API_KEY = os.getenv("BROWSER_USE_API_KEY", "bu_3kBnuRrJBCPRxLnofdeB67HlKFLaq_cgaB6qciKhpQI")
+API_KEY = os.getenv("BROWSER_USE_API_KEY", "bu_jUbzwS8q0G2I-u9cQxqe120wEDWZZVMMgSebTpjjois")
 BASE_URL = 'https://api.browser-use.com/api/v1'
 HEADERS = {'Authorization': f'Bearer {API_KEY}'}
 
@@ -49,8 +49,6 @@ def wait_for_completion(task_id: str, poll_interval: int = 2):
             
             count += 1
             status = details.get('status', 'unknown')
-            
-            print(f"[INFO] Status check #{count}: {status}")
             
             if status in ['finished', 'failed', 'stopped']:
                 print(f"[INFO] Task completed with status: {status}")
@@ -119,7 +117,7 @@ def download_output_files(task_details, download_dir="./duke_bills"):
                 
                 # Generate filename with timestamp
                 safe_time = now.strftime("%d-%m-%y_%I-%M%p")
-                local_filename = f"bill_{safe_time}.pdf"
+                local_filename = file_name
                 local_path = os.path.join(month_folder, local_filename)
                 
                 # Save file locally
@@ -141,19 +139,32 @@ def run_duke_energy_task(email: str, password: str, signin_url: str, billing_his
     
     # Create the task instructions
     task_instructions = f"""
+
 1. Go to {signin_url}
 2. Wait for the page to fully load (this site is slow)
-3. Log-in with:
-     • email    : {email}
-     • password : {password}
-4. Wait until dashboard finishes loading
-5. Navigate to {billing_history_url}
-6. Wait until the text "Billing & Payment Activity" is visible
-7. If "Oops, something went wrong." appears, STOP the task
-8. Click only the "View Bill" button in the FIRST row
-9. Wait until the bill PDF finishes downloading
-10. Use the 'done' action to mark the task as finished with message "Successfully downloaded one bill"
-"""
+3. Log in with:
+   • email : {email}
+   • password : {password}
+4. Wait until the account dashboard is fully loaded
+5. Navigate to https://my.xcelenergy.com/MyAccount/s/profile/billing-accounts-view
+6. Wait until the text "Billing Accounts" is visible. If not, wait 5 seconds and check again.
+7. Identify the COMPLETE list of all billing accounts shown in the table (each with an account number and selection radio button).
+8. For EACH account in the list (process ALL accounts, one by one):
+   a. Select the account by clicking its radio button
+   b. Wait at least 8 seconds for the selection to register
+   c. Navigate to {billing_history_url}
+   d. Wait until the text "Billing History" is visible and go to the Statements tab
+   e. If "Oops, something went wrong." appears, STOP the task with status "Failed"
+   f. Click only the download button in the FIRST row to download the latest bill
+   g. Wait until the bill PDF finishes downloading
+   h. Navigate back to https://my.xcelenergy.com/MyAccount/s/profile/billing-accounts-view
+   and confirm that the billing accounts list is visible before continuing
+9. Repeat step 8 until EVERY account in the list has been processed and its bill downloaded
+10. ONLY AFTER all accounts have been processed, finish the task by calling 'done' with the message:
+    "Successfully downloaded all bills"
+    """
+
+
     
     print("[INFO] Starting Duke Energy billing automation task...")
     print(f"[INFO] Email: {email}")
@@ -206,10 +217,10 @@ def main():
     """Main function to run the Duke Energy automation"""
     print("Starting Duke Energy Billing Automation")
     # Example credentials and URLs - replace with actual values
-    email = "Rena.lopp@collins.com"
-    password = "Goodrich1!"
-    signin_url = "https://www.duke-energy.com/my-account/sign-in"
-    billing_history_url = "https://businessportal2.duke-energy.com/billinghistory"
+    email = "winslow_manager@reeapartments.com"
+    password = "SummerHeat@"
+    signin_url = "https://my.xcelenergy.com/MyAccount/MA_SBLoginInit"
+    billing_history_url = "https://my.xcelenergy.com/MyAccount/s/billing-and-payment"
     
     # Check if API key is set
     if API_KEY == "your_api_key_here":
