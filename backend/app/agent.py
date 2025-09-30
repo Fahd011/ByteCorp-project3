@@ -257,7 +257,7 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id,
                         # Create filename
                         clean_email = email.replace('@', '_').replace('+', '_').replace('.', '_')
                         safe_time = now.strftime("%d-%m-%y_%I-%M%p")
-                        local_filename = f"{clean_email}_{safe_time}.pdf"
+                        local_filename = f"{clean_email}_{safe_time}_{file_name}"
                         blob_name = local_filename
 
                         # Upload to Azure
