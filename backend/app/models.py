@@ -16,6 +16,7 @@ class AgentRequest(BaseModel):
     user_creds: List[dict]  # Changed from dict to List[dict]
     signin_url: str
     billing_history_url: str
+    account_number: Optional[str] = None  # 👈 Add this
 
 class AgentResult(BaseModel):
     pdf_content: bytes

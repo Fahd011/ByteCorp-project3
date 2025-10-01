@@ -92,6 +92,7 @@ async def daily_agent_job():
                     print(f"Credential {credential.id} has already been run this month")
             
             result = await agent_service.run_agent(credential, db)
+            print(f"Result for credential {credential.id}: {result}")
 
             
     except Exception as e:
@@ -124,7 +125,7 @@ async def retry_agent_job():
 # 🔹 Run every 5 minutes (for testing)
 scheduler.add_job(
     retry_agent_job,
-    IntervalTrigger(minutes=10),
+    IntervalTrigger(minutes=5),
     id="retry_agent_job",
     replace_existing=True,
 )
@@ -132,7 +133,7 @@ scheduler.add_job(
 # 🔹 Cron job
 scheduler.add_job(
     daily_agent_job,         
-    CronTrigger(hour=16, minute=38),  # will run at 06:30 UTC today
+    CronTrigger(hour=0, minute=38),  # will run at 06:30 UTC today
     id="daily_agent_job",    
     replace_existing=True        
 )

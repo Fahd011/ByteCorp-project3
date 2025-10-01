@@ -11,7 +11,7 @@ from app.agent import run_agent_task
 
 # Import Azure storage service
 from azure_storage_service import azure_storage_service
-from typing import Optional
+from typing import Optional, List, Dict
 
 import json
 import io
@@ -27,7 +27,6 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
     try:
         if request.user_creds:
             first_user = request.user_creds[0]
-            # print(f"[INFO] First user ----> username: {first_user['username']}, password: {first_user['password']}")
             
             db = SessionLocal()
             try:
@@ -35,10 +34,14 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
                 provider_name = provider.name
             finally:
                 db.close()
-            # # Start agent in background process with the full user_creds array
+            
+            # Extract account_number if provided
+            account_number = request.account_number
+            
+            # Start agent in background process
             process = multiprocessing.Process(
                 target=run_agent_task,
-                args=(first_user, request.signin_url, request.billing_history_url, provider_name)  # one user at a time
+                args=(first_user, request.signin_url, request.billing_history_url, provider_name, account_number)
             )
             process.start()
             
@@ -47,11 +50,50 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
                 "status": "running",
                 "total_users": len(request.user_creds),
                 "users": [creds.get("username", "unknown") for creds in request.user_creds],
+                "account_number": account_number,
                 "timestamp": datetime.now().isoformat()
             }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start agent: {str(e)}")
+
+@router.post("/api/agent/run-xcel-collection")
+async def run_xcel_collection(request: AgentRequest, background_tasks: BackgroundTasks):
+    """
+    POST API to collect Xcel Energy account numbers
+    """
+    
+    try:
+        if request.user_creds:
+            first_user = request.user_creds[0]
+            
+            db = SessionLocal()
+            try:
+                provider = db.query(Provider).filter(Provider.login_url == request.signin_url).first()
+                provider_name = provider.name
+            finally:
+                db.close()
+            
+            # Import the collection function
+            from app.agent import run_xcel_account_collection
+            
+            # Run collection synchronously to get account numbers
+            account_numbers = await run_xcel_account_collection(
+                first_user, 
+                request.signin_url, 
+                request.billing_history_url, 
+                provider_name
+            )
+            
+            return {
+                "success": True,
+                "message": f"Collected {len(account_numbers)} account numbers",
+                "account_numbers": account_numbers,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to collect account numbers: {str(e)}")
 
 @router.post("/api/agent/stop")
 async def stop_agent():

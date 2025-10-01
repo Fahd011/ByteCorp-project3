@@ -7,7 +7,7 @@ import json
 import time
 
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List
 # Import Azure storage service
 from azure_storage_service import azure_storage_service
 
@@ -121,7 +121,7 @@ class MockClient:
 # ---------------------------------------------------------------------------
 # AGENT FUNCTION ------------------------------------------------------------
 # ---------------------------------------------------------------------------
-def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_url: str, provider_name: str):
+def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_url: str, provider_name: str, account_number: str = None):
     """
     Runs the agent for a single user's credentials.
     Designed to be called in a separate process (multiprocessing).
@@ -140,10 +140,13 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
             signin_url=signin_url,
             email=email,
             password=password,
-            billing_history_url=billing_history_url
+            billing_history_url=billing_history_url,
+            account_number=account_number or ""
         )
 
         print("[INFO] Starting remote browser task …")
+        if account_number:
+            print(f"[INFO] For account number: {account_number}")
         
         try:
             # Create the task
@@ -225,6 +228,65 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
     asyncio.run(_run())
 
 
+async def run_xcel_account_collection(user_cred: Dict[str, str], signin_url: str, billing_history_url: str, provider_name: str) -> List[str]:
+    """
+    Collect Xcel Energy account numbers for a user.
+    Returns a list of account numbers.
+    """
+    email = user_cred.get("username")
+    password = user_cred.get("password")
+    credential_id = user_cred.get("credential_id")
+
+    # Create the task instructions using collection mode
+    task_instructions = get_provider_prompt(provider_name, mode="collect_accounts")
+    task_instructions = task_instructions.format(
+        signin_url=signin_url,
+        email=email,
+        password=password,
+        billing_history_url=billing_history_url
+    )
+
+    print("[INFO] Starting account collection task …")
+    
+    try:
+        # Create the task
+        task_id = create_task(task_instructions)
+        print(f"[SUCCESS] Collection task created with ID: {task_id}")
+        
+        # Monitor task completion
+        task_details = wait_for_completion(task_id)
+        
+        # Check final status
+        final_status = task_details.get('status')
+        print(f"[INFO] Final task status: {final_status}")
+        
+        # Extract account numbers from the done_output
+        done_output = task_details.get('output', '')
+        print(f"[INFO] Task output: {done_output}")
+        
+        # Parse account numbers from the output
+        account_numbers = []
+        
+        # Try to extract account numbers from the output
+        import re
+        # Look for 10-digit account numbers (Xcel format based on the JSON file)
+        matches = re.findall(r'\b\d{10}\b', done_output)
+        
+        if matches:
+            account_numbers = list(set(matches))  # Remove duplicates
+            print(f"[✅] Extracted {len(account_numbers)} account numbers: {account_numbers}")
+        else:
+            print("[⚠️] No account numbers found in output")
+        
+        return account_numbers
+        
+    except Exception as e:
+        print(f"[ERROR] Account collection failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
 async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id, provider_name):
     print("handle_task_result called")
     if hasattr(result, 'output_files') and result.output_files:
@@ -234,6 +296,13 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id,
             file_name = getattr(output_file, 'file_name', 'unknown')
             print(f"file_id: {output_file.id}")
             print(f"file_name: {file_name}")
+            
+            # Skip duplicate files (e.g., "file (1).pdf", "file (2).pdf")
+            import re
+            if re.search(r'\(\d+\)\.pdf$', file_name, re.IGNORECASE):
+                print(f"[INFO] Skipping duplicate file: {file_name}")
+                continue
+            
             if file_name.lower().endswith('.pdf'):
                 try:
                     # Get download URL from remote browser agent
