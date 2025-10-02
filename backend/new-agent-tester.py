@@ -134,35 +134,27 @@ def download_output_files(task_details, download_dir="./duke_bills"):
     
     return downloaded_files
 
-def run_duke_energy_task(email: str, password: str, signin_url: str, billing_history_url: str):
+def run_duke_energy_task(email: str, password: str, signin_url: str, billing_history_url: str, account_number: str):
     """Run the complete Duke Energy billing automation task"""
+    print(f"[INFO] Running Duke Energy billing automation task for account {account_number}")
     
     # Create the task instructions
     task_instructions = f"""
-
 1. Go to {signin_url}
 2. Wait for the page to fully load (this site is slow)
-3. Log in with:
-   • email : {email}
-   • password : {password}
-4. Wait until the account dashboard is fully loaded
-5. Navigate to https://my.xcelenergy.com/MyAccount/s/profile/billing-accounts-view
-6. Wait until the text "Billing Accounts" is visible. If not, wait 5 seconds and check again.
-7. Identify the COMPLETE list of all billing accounts shown in the table (each with an account number and selection radio button).
-8. For EACH account in the list (process ALL accounts, one by one):
-   a. Select the account by clicking its radio button
-   b. Wait at least 8 seconds for the selection to register
-   c. Navigate to {billing_history_url}
-   d. Wait until the text "Billing History" is visible and go to the Statements tab
-   e. If "Oops, something went wrong." appears, STOP the task with status "Failed"
-   f. Click only the download button in the FIRST row to download the latest bill
-   g. Wait until the bill PDF finishes downloading
-   h. Navigate back to https://my.xcelenergy.com/MyAccount/s/profile/billing-accounts-view
-   and confirm that the billing accounts list is visible before continuing
-9. Repeat step 8 until EVERY account in the list has been processed and its bill downloaded
-10. ONLY AFTER all accounts have been processed, finish the task by calling 'done' with the message:
-    "Successfully downloaded all bills"
-    """
+3. Log-in with:
+• email : {email}
+• password : {password}
+
+5. Wait until the Billing Accounts text is visible. If not, wait 5 seconds and check again.
+6. Select the account number: {account_number}
+7. Navigate to {billing_history_url} or click the billing tab
+8. Wait until the text "Billing History" is visible and navigate to the statements tab
+9. If "Oops, something went wrong." appears, STOP the task with status "Failed"
+10. Click only the download button in the FIRST row
+11. Wait until the bill PDF finishes downloading
+12. Use the 'done' action to mark the task as finished with message "Successfully downloaded bill for account {account_number}"
+"""
 
 
     
@@ -221,7 +213,7 @@ def main():
     password = "SummerHeat@"
     signin_url = "https://my.xcelenergy.com/MyAccount/MA_SBLoginInit"
     billing_history_url = "https://my.xcelenergy.com/MyAccount/s/billing-and-payment"
-    
+    account_numbers = ["0013107267", "0013103769"]
     # Check if API key is set
     if API_KEY == "your_api_key_here":
         print("[ERROR] Please set the BROWSER_USE_API_KEY environment variable")
@@ -233,7 +225,8 @@ def main():
     print("=" * 60)
     
     # Run the automation task
-    result = run_duke_energy_task(email, password, signin_url, billing_history_url)
+    for account_number in account_numbers:
+        result = run_duke_energy_task(email, password, signin_url, billing_history_url, account_number)
     
     if result:
         print("\n" + "=" * 60)

@@ -35,13 +35,13 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
             finally:
                 db.close()
             
-            # Extract account_number if provided
-            account_number = request.account_number
+            # Get account_numbers from request (always an array)
+            account_numbers = request.account_numbers if hasattr(request, 'account_numbers') and request.account_numbers else None
             
             # Start agent in background process
             process = multiprocessing.Process(
                 target=run_agent_task,
-                args=(first_user, request.signin_url, request.billing_history_url, provider_name, account_number)
+                args=(first_user, request.signin_url, request.billing_history_url, provider_name, account_numbers)
             )
             process.start()
             
@@ -50,7 +50,8 @@ async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
                 "status": "running",
                 "total_users": len(request.user_creds),
                 "users": [creds.get("username", "unknown") for creds in request.user_creds],
-                "account_number": account_number,
+                "account_numbers": account_numbers,
+                "account_count": len(account_numbers) if account_numbers else 0,
                 "timestamp": datetime.now().isoformat()
             }
         

@@ -3,7 +3,7 @@
 from app.db import Base
 from sqlalchemy import Column, String, DateTime, Boolean, Integer, ForeignKey, JSON
 from pydantic import BaseModel, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 
 import uuid
@@ -13,10 +13,11 @@ import uuid
 
 # Data models
 class AgentRequest(BaseModel):
-    user_creds: List[dict]  # Changed from dict to List[dict]
+    user_creds: List[Dict[str, str]]
     signin_url: str
     billing_history_url: str
-    account_number: Optional[str] = None  # 👈 Add this
+    mode: Optional[str] = None
+    account_numbers: Optional[List[str]] = None  # Always an array of account numbers
 
 class AgentResult(BaseModel):
     pdf_content: bytes

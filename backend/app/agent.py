@@ -7,7 +7,7 @@ import json
 import time
 
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 # Import Azure storage service
 from azure_storage_service import azure_storage_service
 
@@ -121,9 +121,10 @@ class MockClient:
 # ---------------------------------------------------------------------------
 # AGENT FUNCTION ------------------------------------------------------------
 # ---------------------------------------------------------------------------
-def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_url: str, provider_name: str, account_number: str = None):
+def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_url: str, provider_name: str, account_numbers: List[str] = None):
     """
     Runs the agent for a single user's credentials.
+    Processes multiple account numbers sequentially.
     Designed to be called in a separate process (multiprocessing).
     """
     async def _run():
@@ -133,96 +134,112 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         email = user_cred.get("username")
         password = user_cred.get("password")
         credential_id = user_cred.get("credential_id")
-
-        # Create the task instructions using provider-specific template
-        task_instructions = get_provider_prompt(provider_name)
-        task_instructions = task_instructions.format(
-            signin_url=signin_url,
-            email=email,
-            password=password,
-            billing_history_url=billing_history_url,
-            account_number=account_number or ""
-        )
-
-        print("[INFO] Starting remote browser task …")
-        if account_number:
-            print(f"[INFO] For account number: {account_number}")
         
-        try:
-            # Create the task
-            task_id = create_task(task_instructions)
-            print(f"[SUCCESS] Task created with ID: {task_id}")
-            
-            # Monitor task completion
-            task_details = wait_for_completion(task_id)
-            
-            # Check final status
-            final_status = task_details.get('status')
-            print(f"[INFO] Final task status: {final_status}")
-            
-            # Create mock result object for compatibility
-            output_files = []
-            if task_details.get('output_files'):
-                print(f"[DEBUG] Raw output_files: {task_details.get('output_files')}")
-                for file_info in task_details['output_files']:
-                    if isinstance(file_info, dict):
-                        file_id = file_info.get('id', 'unknown')
-                        file_name = file_info.get('file_name', 'unknown')
-                    else:
-                        file_id = str(file_info)
-                        file_name = str(file_info)
-                    
-                    if file_name.lower().endswith('.pdf'):
-                        output_files.append(MockOutputFile(file_id, file_name))
-            
-            result = MockResult(
-                task_id=task_id,
-                status=final_status,
-                output_files=output_files,
-                done_output=task_details.get('output', '')
-            )
-            
-            print(f"[INFO] Task finished:")
-            print(f"  id                = {result.id}")
-            print(f"  status            = {result.status}")
-            print(f"  done_output       = {result.done_output}")
-            print(f"  output_files      = {len(result.output_files)} files found")
-            
-            # Create mock client for compatibility
-            client = MockClient(task_id)
+        # Ensure account_numbers is a list (default to [None] if not provided)
+        accounts_to_process = account_numbers if account_numbers else [None]
+        
+        print(f"[INFO] Processing {len(accounts_to_process)} account(s) sequentially")
+        
+        # Process each account number sequentially
+        for idx, account_number in enumerate(accounts_to_process, 1):
+            if account_number:
+                print(f"\n[INFO] === Processing account {idx}/{len(accounts_to_process)}: {account_number} ===")
 
-            # Check if task failed based on done_output content and update credential error
-            if result.done_output and any(keyword in result.done_output for keyword in ["Failed to log in", "Failed", "failed"]): # Removed extra unncessary keywords
-                try:
-                    db = SessionLocal()
-                    credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
-                    if credential:
-                        credential.last_error = result.done_output
-                        credential.last_state = "error"
-                        db.commit()
-                        print(f"[INFO] Updated credential {credential_id} with error: {result.done_output}")
-                    else:
-                        print(f"[WARNING] Credential {credential_id} not found")
-                    db.close()
-                except Exception as e:
-                    print(f"[ERROR] Failed to update credential error: {e}")
-                    if 'db' in locals():
-                        db.close()
-            else:
-                # Call handle_task_result with the same arguments as before
-                await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id, provider_name)
-            
-        except Exception as e:
-            print(f"[ERROR] Task execution failed: {e}")
-            # Create a failed result for error handling
-            result = MockResult(
-                task_id="unknown",
-                status="failed",
-                output_files=[],
-                done_output=f"Task failed: {str(e)}"
+            # Create the task instructions using provider-specific template
+            task_instructions = get_provider_prompt(provider_name)
+            task_instructions = task_instructions.format(
+                signin_url=signin_url,
+                email=email,
+                password=password,
+                billing_history_url=billing_history_url,
+                account_number=account_number or ""
             )
-            client = MockClient("unknown")
-            await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id, provider_name)
+
+            print("[INFO] Starting remote browser task …")
+            if account_number:
+                print(f"[INFO] For account number: {account_number}")
+            
+            try:
+                # Create the task
+                task_id = create_task(task_instructions)
+                print(f"[SUCCESS] Task created with ID: {task_id}")
+                
+                # Monitor task completion
+                task_details = wait_for_completion(task_id)
+                
+                # Check final status
+                final_status = task_details.get('status')
+                print(f"[INFO] Final task status: {final_status}")
+                
+                # Create mock result object for compatibility
+                output_files = []
+                if task_details.get('output_files'):
+                    print(f"[DEBUG] Raw output_files: {task_details.get('output_files')}")
+                    for file_info in task_details['output_files']:
+                        if isinstance(file_info, dict):
+                            file_id = file_info.get('id', 'unknown')
+                            file_name = file_info.get('file_name', 'unknown')
+                        else:
+                            file_id = str(file_info)
+                            file_name = str(file_info)
+                        
+                        if file_name.lower().endswith('.pdf'):
+                            output_files.append(MockOutputFile(file_id, file_name))
+                
+                result = MockResult(
+                    task_id=task_id,
+                    status=final_status,
+                    output_files=output_files,
+                    done_output=task_details.get('output', '')
+                )
+                
+                print(f"[INFO] Task finished:")
+                print(f"  id                = {result.id}")
+                print(f"  status            = {result.status}")
+                print(f"  done_output       = {result.done_output}")
+                print(f"  output_files      = {len(result.output_files)} files found")
+                
+                # Create mock client for compatibility
+                client = MockClient(task_id)
+
+                # Check if task failed based on done_output content and update credential error
+                if result.done_output and any(keyword in result.done_output for keyword in ["Failed to log in", "Failed", "failed"]):
+                    try:
+                        db = SessionLocal()
+                        credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
+                        if credential:
+                            error_msg = f"Account {account_number}: {result.done_output}" if account_number else result.done_output
+                            credential.last_error = error_msg
+                            credential.last_state = "error"
+                            db.commit()
+                            print(f"[INFO] Updated credential {credential_id} with error: {error_msg}")
+                        else:
+                            print(f"[WARNING] Credential {credential_id} not found")
+                        db.close()
+                    except Exception as e:
+                        print(f"[ERROR] Failed to update credential error: {e}")
+                        if 'db' in locals():
+                            db.close()
+                else:
+                    # Call handle_task_result with the same arguments as before
+                    await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id, provider_name)
+                
+                if account_number:
+                    print(f"[✅] Completed account {idx}/{len(accounts_to_process)}: {account_number}")
+                
+            except Exception as e:
+                print(f"[ERROR] Task execution failed for account {account_number}: {e}")
+                # Create a failed result for error handling
+                result = MockResult(
+                    task_id="unknown",
+                    status="failed",
+                    output_files=[],
+                    done_output=f"Task failed: {str(e)}"
+                )
+                client = MockClient("unknown")
+                await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id, provider_name)
+        
+        print(f"\n[✅] Finished processing all {len(accounts_to_process)} account(s)")
 
     # Run the async function in a new event loop (needed for multiprocessing)
     asyncio.run(_run())

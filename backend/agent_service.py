@@ -179,50 +179,38 @@ class AgentService:
                     "phase": "collection"
                 }
         
-        # Phase 2: Download bills for each account number
+        # Phase 2: Download bills for all account numbers (send all at once)
         print(f"[INFO] Phase 2: Downloading bills for {len(account_numbers)} accounts …")
         
         credential.last_state = "running"
         db.commit()
         
-        results = []
-        for account_number in account_numbers:
-            print(f"[INFO] Processing account {account_number} …")
+        try:
+            # Send all account numbers to run_agent_task at once
+            await self._execute_agent_work(credential, account_numbers=account_numbers)
             
-            try:
-                await self._execute_agent_work(credential, account_number=account_number)
-                results.append({
-                    "account_number": account_number,
-                    "success": True
-                })
-                print(f"[✅] Successfully processed account {account_number}")
-            except Exception as e:
-                results.append({
-                    "account_number": account_number,
-                    "success": False,
-                    "error": str(e)
-                })
-                print(f"[❌] Failed to process account {account_number}: {str(e)}")
-        
-        # Check if all succeeded
-        all_success = all(r["success"] for r in results)
-        
-        if all_success:
             credential.last_state = "completed"
-        else:
+            db.commit()
+            
+            return {
+                "success": True,
+                "message": f"Processed {len(account_numbers)} accounts",
+                "credential_id": credential.id,
+                "phase": "download",
+                "account_numbers": account_numbers
+            }
+        except Exception as e:
             credential.last_state = "error"
-            failed_accounts = [r['account_number'] for r in results if not r['success']]
-            credential.last_error = f"Some accounts failed: {failed_accounts}"
-        
-        db.commit()
-        
-        return {
-            "success": all_success,
-            "message": f"Processed {len(results)} accounts",
-            "credential_id": credential.id,
-            "phase": "download",
-            "results": results
-        }
+            credential.last_error = str(e)
+            db.commit()
+            
+            return {
+                "success": False,
+                "message": f"Failed to process accounts: {str(e)}",
+                "credential_id": credential.id,
+                "phase": "download",
+                "error": str(e)
+            }
     
     async def _collect_xcel_account_numbers(self, credential) -> List[str]:
         """
@@ -255,13 +243,14 @@ class AgentService:
                 print(f"[❌] Error collecting account numbers: {str(e)}")
                 return []
     
-    async def _execute_agent_work(self, credential, account_number: Optional[str] = None):
+    async def _execute_agent_work(self, credential, account_number: Optional[str] = None, account_numbers: Optional[List[str]] = None):
         """
         Execute the actual agent work by calling the agent API endpoint.
         
         Args:
             credential: The credential to use
-            account_number: Optional account number for Xcel Energy multi-account support
+            account_number: Optional single account number (deprecated, will be wrapped in list)
+            account_numbers: List of account numbers to process sequentially
         """
         import httpx
         async with httpx.AsyncClient(timeout=300.0) as client:
@@ -275,9 +264,11 @@ class AgentService:
                 "billing_history_url": credential.billing_url
             }
             
-            # Add account number if provided (for Xcel Energy)
-            if account_number:
-                payload["account_number"] = account_number
+            # Always send as account_numbers array
+            if account_numbers:
+                payload["account_numbers"] = account_numbers
+            elif account_number:
+                payload["account_numbers"] = [account_number]
             
             response = await client.post("http://localhost:5000/api/agent/run", json=payload)
             response_data = response.json()
