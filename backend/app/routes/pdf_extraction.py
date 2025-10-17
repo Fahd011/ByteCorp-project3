@@ -61,7 +61,7 @@ def extract_text_from_pdf(pdf_file_path: str) -> str:
         import pdfplumber
         with pdfplumber.open(pdf_file_path) as pdf:
             text = "\n".join([page.extract_text() or "" for page in pdf.pages])
-        print(text)
+        # print(text)
         return text
     except Exception as e:
         print(f"pdfplumber failed, trying PyPDF2: {str(e)}")

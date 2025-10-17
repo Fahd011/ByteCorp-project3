@@ -1,9 +1,9 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const Navigation: React.FC = () => {
   const { logout } = useAuth();
-  // const location = useLocation();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -19,11 +19,21 @@ const Navigation: React.FC = () => {
         <li className="nav-item">
           <Link
             to="/"
-            className="nav-link active"
-            // className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}
+            className={`nav-link ${location.pathname === "/" ? "active" : ""}`}
           >
             <span className="nav-icon">🏠</span>
             Dashboard
+          </Link>
+        </li>
+        <li className="nav-item">
+          <Link
+            to="/manual-bills"
+            className={`nav-link ${
+              location.pathname === "/manual-bills" ? "active" : ""
+            }`}
+          >
+            <span className="nav-icon">📄</span>
+            Manual Bill Extraction
           </Link>
         </li>
       </ul>

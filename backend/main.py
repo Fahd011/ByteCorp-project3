@@ -16,6 +16,7 @@ from app.routes.credentials import router as credentials_bp
 from app.db import SessionLocal, get_db
 from app.routes.agent import router as agents_bp
 from app.routes.pdf_extraction import router as pdf_extraction_bp
+from app.routes.manual_bills import router as manual_bills_bp
 
 from config import config
 
@@ -53,6 +54,7 @@ app.include_router(additionals_bp)
 app.include_router(credentials_bp)
 app.include_router(agents_bp)
 app.include_router(pdf_extraction_bp)
+app.include_router(manual_bills_bp)
 
 # Add explicit OPTIONS handler for CORS preflight
 @app.options("/{full_path:path}")

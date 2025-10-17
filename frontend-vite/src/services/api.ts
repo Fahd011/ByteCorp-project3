@@ -143,6 +143,17 @@ export const schedulingAPI = {
     api.post("/schedule/weekly"),
 };
 
+// Manual Bills API
+export const manualBillsAPI = {
+  upload: (formData: FormData): Promise<AxiosResponse<any>> =>
+    api.post("/manual-bills/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }),
+  getAll: (): Promise<AxiosResponse<any[]>> => api.get("/manual-bills"),
+};
+
 // Health check
 export const healthAPI = {
   check: (): Promise<AxiosResponse<any>> => api.get("/health"),

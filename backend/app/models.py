@@ -87,6 +87,19 @@ class UserBillingCredentialResponse(BaseModel):
     uploaded_bill_url: Optional[str]
     created_at: datetime
 
+class ManualBillResponse(BaseModel):
+    id: str
+    original_filename: Optional[str]
+    provider_name: Optional[str]
+    azure_blob_url: str
+    excel_blob_url: Optional[str]
+    json_blob_url: Optional[str]
+    status: str
+    year: str
+    month: str
+    run_time: Optional[datetime]
+    created_at: datetime
+
 # Removed ImportResultResponse - no longer needed
 
 # SQLAlchemy models
@@ -135,10 +148,12 @@ class UserBillingCredential(Base):
 class BillingResult(Base):
     __tablename__ = 'billing_results'
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_billing_credential_id = Column(String, ForeignKey('user_billing_credentials.id'), nullable=False)
+    user_billing_credential_id = Column(String, ForeignKey('user_billing_credentials.id'), nullable=True)
     azure_blob_url = Column(String, nullable=False)
     excel_blob_url = Column(String, nullable=True)   # Excel file
     json_blob_url = Column(String, nullable=True)    # JSON data file
+    original_filename = Column(String, nullable=True)  # For manual uploads
+    provider_name = Column(String, nullable=True)      # For manual uploads
     run_time = Column(DateTime, default=datetime.utcnow)
     status = Column(String, nullable=False)
     year = Column(String, nullable=False)

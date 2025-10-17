@@ -55,10 +55,18 @@ export interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
-  login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
-  register: (userData: RegisterData) => Promise<{ success: boolean; error?: string }>;
+  login: (
+    credentials: LoginCredentials
+  ) => Promise<{ success: boolean; error?: string }>;
+  register: (
+    userData: RegisterData
+  ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  createTestUser: () => Promise<{ success: boolean; data?: any; error?: string }>;
+  createTestUser: () => Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }>;
 }
 
 // API Response Types
@@ -81,5 +89,20 @@ export interface CredentialUploadForm {
 }
 
 export interface AgentAction {
-  action: 'RUN' | 'STOPPED';
+  action: "RUN" | "STOPPED";
+}
+
+// Manual Bill Types
+export interface ManualBill {
+  id: string;
+  original_filename?: string;
+  provider_name?: string;
+  azure_blob_url: string;
+  excel_blob_url?: string;
+  json_blob_url?: string;
+  status: string;
+  year: string;
+  month: string;
+  run_time?: string;
+  created_at: string;
 }

@@ -12,9 +12,28 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import "./App.css";
 import BillingResults from "./pages/BillingResults";
+import ManualBillExtraction from "./pages/ManualBillExtraction";
 
 const AppLayout: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  // Show loading screen while checking authentication
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+          fontSize: "1.2rem",
+          color: "#64748b",
+        }}
+      >
+        Loading...
+      </div>
+    );
+  }
 
   // If user is not authenticated, show auth pages without navigation
   if (!user) {
@@ -41,6 +60,7 @@ const AppLayout: React.FC = () => {
               path="/billing-results/:cred_id"
               element={<BillingResults />}
             />
+            <Route path="/manual-bills" element={<ManualBillExtraction />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
