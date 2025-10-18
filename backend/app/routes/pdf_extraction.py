@@ -60,8 +60,8 @@ def extract_text_from_pdf(pdf_file_path: str) -> str:
     try:
         import pdfplumber
         with pdfplumber.open(pdf_file_path) as pdf:
-            text = "\n".join([page.extract_text() or "" for page in pdf.pages])
-        print(text)
+            text = "\n".join([page.extract_text() or "" for page in pdf.pages[:5]])
+        # print(text)
         return text
     except Exception as e:
         print(f"pdfplumber failed, trying PyPDF2: {str(e)}")
@@ -70,7 +70,7 @@ def extract_text_from_pdf(pdf_file_path: str) -> str:
             with open(pdf_file_path, 'rb') as file:
                 reader = PyPDF2.PdfReader(file)
                 text = ""
-                for page in reader.pages:
+                for page in reader.pages[:5]:
                     text += page.extract_text() or ""
             return text
         except Exception as e2:
