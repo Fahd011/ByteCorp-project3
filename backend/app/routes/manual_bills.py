@@ -7,6 +7,7 @@ from fastapi import Depends, UploadFile, File, Form, APIRouter, HTTPException, B
 from sqlalchemy.orm import Session
 from typing import List
 from azure_storage_service import azure_storage_service
+import multiprocessing
 
 
 router = APIRouter()
@@ -67,11 +68,12 @@ async def upload_manual_bill(
     db.refresh(billing_result)
     
     # Trigger automatic PDF extraction IN BACKGROUND (don't await)
-    background_tasks.add_task(
-        trigger_manual_bill_extraction_wrapper,
-        billing_result.id,
-        provider.name
+    # To:
+    process = multiprocessing.Process(
+        target=trigger_manual_bill_extraction_wrapper,
+        args=(billing_result.id, provider.name)
     )
+    process.start()
     
     # Return immediately without waiting for extraction
     return {
@@ -126,13 +128,14 @@ async def trigger_manual_bill_extraction(billing_result, provider_name):
             "username": billing_result.original_filename,  # Use filename as identifier
             "year": billing_result.year,
             "month": billing_result.month,
-            "status": billing_result.status
+            "status": billing_result.status,
+            "provider_name": provider_name  # Pass provider name for routing
         }
         
         print(f"[INFO] Starting automatic PDF extraction for manual bill {billing_result.id}")
         
         # Call the PDF extraction API
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=600.0) as client:
             response = await client.post(
                 "http://localhost:5000/api/pdf-extraction/upload",
                 json={"billing_result": billing_data}
@@ -141,7 +144,7 @@ async def trigger_manual_bill_extraction(billing_result, provider_name):
             if response.status_code == 200:
                 print(f"[✅] Automatic PDF extraction completed successfully for {billing_result.id}")
                 extraction_response = response.json()
-                print(f"[INFO] Extraction response: {extraction_response}")
+                #print(f"[INFO] Extraction response: {extraction_response}")
                 
                 # Get the session_id from the response
                 session_id = extraction_response.get("session_id")

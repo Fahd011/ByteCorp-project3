@@ -357,13 +357,14 @@ async def trigger_automatic_extraction(billing_result, email, provider_name):
             "username": email,  # Use the actual email from the credential
             "year": billing_result.year,
             "month": billing_result.month,
-            "status": billing_result.status
+            "status": billing_result.status,
+            "provider_name": provider_name  # Pass provider name for routing
         }
         
         print(f"[INFO] Starting automatic PDF extraction for {billing_result.id}")
         
         # Call the PDF extraction API
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=600.0) as client:
             response = await client.post(
                 "http://localhost:5000/api/pdf-extraction/upload",
                 json={"billing_result": billing_data}
@@ -372,7 +373,7 @@ async def trigger_automatic_extraction(billing_result, email, provider_name):
             if response.status_code == 200:
                 print(f"[✅] Automatic PDF extraction completed successfully for {billing_result.id}")
                 extraction_response = response.json()
-                print(f"[INFO] Extraction response: {extraction_response}")
+                # print(f"[INFO] Extraction response: {extraction_response}")
                 
                 # Get the session_id from the response
                 session_id = extraction_response.get("session_id")
