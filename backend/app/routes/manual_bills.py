@@ -7,6 +7,11 @@ from fastapi import Depends, UploadFile, File, Form, APIRouter, HTTPException, B
 from sqlalchemy.orm import Session
 from typing import List
 from azure_storage_service import azure_storage_service
+import threading
+import json
+import tempfile
+from pathlib import Path
+import pandas as pd
 
 
 router = APIRouter()
@@ -67,11 +72,13 @@ async def upload_manual_bill(
     db.refresh(billing_result)
     
     # Trigger automatic PDF extraction IN BACKGROUND (don't await)
-    background_tasks.add_task(
-        trigger_manual_bill_extraction_wrapper,
-        billing_result.id,
-        provider.name
+    # To:
+    thread = threading.Thread(
+        target=trigger_manual_bill_extraction_wrapper,
+        args=(billing_result.id, provider.name),
+        daemon=True  # Important: thread dies when main process dies
     )
+    thread.start()
     
     # Return immediately without waiting for extraction
     return {
@@ -119,108 +126,133 @@ def trigger_manual_bill_extraction_wrapper(billing_result_id: str, provider_name
 async def trigger_manual_bill_extraction(billing_result, provider_name):
     """Automatically extract data from the manually uploaded bill"""
     try:
-        # Prepare the billing result data for extraction
-        billing_data = {
-            "id": billing_result.id,
-            "azure_blob_url": billing_result.azure_blob_url,
-            "username": billing_result.original_filename,  # Use filename as identifier
-            "year": billing_result.year,
-            "month": billing_result.month,
-            "status": billing_result.status
-        }
-        
         print(f"[INFO] Starting automatic PDF extraction for manual bill {billing_result.id}")
         
-        # Call the PDF extraction API
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                "http://localhost:5000/api/pdf-extraction/upload",
-                json={"billing_result": billing_data}
-            )
+        # Download PDF from Azure
+        print(f"🔍 Downloading PDF from Azure blob: {billing_result.azure_blob_url}")
+        success, pdf_content = azure_storage_service.download_pdf_from_azure(billing_result.azure_blob_url)
+        
+        if not success:
+            raise Exception(f"Failed to download PDF from Azure blob: {billing_result.azure_blob_url}")
+        
+        print(f"✅ PDF downloaded successfully from Azure")
+        
+        # Run extraction directly based on provider
+        extracted_data = None
+        if provider_name == "Xcel Energy":
+            print("🔄 Using RAG-based extraction for Xcel Energy")
+            from app.rag_extraction import extract_from_pdf_bytes
+            extracted_data = await extract_from_pdf_bytes(pdf_content)
+        else:
+            print("🔄 Using OpenAI extraction for standard providers")
+            # Import extraction functions
+            from app.routes.pdf_extraction import extract_text_from_pdf, load_data_model, extract_data_with_openai
             
-            if response.status_code == 200:
-                print(f"[✅] Automatic PDF extraction completed successfully for {billing_result.id}")
-                extraction_response = response.json()
-                print(f"[INFO] Extraction response: {extraction_response}")
-                
-                # Get the session_id from the response
-                session_id = extraction_response.get("session_id")
-                if session_id:
-                    # Export to Excel and get the file
-                    excel_response = await client.get(f"http://localhost:5000/api/pdf-extraction/export/{session_id}")
-                    
-                    if excel_response.status_code == 200:
-                        # Save Excel file to Azure
-                        import json
-                        excel_content = excel_response.content
-                        filename_base = billing_result.original_filename.replace('.pdf', '')
-                        excel_blob_name = f"{filename_base}_extracted_data.xlsx"
-                        
-                        try:
-                            success, excel_blob_url, uploaded_excel_name = azure_storage_service.upload_pdf_to_azure(
-                                pdf_content=excel_content,
-                                email="manual_upload",
-                                original_filename=excel_blob_name,
-                                provider=provider_name
-                            )
-                            
-                            if success:
-                                print(f"[✅] Excel file uploaded to Azure: {uploaded_excel_name}")
-                                
-                                # Save JSON data to Azure
-                                results = extraction_response.get("results", [])
-                                if results and len(results) > 0:
-                                    json_data = results[0].get("extracted_data", {})
-                                    json_content = json.dumps(json_data, indent=2).encode('utf-8')
-                                else:
-                                    print("[❌] No extraction results found")
-                                    json_data = {}
-                                    json_content = json.dumps(json_data, indent=2).encode('utf-8')
-
-                                json_blob_name = f"{filename_base}_extracted_data.json"
-                                
-                                json_success, json_blob_url, uploaded_json_name = azure_storage_service.upload_pdf_to_azure(
-                                    pdf_content=json_content,
-                                    email="manual_upload",
-                                    original_filename=json_blob_name,
-                                    provider=provider_name
-                                )
-                                
-                                if json_success:
-                                    print(f"[✅] JSON data uploaded to Azure: {uploaded_json_name}")
-                                    
-                                    # Update the BillingResult with the new blob URLs
-                                    from app.db import SessionLocal
-                                    db = SessionLocal()
-                                    try:
-                                        # Get the billing result and update it
-                                        billing_record = db.query(BillingResult).filter(BillingResult.id == billing_result.id).first()
-                                        if billing_record:
-                                            billing_record.excel_blob_url = uploaded_excel_name
-                                            billing_record.json_blob_url = uploaded_json_name
-                                            billing_record.status = "completed"
-                                            db.commit()
-                                            print(f"[✅] Updated BillingResult with Excel and JSON blob URLs")
-                                        else:
-                                            print(f"[❌] BillingResult not found for ID: {billing_result.id}")
-                                    except Exception as db_error:
-                                        print(f"[❌] Failed to update BillingResult: {db_error}")
-                                        db.rollback()
-                                    finally:
-                                        db.close()
-                                else:
-                                    print(f"[❌] Failed to upload JSON data to Azure")
+            # Save PDF to temporary file for text extraction
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                tmp_file.write(pdf_content)
+                tmp_path = tmp_file.name
+            
+            try:
+                # Extract text and data
+                text = extract_text_from_pdf(tmp_path)
+                data_model = load_data_model()
+                extracted_data = extract_data_with_openai(text, data_model)
+            finally:
+                # Cleanup temp file
+                Path(tmp_path).unlink()
+        
+        if extracted_data:
+            print(f"[✅] Extraction completed successfully")
+            
+            # Create Excel file from extracted data
+            filename_base = billing_result.original_filename.replace('.pdf', '')
+            
+            # Flatten the nested data structure for Excel
+            def flatten_dict(d, parent_key='', sep='_'):
+                items = []
+                for k, v in d.items():
+                    new_key = f"{parent_key}{sep}{k}" if parent_key else k
+                    if isinstance(v, dict):
+                        items.extend(flatten_dict(v, new_key, sep=sep).items())
+                    elif isinstance(v, list):
+                        for i, item in enumerate(v):
+                            if isinstance(item, dict):
+                                items.extend(flatten_dict(item, f"{new_key}_{i}", sep=sep).items())
                             else:
-                                print(f"[❌] Failed to upload Excel file to Azure")
-                        except Exception as azure_error:
-                            print(f"[❌] Azure upload error: {azure_error}")
+                                items.append((f"{new_key}_{i}", item))
                     else:
-                        print(f"[❌] Failed to export Excel file: {excel_response.status_code}")
+                        items.append((new_key, v))
+                return dict(items)
+            
+            # Create DataFrame
+            flattened_data = flatten_dict(extracted_data)
+            df = pd.DataFrame([flattened_data])
+            
+            # Create Excel file in memory
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_excel:
+                excel_path = tmp_excel.name
+            
+            try:
+                with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+                    df.to_excel(writer, sheet_name='Extracted Data', index=False)
+                
+                # Read Excel content
+                with open(excel_path, 'rb') as f:
+                    excel_content = f.read()
+                
+                # Upload Excel to Azure
+                excel_blob_name = f"{filename_base}_extracted_data.xlsx"
+                success, excel_blob_url, uploaded_excel_name = azure_storage_service.upload_pdf_to_azure(
+                    pdf_content=excel_content,
+                    email="manual_upload",
+                    original_filename=excel_blob_name,
+                    provider=provider_name
+                )
+                
+                if success:
+                    print(f"[✅] Excel file uploaded to Azure: {uploaded_excel_name}")
+                    
+                    # Upload JSON to Azure
+                    json_content = json.dumps(extracted_data, indent=2).encode('utf-8')
+                    json_blob_name = f"{filename_base}_extracted_data.json"
+                    
+                    json_success, json_blob_url, uploaded_json_name = azure_storage_service.upload_pdf_to_azure(
+                        pdf_content=json_content,
+                        email="manual_upload",
+                        original_filename=json_blob_name,
+                        provider=provider_name
+                    )
+                    
+                    if json_success:
+                        print(f"[✅] JSON data uploaded to Azure: {uploaded_json_name}")
+                        
+                        # Update the BillingResult with the new blob URLs
+                        db = SessionLocal()
+                        try:
+                            billing_record = db.query(BillingResult).filter(BillingResult.id == billing_result.id).first()
+                            if billing_record:
+                                billing_record.excel_blob_url = uploaded_excel_name
+                                billing_record.json_blob_url = uploaded_json_name
+                                billing_record.status = "completed"
+                                db.commit()
+                                print(f"[✅] Updated BillingResult with Excel and JSON blob URLs")
+                            else:
+                                print(f"[❌] BillingResult not found for ID: {billing_result.id}")
+                        except Exception as db_error:
+                            print(f"[❌] Failed to update BillingResult: {db_error}")
+                            db.rollback()
+                        finally:
+                            db.close()
+                    else:
+                        print(f"[❌] Failed to upload JSON data to Azure")
                 else:
-                    print(f"[❌] No session_id in extraction response")
-            else:
-                print(f"[❌] Automatic PDF extraction failed for {billing_result.id}")
-                print(f"[ERROR] Status: {response.status_code}, Response: {response.text}")
+                    print(f"[❌] Failed to upload Excel file to Azure")
+            finally:
+                # Cleanup temp Excel file
+                Path(excel_path).unlink()
+        else:
+            print(f"[❌] No data extracted from PDF")
                 
     except Exception as e:
         print(f"[❌] Error in automatic PDF extraction: {str(e)}")

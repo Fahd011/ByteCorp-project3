@@ -36,6 +36,7 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     yield
     # Optionally: scheduler.shutdown() or other cleanup
+    scheduler.shutdown(wait=False)
 
 app = FastAPI(title="Sagiliti Backend", version="1.0.0", lifespan=lifespan)
 
@@ -134,7 +135,7 @@ scheduler.add_job(
 # 🔹 Cron job
 scheduler.add_job(
     daily_agent_job,         
-    CronTrigger(hour=16, minute=38),  # will run at 06:30 UTC today
+    CronTrigger(hour=14, minute=18),  # will run at 06:30 UTC today
     id="daily_agent_job",    
     replace_existing=True        
 )

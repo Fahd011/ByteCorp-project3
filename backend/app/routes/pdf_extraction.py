@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 from fastapi.responses import FileResponse
 import threading
+from app.rag_extraction import extract_from_pdf_bytes
 
 
 router = APIRouter()
@@ -160,6 +161,7 @@ async def upload_files(request: BillingResultRequest):
     billing_result = request.billing_result
     azure_blob_name = billing_result.get("azure_blob_url")
     username = billing_result.get("username", "unknown")
+    provider_name = billing_result.get("provider_name", "")
     
     if not azure_blob_name:
         raise HTTPException(status_code=400, detail="No Azure blob name found in billing result")
@@ -175,33 +177,44 @@ async def upload_files(request: BillingResultRequest):
         # Download PDF from Azure blob storage
         print(f"🔍 Downloading PDF from Azure blob: {azure_blob_name}")
         print(f"📋 Billing result data: {billing_result}")
+        print(f"🏢 Provider: {provider_name}")
         success, pdf_content = azure_storage_service.download_pdf_from_azure(azure_blob_name)
         
         if not success:
             raise HTTPException(status_code=404, detail=f"Failed to download PDF from Azure blob: {azure_blob_name}")
         
-        # Create bills directory if it doesn't exist
-        bills_dir = Path("bills")
-        bills_dir.mkdir(exist_ok=True)
-        
         # Extract filename from blob name
         filename = azure_blob_name.split('/')[-1]
         
-        # Save PDF content to bills folder
-        pdf_file_path = bills_dir / filename
-        with open(pdf_file_path, 'wb') as pdf_file:
-            pdf_file.write(pdf_content)
-        
-        print(f" PDF saved to: {pdf_file_path}")
-        
-        # Extract text from PDF
-        text = extract_text_from_pdf(str(pdf_file_path))
-        
-        # Load data model
-        data_model = load_data_model()
-        
-        # Extract structured data using OpenAI
-        extracted_data = extract_data_with_openai(text, data_model)
+        # Route to appropriate extraction method based on provider
+        if provider_name == "Xcel Energy":
+            print("🔄 Using RAG-based extraction for Xcel Energy")
+            extracted_data = await extract_from_pdf_bytes(pdf_content)
+        else:
+            print("🔄 Using OpenAI extraction for standard providers")
+            # Create bills directory if it doesn't exist
+            bills_dir = Path("bills")
+            bills_dir.mkdir(exist_ok=True)
+            
+            # Save PDF content to bills folder
+            pdf_file_path = bills_dir / filename
+            with open(pdf_file_path, 'wb') as pdf_file:
+                pdf_file.write(pdf_content)
+            
+            print(f"📄 PDF saved to: {pdf_file_path}")
+            
+            # Extract text from PDF
+            text = extract_text_from_pdf(str(pdf_file_path))
+            
+            # Load data model
+            data_model = load_data_model()
+            
+            # Extract structured data using OpenAI
+            extracted_data = extract_data_with_openai(text, data_model)
+            
+            # Clean up the PDF file after processing
+            os.unlink(pdf_file_path)
+            print(f"🗑️ Deleted PDF file: {pdf_file_path}")
         
         # Store result with billing context
         result = ExtractionResult(
@@ -210,10 +223,6 @@ async def upload_files(request: BillingResultRequest):
             status="success"
         )
         extraction_results[session_id].append(result)
-        
-        # Clean up the PDF file after processing
-        os.unlink(pdf_file_path)
-        print(f"🗑️ Deleted PDF file: {pdf_file_path}")
         
         print(f"✅ Successfully processed PDF: {filename}")
         
