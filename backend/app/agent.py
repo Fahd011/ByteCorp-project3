@@ -284,7 +284,8 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id,
                                         run_time=datetime.utcnow(),
                                         status="success",
                                         year=year,
-                                        month=month_name
+                                        month=month_name,
+                                        provider_name=provider_name
                                     )
                                     db.add(billing_result)
                                     db.commit()
