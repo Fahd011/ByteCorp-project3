@@ -8,11 +8,13 @@ import tempfile
 import shutil
 from typing import List, Optional, Dict, Any
 from pathlib import Path
-
+from config import config
 from pydantic import BaseModel, Field
 
 # LangChain components for RAG
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureChatOpenAI
+
+# from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
@@ -49,7 +51,7 @@ class AccountDataItem(BaseModel):
 
 class ChargeItem(BaseModel):
     """A single line item from the *summary* charges table."""
-    chargeNameAsPrinted: str = Field(description="The description of the charge as printed on the bill (e.g., 'PREMISES DESCRIPTOR').")
+    chargeNameAsPrinted: str = Field(description="The description of the charge as printed on the bill (e.g., 'Electricity Service').")
     chargeAmount: float = Field(description="The monetary value of this specific charge.")
     chargeCurrencyCode: str = Field(description="Currency code for this charge, e.g., 'USD'.", default="USD")
     premisesNumber: Optional[str] = Field(description="The premises number associated with this charge, if available.", default=None)
@@ -57,71 +59,156 @@ class ChargeItem(BaseModel):
 
 class DisconnectNotice(BaseModel):
     """Information related to a disconnection notice, if present."""
-    pastDueAmount: Optional[float] = Field(description="The overdue amount specified in the notice.", default=None)
-    disconnectDate: Optional[str] = Field(description="The date of potential disconnection in YYYY-MM-DD format.", default=None)
-    reconnectionFee: Optional[float] = Field(description="The fee to reconnect service.", default=None)
-    currencyCode: Optional[str] = Field(description="Currency code for the fees, e.g., 'USD'.", default=None)
+    pastDueAmount: Optional[float] = Field(default=None)
+    disconnectDate: Optional[str] = Field(default=None)
+    reconnectionFee: Optional[float] = Field(default=None)
+    currencyCode: Optional[str] = Field(default=None)
 
+
+# --- SERVICE-SPECIFIC DETAILS ---
 
 class PremiseLineItem(BaseModel):
-    """A single detailed line item charge (e.g., 'Energy Charge Summer' or 'City Fees')."""
-    description: str = Field(description="The description of the charge as printed, e.g., 'Basic Service Chg' or 'State Tax'.")
-    usageUnits: Optional[str] = Field(description="The usage and units, e.g., '117 kWh' or '0 therms'.", default=None)
-    rate: Optional[str] = Field(description="The rate applied, e.g., '$0.130690' or '6.000%'.", default=None)
-    amount: float = Field(description="The final dollar amount for this line item.")
+    """A single detailed line item charge (e.g., 'Energy Charge Summer')."""
+    description: str
+    usageUnits: Optional[str] = None
+    rate: Optional[str] = None
+    amount: float
+
+
+class MeterReading(BaseModel):
+    """Detailed meter reading information for a specific service."""
+    meterNumber: str
+    usageType: Optional[str] = None
+    previousReading: Optional[float] = None
+    currentReading: Optional[float] = None
+    usage: Optional[float] = None
+    usageUnits: Optional[str] = None
+    readStartDate: Optional[str] = None
+    readEndDate: Optional[str] = None
+    readDays: Optional[int] = None
+    nextReadDate: Optional[str] = None
+
+
+class GasAdjustmentItem(BaseModel):
+    """Conversion or adjustment factors for natural gas readings."""
+    description: str
+    formula: Optional[str] = None
+    resultValue: Optional[float] = None
+    resultUnits: Optional[str] = None
+
+
+class UsageSummary(BaseModel):
+    """Summary of usage averages for electricity/gas."""
+    category: str
+    currentUsage: Optional[float] = None
+    previousUsage: Optional[float] = None
+    currentCost: Optional[float] = None
+    previousCost: Optional[float] = None
+    currentTemperature: Optional[float] = None
+    previousTemperature: Optional[float] = None
 
 
 class ServiceBreakdown(BaseModel):
     """Details for a single service (Electricity or Gas) at a premise."""
-    serviceType: str = Field(description="The type of service, e.g., 'ELECTRICITY' or 'NATURAL GAS'.")
-    serviceAddress: str = Field(description="The full service address for this premise.")
-    meterNumber: Optional[str] = Field(description="The meter number for this service.", default=None)
-    readPeriod: Optional[str] = Field(description="The billing period for these charges, e.g., '08/25/25 - 09/25/25'.", default=None)
-    lineItems: List[PremiseLineItem] = Field(description="A list of all detailed charges, including taxes.")
-    total: float = Field(description="The total amount for this service (e.g., 'Total' for Electricity).")
+    InvoiceNumber: str
+    serviceType: str
+    serviceAddress: str
+    meterNumber: Optional[str] = None
+    readStartDate: Optional[str] = None
+    readEndDate: Optional[str] = None
+    readDays: Optional[int] = None
+    total: float
+    lineItems: List[PremiseLineItem]
+    
+
+    # Nested service-specific data
+    meterReadings: Optional[List[MeterReading]] = None
+    gasAdjustments: Optional[List[GasAdjustmentItem]] = None
+    usageSummary: Optional[List[UsageSummary]] = None
 
 
 class PremiseDetails(BaseModel):
     """All extracted details for a single, unique premise."""
-    premisesNumber: str = Field(description="The unique identifier for the premise, e.g., '304679358'.")
-    InvoiceNumber: str = Field(description="The invoice number for this service.")
-    services: List[ServiceBreakdown] = Field(description="A list of service breakdowns (e.g., one for Electricity, one for Gas).")
-    premisesTotal: float = Field(description="The final 'Premises Total' amount, which sums all services for this premise.")
+    premisesNumber: str
+    premisesTotal: float
+    services: List[ServiceBreakdown]
 
 
 class PremisesList(BaseModel):
-    """A simple model to hold the list of all premise numbers found."""
-    premise_numbers: List[str] = Field(description="A list of all unique premise numbers found in the document.")
+    """Holds the list of all premise numbers found."""
+    premise_numbers: List[str]
 
+
+# --- EXTENDED SECTIONS ---
+
+class PaymentInfo(BaseModel):
+    """Represents how the customer pays their bill."""
+    paymentMethod: Optional[str] = None
+    autoPay: Optional[bool] = None
+    remitToAddress: Optional[str] = None
+
+
+class ContactInfo(BaseModel):
+    """Contact details for customer support."""
+    phoneNumber: Optional[str] = None
+    faxNumber: Optional[str] = None
+    website: Optional[str] = None
+    mailingAddress: Optional[str] = None
+
+
+class NoticeInfo(BaseModel):
+    """Informational or regulatory notices printed on the bill."""
+    title: Optional[str] = None
+    message: str
+    referenceURL: Optional[str] = None
+
+
+# --- FINAL MASTER MODEL ---
 
 class UtilityBill(BaseModel):
     """The complete, structured data extracted from a utility bill."""
-    type: str = Field(description="The type of document.", default="BILL")
+    type: str = Field(default="BILL")
     provider: Provider
-    currencyCode: str = Field(description="The main currency code for the bill, e.g., 'USD'.", default="USD")
-    statementDate: str = Field(description="The main date of the bill statement in YYYY-MM-DD format.")
-    previousStatementDate: Optional[str] = Field(description="The date of the previous statement in YYYY-MM-DD format.", default=None)
-    dueDate: str = Field(description="The date by which the payment is due in YYYY-MM-DD format.")
-    periodStartDate: Optional[str] = Field(description="The start date of the billing period in YYYY-MM-DD format.", default=None)
-    periodEndDate: Optional[str] = Field(description="The end date of the billing period in YYYY-MM-DD format.", default=None)
-    
-    totalCharges: float = Field(description="The total of new charges for the current period (e.g., 'Current Charges').")
-    amountDue: float = Field(description="The total amount due for this billing period (e.g., 'Amount Due').")
-    previousBalance: Optional[float] = Field(description="The balance carried over from the previous statement.", default=None)
-    lastPaymentAmount: Optional[float] = Field(description="The amount of the last payment received.", default=None)
-    lastPaymentDate: Optional[str] = Field(description="The date the last payment was received in YYYY-MM-DD format.", default=None)
+    currencyCode: str = Field(default="USD")
 
-    accountData: List[AccountDataItem] = Field(description="A list of account data objects, typically containing one entry.")
+    statementNumber: str
+    statementDate: str
+    previousStatementDate: Optional[str] = None
+    dueDate: str
+    periodStartDate: Optional[str] = None
+    periodEndDate: Optional[str] = None
+
+    totalCharges: float
+    amountDue: float
+    previousBalance: Optional[float] = None
+    lastPaymentAmount: Optional[float] = None
+    lastPaymentDate: Optional[str] = None
+
+    accountData: List[AccountDataItem]
+    charges: List[ChargeItem]
+    premiseDetails: Optional[List[PremiseDetails]] = None
+
+    # Optional extended fields
+    paymentInfo: Optional[PaymentInfo] = None
+    contactInfo: Optional[ContactInfo] = None
+    notices: Optional[List[NoticeInfo]] = None
+    disconnectNotice: Optional[DisconnectNotice] = None
+
     
-    charges: List[ChargeItem] = Field(description="A detailed list of all line item charges from the 'Premises Summary' table.")
-    
+    # --- NEWLY ADDED FIELD ---
+    # This will be populated manually in the main() function after the initial extraction.
     premiseDetails: Optional[List[PremiseDetails]] = Field(
         description="A list of detailed breakdowns for each individual premise.", 
         default=None
     )
 
-
 # --- EXTRACTION FUNCTIONS ---
+
+# Azure OpenAI Configuration for chat models
+AZURE_OPENAI_ENDPOINT = config.AZURE_OPENAI_ENDPOINT
+AZURE_OPENAI_API_KEY = config.AZURE_OPENAI_API_KEY
+AZURE_CHAT_DEPLOYMENT_NAME = config.AZURE_CHAT_DEPLOYMENT_NAME
+AZURE_API_VERSION = config.AZURE_API_VERSION
 
 def extract_bill_summary(vector_store: Chroma) -> Optional[UtilityBill]:
     """Uses RAG to find summary info and populate the main UtilityBill model."""
@@ -131,7 +218,14 @@ def extract_bill_summary(vector_store: Chroma) -> Optional[UtilityBill]:
     all_chunks = vector_store.get(include=["documents"])
     context_text = "\n\n---\n\n".join([doc for doc in all_chunks['documents']])
 
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    # llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    llm = AzureChatOpenAI(
+        azure_deployment=AZURE_CHAT_DEPLOYMENT_NAME,
+        openai_api_version=AZURE_API_VERSION,
+        azure_endpoint=AZURE_OPENAI_ENDPOINT,
+        api_key=AZURE_OPENAI_API_KEY,
+        temperature=0
+    )
     structured_llm = llm.with_structured_output(UtilityBill)
     
     prompt_template = """
@@ -172,7 +266,14 @@ def get_all_premises_numbers(vector_store: Chroma) -> List[str]:
     all_chunks = vector_store.get(include=["documents"])
     context_text = "\n\n---\n\n".join([doc for doc in all_chunks['documents']])
 
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    # llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    llm = AzureChatOpenAI(
+        azure_deployment=AZURE_CHAT_DEPLOYMENT_NAME,
+        openai_api_version=AZURE_API_VERSION,
+        azure_endpoint=AZURE_OPENAI_ENDPOINT,
+        api_key=AZURE_OPENAI_API_KEY,
+        temperature=0
+    )
     structured_llm = llm.with_structured_output(PremisesList)
     
     prompt_template = """
@@ -207,24 +308,43 @@ def extract_premise_details(premise_num: str, vector_store: Chroma) -> Optional[
     relevant_chunks = retriever.invoke(query)
     context_text = "\n\n---\n\n".join([doc.page_content for doc in relevant_chunks])
 
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    # llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    llm = AzureChatOpenAI(
+        azure_deployment=AZURE_CHAT_DEPLOYMENT_NAME,
+        openai_api_version=AZURE_API_VERSION,
+        azure_endpoint=AZURE_OPENAI_ENDPOINT,
+        api_key=AZURE_OPENAI_API_KEY,
+        temperature=0
+    )
     structured_llm = llm.with_structured_output(PremiseDetails)
     
     prompt_template = """
     You will be given context from a utility bill that contains the detailed breakdown
     for a specific premise. Based ONLY on this context, extract the following
     information for PREMISE NUMBER: {premise_num}.
-    
-    1.  Find the 'ELECTRICITY SERVICE DETAILS' and 'NATURAL GAS SERVICE DETAILS'.
-    2.  For each service, extract the invoice number, service address, meter number, and read period.
-    3.  For each service, extract *all* line items from 'ELECTRICITY CHARGES'/'NATURAL GAS CHARGES'
-        and all taxes (e.g., 'City Fees', 'State Tax').
-    4.  Extract the 'Total' for each service.
-    5.  Find the final 'Premises Total' for this premise (it's often at the end
-        of the natural gas section).
-    
-    Format the output perfectly according to the JSON schema.
 
+    1.  Find the 'ELECTRICITY SERVICE DETAILS' and 'NATURAL GAS SERVICE DETAILS'.
+    2.  For each service, extract:
+        - Invoice number
+        - Service address
+        - Meter number
+        - Read period or read start/end dates (e.g., '08/25/25 - 09/24/25').
+    3.  For each service, extract all line items under 'ELECTRICITY CHARGES' or 'NATURAL GAS CHARGES',
+        including all taxes (City Fees, State Tax, etc.).
+    4.  Extract the 'Total' for each service.
+    5.  Extract the 'Premises Total' for this premise (usually at the end of the gas section).
+    6.  Also extract the 'YOUR MONTHLY ELECTRICITY USAGE' and 'YOUR MONTHLY NATURAL GAS USAGE'
+        daily averages section found near the graphs at the top of each page.
+        - For each category, extract:
+            • Temperature (this year and last year)
+            • Usage (Electricity kWh / Gas Therms)
+            • Cost ($)
+        - Map these to the following fields:
+            category: 'Electricity' or 'Gas'
+            currentUsage, previousUsage, currentCost, previousCost, currentTemperature, previousTemperature
+    7.  Ensure that these are stored in the nested field 'usageSummary' under each corresponding service.
+    8.  Return the result in the exact JSON schema provided.
+        
     Context:
     {context}
     """
@@ -276,8 +396,10 @@ def create_vector_store_from_pdf(pdf_bytes: bytes, temp_dir: str) -> Chroma:
     chroma_path = Path(temp_dir) / "chroma"
     print(f"🔄 Creating embeddings for {len(chunks)} chunks...")
     
+    # embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
     embeddings = OpenAIEmbeddings(
-        chunk_size=100  # Process up to 100 chunks per request
+        model="text-embedding-3-large",
+        chunk_size=100
     )
     
     db = Chroma.from_documents(
@@ -319,9 +441,14 @@ async def extract_from_pdf_bytes(pdf_bytes: bytes) -> Dict[str, Any]:
             print("❌ Critical error: Failed to extract bill summary.")
             return {}
         
-        # Step 2: Get the list of all premises to process
+       # Step 2: Get the list of all premises to process
         print("\n--- 2. Finding Premise Numbers ---")
         premise_numbers = get_all_premises_numbers(vector_store)
+
+        # Deduplicate premise numbers in case the LLM returns duplicates
+        if premise_numbers:
+            premise_numbers = list(set(premise_numbers))
+            print(f"✅ After deduplication: {len(premise_numbers)} unique premises.")
         
         all_details = []
         if not premise_numbers:
