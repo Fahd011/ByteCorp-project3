@@ -146,7 +146,7 @@ async def trigger_manual_bill_extraction(billing_result, provider_name):
         else:
             print("🔄 Using OpenAI extraction for standard providers")
             # Import extraction functions
-            from app.routes.pdf_extraction import extract_text_from_pdf, load_data_model, extract_data_with_openai
+            from app.routes.pdf_extraction import extract_text_from_pdf, extract_data_with_openai
             
             # Save PDF to temporary file for text extraction
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
@@ -156,8 +156,7 @@ async def trigger_manual_bill_extraction(billing_result, provider_name):
             try:
                 # Extract text and data
                 text = extract_text_from_pdf(tmp_path)
-                data_model = load_data_model()
-                extracted_data = extract_data_with_openai(text, data_model)
+                extracted_data = extract_data_with_openai(text)
             finally:
                 # Cleanup temp file
                 Path(tmp_path).unlink()

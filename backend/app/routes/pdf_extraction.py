@@ -3,43 +3,146 @@ import json
 import os
 import tempfile
 import shutil
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import PyPDF2
 import openai
 import pandas as pd
 from datetime import datetime
 import uuid
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from azure_storage_service import azure_storage_service
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 from fastapi.responses import FileResponse
 import threading
+from openai import AzureOpenAI
 from app.rag_extraction import extract_from_pdf_bytes
+from config import config
 
 
 router = APIRouter()
 
-# Load data model
-def load_data_model():
-    """Load the data model from JSON file"""
-    import os
-    from pathlib import Path
-    # Get path from env or default
-    data_model_path = os.getenv("DATA_MODEL_PATH", "../data_model.json")
-    # Always resolve to absolute path relative to this file if not already absolute
-    data_model_path = Path(data_model_path)
-    if not data_model_path.is_absolute():
-        data_model_path = (Path(__file__).parent / data_model_path).resolve()
-    try:
-        with open(data_model_path, "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        raise HTTPException(status_code=500, detail=f"Data model file not found at {data_model_path}")
+# --- PYDANTIC MODELS FOR DATA_MODEL.JSON SCHEMA ---
+
+class Provider(BaseModel):
+    name: str
+    country: str
+
+class BillingAddress(BaseModel):
+    addressType: str = "FULL"
+    streetLine1: str
+    streetLine2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postalCode: Optional[str] = None
+    country: str
+    recipient: Optional[str] = None
+
+class ServiceAddress(BaseModel):
+    addressType: str = "FULL"
+    streetLine1: str
+    city: str
+    state: str
+    postalCode: str
+    country: str
+
+class ChargeItem(BaseModel):
+    chargeNameAsPrinted: str
+    chargeType: str = "DEBIT"
+    chargeAmount: float
+    chargeCurrencyCode: str = "USD"
+    usageUnit: Optional[str] = None
+    chargeRate: Optional[float] = None
+    unitsPerRate: Optional[float] = None
+    chargeGroupHeading: Optional[str] = None
+
+class MeterCharge(BaseModel):
+    chargeNameAsPrinted: str
+    chargeAmount: float
+
+class Usage(BaseModel):
+    periodStartDate: str
+    periodEndDate: str
+    measuredUsage: float
+    usageUnit: str
+    numberOfDaysInPeriod: int
+
+class MeterData(BaseModel):
+    serviceType: str
+    serviceAddress: ServiceAddress
+    meterNumber: Optional[str] = None
+    periodStartDate: str
+    periodEndDate: str
+    totalUsage: Optional[float] = None
+    totalUsageUnit: Optional[str] = None
+    demandKW: Optional[float] = None
+    charges: List[MeterCharge] = []
+    usages: List[Usage] = []
+
+class AccountDataItem(BaseModel):
+    accountNumber: str
+    billingAddress: BillingAddress
+    periodStartDate: str
+    periodEndDate: str
+    dueDate: str
+    statementDate: Optional[str] = None
+    disconnectDate: Optional[str] = None
+    outstandingBalance: Optional[float] = None
+    currencyCode: str = "USD"
+    totalCharges: float
+    meterData: List[MeterData] = []
+
+class RemitToAddress(BaseModel):
+    addressType: str = "FULL"
+    streetLine1: str
+    city: str
+    state: str
+    postalCode: str
+    country: str
+
+class PaymentCoupon(BaseModel):
+    amountDue: float
+    dueDate: str
+    remitToAddress: RemitToAddress
+    scanline: Optional[str] = None
+
+class DisconnectNotice(BaseModel):
+    pastDueAmount: Optional[float] = None
+    disconnectDate: Optional[str] = None
+    reconnectionFee: Optional[float] = None
+    currencyCode: Optional[str] = None
+
+class UtilityBillExtraction(BaseModel):
+    type: str = "BILL"
+    provider: Provider
+    currencyCode: str = "USD"
+    statementDate: str
+    previousStatementDate: Optional[str] = None
+    dueDate: str
+    periodStartDate: str
+    periodEndDate: str
+    totalCharges: float
+    amountDue: float
+    previousBalance: Optional[float] = None
+    lastPaymentAmount: Optional[float] = None
+    lastPaymentDate: Optional[str] = None
+    charges: List[ChargeItem] = []
+    accountData: List[AccountDataItem] = []
+    paymentCoupon: Optional[PaymentCoupon] = None
+    disconnectNotice: Optional[DisconnectNotice] = None
+    messages: List[str] = []
+    dataIngestionMethod: Optional[str] = None
+    sourceType: Optional[str] = None
+
+# Note: Data model is now defined using Pydantic models above (UtilityBillExtraction)
 
 # Initialize OpenAI client
-openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai_client = AzureOpenAI(
+    api_key=config.AZURE_OPENAI_API_KEY,
+    api_version=config.AZURE_API_VERSION,
+    azure_endpoint=config.AZURE_OPENAI_ENDPOINT
+)
 
 class ExtractionResult(BaseModel):
     filename: str
@@ -80,78 +183,62 @@ def extract_text_from_pdf(pdf_file_path: str) -> str:
                 detail=f"Error extracting text from PDF with both pdfplumber and PyPDF2: {str(e2)}"
             )
 
-def extract_data_with_openai(text: str, data_model: dict) -> Dict[str, Any]:
-    """Extract structured data from PDF text using OpenAI"""
+def extract_data_with_openai(text: str) -> Dict[str, Any]:
+    """Extract structured data from PDF text using Azure OpenAI with structured output"""
     
     # Create a comprehensive prompt for data extraction
     prompt = f"""
 You are an expert in extracting structured data from utility bills.
 
 Your task:
-- Extract bill data into the provided JSON schema.
+- Extract bill data following the exact JSON schema structure.
 - Capture all relevant entities:
-  • Charges → each line item (customer charge, tiered energy charges, riders, late fees, taxes).
-  • Meter data → meter number, service address, prev/current readings, billed kWh, next read date.
-  • Usages → start/end dates, measured usage, billed kWh, number of days, read type.
-  • Disconnect notices → past due amounts, disconnect dates, reconnection fees.
-  • Payment coupon → amount due, remit-to address, scanline.
+  • Provider information (name, country)
+  • Statement dates, due dates, period dates
+  • Financial amounts (total charges, amount due, previous balance, payments)
+  • Charges → each line item (customer charge, tiered energy charges, riders, late fees, taxes)
+  • Account data with billing address
+  • Meter data → meter number, service address, usage readings, charges per meter
+  • Usages → start/end dates, measured usage, billed kWh/therms, number of days
+  • Disconnect notices → past due amounts, disconnect dates, reconnection fees
+  • Payment coupon → amount due, remit-to address, scanline
+  • Messages or notices from the bill
 
-Schema:
-{json.dumps(data_model, indent=2)}
+Formatting Rules:
+1. Monetary values → numbers only (remove $ and commas).
+2. Dates → "YYYY-MM-DD" format.
+3. If a field is missing or not found, omit it (use defaults defined in schema).
+4. Taxes must be included as charges (e.g. "Sales Tax").
+5. For serviceType, use: "ELECTRICITY", "GAS", or "WATER".
+6. For chargeType, use: "DEBIT" or "CREDIT".
 
 Utility Bill Text:
 {text}
-
-Formatting Rules:
-1. Output ONLY valid JSON strictly following the schema.
-2. Monetary values → numbers only (remove $ and commas).
-3. Dates → "YYYY-MM-DD" format.
-4. If a field is missing, do not include it in the JSON.
-5. Do not output empty arrays if values exist in the bill.
-6. Taxes must always be included as charges (e.g. "Sales Tax").
-7. Be compact:
-   - Do not repeat identical objects across hierarchy unless required.
-   - Keep charges concise: name, type, amount, currency, and minimal rate/usage info.
 """
     
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4",
+        # Use Azure OpenAI with structured output (Pydantic model)
+        response = openai_client.beta.chat.completions.parse(
+            model=config.AZURE_CHAT_DEPLOYMENT_NAME,
             messages=[
-                {"role": "system", "content": "You are a data extraction specialist. Return only valid JSON."},
+                {"role": "system", "content": "You are a data extraction specialist for utility bills. Extract all information accurately following the schema."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.1,
-            max_tokens=2000
+            response_format=UtilityBillExtraction,
+            temperature=0.1
         )
         
-        # Extract JSON from response
-        content = response.choices[0].message.content.strip()
+        # Get the parsed structured output
+        extracted_bill = response.choices[0].message.parsed
         
-        # Try to parse the JSON response
-        try:
-            # Remove any markdown formatting if present
-            if content.startswith("```json"):
-                content = content[7:]
-            if content.endswith("```"):
-                content = content[:-3]
-            
-            extracted_data = json.loads(content.strip())
-            return extracted_data
-            
-        except json.JSONDecodeError as e:
-            # If JSON parsing fails, try to extract JSON from the response
-            import re
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                try:
-                    return json.loads(json_match.group())
-                except:
-                    pass
-            
-            raise HTTPException(status_code=500, detail=f"Failed to parse OpenAI response as JSON: {str(e)}")
+        if extracted_bill is None:
+            raise HTTPException(status_code=500, detail="Failed to parse bill data from OpenAI response")
+        
+        # Convert Pydantic model to dict
+        return extracted_bill.model_dump()
             
     except Exception as e:
+        print(f"Error in extract_data_with_openai: {str(e)}")
         raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
 @router.post("/api/pdf-extraction/upload")
@@ -206,11 +293,8 @@ async def upload_files(request: BillingResultRequest):
             # Extract text from PDF
             text = extract_text_from_pdf(str(pdf_file_path))
             
-            # Load data model
-            data_model = load_data_model()
-            
-            # Extract structured data using OpenAI
-            extracted_data = extract_data_with_openai(text, data_model)
+            # Extract structured data using Azure OpenAI
+            extracted_data = extract_data_with_openai(text)
             
             # Clean up the PDF file after processing
             os.unlink(pdf_file_path)

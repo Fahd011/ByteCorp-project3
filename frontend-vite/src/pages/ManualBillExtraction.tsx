@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, ChangeEvent, FormEvent } from "react";
+import { useState, useEffect, useRef, ChangeEvent, FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import { manualBillsAPI, providerAPI, credentialsAPI } from "../services/api";
 import { Provider, ManualBill } from "../types";
@@ -17,10 +17,40 @@ const ManualBillExtraction: React.FC = () => {
     selectedProviderId: "",
   });
 
+  // Add a ref to track if polling is active
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     fetchManualBills();
     fetchProviders();
+    
+    // Cleanup only on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Add polling for processing bills (every 30 seconds)
+  useEffect(() => {
+    const hasProcessingBills = manualBills.some(
+      (bill) => bill.status?.toLowerCase() === "processing"
+    );
+
+    if (hasProcessingBills && !pollingIntervalRef.current) {
+      console.log("📊 Polling started (checking every 30 seconds)");
+      pollingIntervalRef.current = setInterval(() => {
+        console.log("🔄 Checking status...");
+        fetchManualBills();
+      }, 30000); // 30 seconds
+    } else if (!hasProcessingBills && pollingIntervalRef.current) {
+      console.log("⏹️ Polling stopped - all bills processed");
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, [manualBills]);
 
   const fetchManualBills = async () => {
     try {
@@ -181,6 +211,31 @@ const ManualBillExtraction: React.FC = () => {
         <p className="dashboard-subtitle">
           Upload bills manually for automatic data extraction
         </p>
+        {manualBills.some((bill) => bill.status?.toLowerCase() === "processing") && (
+          <div style={{
+            marginTop: "1rem",
+            padding: "0.75rem 1rem",
+            backgroundColor: "#eff6ff",
+            border: "1px solid #93c5fd",
+            borderRadius: "0.5rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            fontSize: "0.875rem",
+            color: "#1e40af"
+          }}>
+            <span className="spinner" style={{
+              display: "inline-block",
+              width: "1rem",
+              height: "1rem",
+              border: "2px solid #93c5fd",
+              borderTopColor: "#2563eb",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite"
+            }}></span>
+            <span>Bills are being processed... Status will update automatically every 30 seconds.</span>
+          </div>
+        )}
       </div>
 
       {/* Search Section */}

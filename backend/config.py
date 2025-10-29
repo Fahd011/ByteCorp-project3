@@ -16,6 +16,16 @@ class Config:
     ROOT_USER_PASSWORD : str = os.getenv("ROOT_USER_PASSWORD")
     BROWSER_USE_API_KEY : str = os.getenv("BROWSER_USE_API_KEY")
     
+    # OpenAI Configuration (for embeddings)
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
+    
+    # Azure OpenAI Configuration
+    AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT")
+    AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY")
+    AZURE_CHAT_DEPLOYMENT_NAME: str = os.getenv("AZURE_CHAT_DEPLOYMENT_NAME", "BillRetrieval-WA1")
+    AZURE_EMBEDDING_DEPLOYMENT_NAME: Optional[str] = os.getenv("AZURE_EMBEDDING_DEPLOYMENT_NAME")  # For future use
+    AZURE_API_VERSION: str = os.getenv("AZURE_API_VERSION")
+    
     # Database Configuration
     DATABASE_URL: str = os.getenv("DATABASE_URL")
     
