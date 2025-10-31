@@ -13,6 +13,7 @@ import io
 import os
 from datetime import datetime
 from azure_storage_service import azure_storage_service
+from app.audit_logger import AuditLogger
 
 
 router = APIRouter()
@@ -119,6 +120,15 @@ def upload_credentials(
         raise HTTPException(status_code=400, detail=f"Error parsing CSV: {str(e)}")
     db.add_all(new_credentials)
     db.commit()
+    
+    # Log credential bulk upload
+    credential_ids = [cred.id for cred in new_credentials]
+    provider_name = f"{login_url.split('//')[-1].split('/')[0]}"  # Extract domain
+    AuditLogger.log_credential_upload(
+        credential_ids=credential_ids,
+        provider_name=provider_name,
+        count=len(new_credentials) + len(updated_credentials)
+    )
     
     total_processed = len(new_credentials) + len(updated_credentials)
     return {
@@ -227,6 +237,13 @@ def delete_credential(
     
     credential.is_deleted = True
     db.commit()
+    
+    # Log credential deletion
+    AuditLogger.log_credential_delete(
+        credential_id=credential.id,
+        email=credential.email
+    )
+    
     return {"message": "Credential deleted"}
 
 @router.post("/api/credentials/{cred_id}/agent")
@@ -253,11 +270,26 @@ def control_agent(
         # Start background task using agent service
         background_tasks.add_task(simulate_agent_run, cred_id, db)
         
+        # Log agent start
+        AuditLogger.log_agent_control(
+            action="start",
+            credential_id=credential.id,
+            details={"email": credential.email, "provider": credential.utility_co_name}
+        )
+        
         return {"message": "Agent started"}
     
     elif action.action == "STOPPED":
         credential.last_state = "idle"
         db.commit()
+        
+        # Log agent stop
+        AuditLogger.log_agent_control(
+            action="stop",
+            credential_id=credential.id,
+            details={"email": credential.email, "provider": credential.utility_co_name}
+        )
+        
         return {"message": "Agent stopped"}
     
     else:

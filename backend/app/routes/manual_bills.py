@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 import pandas as pd
 from app.rag_extraction import extract_bill_by_provider
+from app.audit_logger import AuditLogger
 
 router = APIRouter()
 
@@ -71,6 +72,15 @@ async def upload_manual_bill(
     db.commit()
     db.refresh(billing_result)
     
+    # Log manual bill upload
+    AuditLogger.log_manual_bill_upload(
+        billing_result_id=billing_result.id,
+        filename=pdf_file.filename,
+        provider_name=provider.name,
+        month=month_name,
+        year=year
+    )
+
     # Trigger automatic PDF extraction IN BACKGROUND (don't await)
     # To:
     thread = threading.Thread(
@@ -136,6 +146,19 @@ async def trigger_manual_bill_extraction(billing_result, provider_name):
             raise Exception(f"Failed to download PDF from Azure blob: {billing_result.azure_blob_url}")
         
         print(f"✅ PDF downloaded successfully from Azure")
+
+        # Log extraction start
+        AuditLogger.agent_action(
+            entity_type="manual_bill",
+            action="extract_start",
+            entity_id=billing_result.id,
+            entity_name=billing_result.original_filename,
+            status="pending",
+            details={
+                "provider": provider_name,
+                "filename": billing_result.original_filename
+            }
+        )
         
         # Extract bill data using RAG
         extracted_data = await extract_bill_by_provider(provider_name, pdf_content)
@@ -215,6 +238,19 @@ async def trigger_manual_bill_extraction(billing_result, provider_name):
                                 billing_record.status = "completed"
                                 db.commit()
                                 print(f"[✅] Updated BillingResult with Excel and JSON blob URLs")
+                                # Log extraction success
+                                AuditLogger.agent_action(
+                                    entity_type="manual_bill",
+                                    action="extract_complete",
+                                    entity_id=billing_result.id,
+                                    entity_name=billing_result.original_filename,
+                                    status="success",
+                                    details={
+                                        "provider": provider_name,
+                                        "excel_url": uploaded_excel_name,
+                                        "json_url": uploaded_json_name
+                                    }
+                                )
                             else:
                                 print(f"[❌] BillingResult not found for ID: {billing_result.id}")
                         except Exception as db_error:
@@ -236,4 +272,29 @@ async def trigger_manual_bill_extraction(billing_result, provider_name):
         print(f"[❌] Error in automatic PDF extraction: {str(e)}")
         import traceback
         traceback.print_exc()
+
+        # Log extraction failure
+        AuditLogger.agent_action(
+            entity_type="manual_bill",
+            action="extract_complete",
+            entity_id=billing_result.id,
+            entity_name=billing_result.original_filename,
+            status="failure",
+            details={
+                "provider": provider_name,
+                "error": str(e)
+            }
+        )
+
+        # Update billing result status to error
+        db = SessionLocal()
+        try:
+            billing_record = db.query(BillingResult).filter(BillingResult.id == billing_result.id).first()
+            if billing_record:
+                billing_record.status = "error"
+                db.commit()
+        except:
+            pass
+        finally:
+            db.close()
 
