@@ -482,32 +482,38 @@ async def extract_from_pdf_bytes(pdf_bytes: bytes) -> Dict[str, Any]:
         return {}
         
     finally:
-        # Cleanup: Properly close ChromaDB client before deleting files
         try:
             if vector_store is not None:
-                # Delete the collection and close the client
                 try:
                     vector_store.delete_collection()
                 except:
                     pass
                 
-                # Access the underlying client and reset
+                # Clear cache and delete reference
                 if hasattr(vector_store, '_client'):
                     try:
                         vector_store._client.clear_system_cache()
                     except:
                         pass
+                
+                del vector_store
             
-            # Small delay to ensure file handles are released on Windows
+            # Garbage collection
+            import gc
+            gc.collect()
+            
+            # Platform-specific delay
             import time
-            time.sleep(0.5)
+            import platform
+            delay = 1.5 if platform.system() == "Windows" else 0.3
+            time.sleep(delay)
             
-            # Remove temporary directory
-            shutil.rmtree(temp_dir)
+            # Delete directory
+            shutil.rmtree(temp_dir, ignore_errors=True)  # ignore_errors works well on Linux
             print(f"🗑️ Cleaned up temporary directory: {temp_dir}")
+            
         except Exception as e:
-            print(f"⚠️ Warning: Failed to cleanup temporary directory {temp_dir}: {e}")
-            print(f"   You may need to manually delete this directory later.")
+            print(f"⚠️ Warning: Failed to cleanup {temp_dir}: {e}")
 
 
 # ============================================================================
