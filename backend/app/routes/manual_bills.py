@@ -112,6 +112,102 @@ def get_manual_bills(
     return manual_bills
 
 
+@router.post("/api/manual-bills/bulk-upload")
+async def upload_manual_bills_bulk(
+    background_tasks: BackgroundTasks,
+    pdf_files: List[UploadFile] = File(...),
+    provider_id: str = Form(...),
+    user_id: str = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Upload multiple manual bills and trigger automatic PDF extraction in chunks"""
+    
+    # Validate provider
+    provider = db.query(Provider).filter(Provider.id == provider_id).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    
+    # Validate all files are PDFs
+    for pdf_file in pdf_files:
+        if not pdf_file.filename.lower().endswith('.pdf'):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"File '{pdf_file.filename}' is not a PDF"
+            )
+    
+    if len(pdf_files) == 0:
+        raise HTTPException(status_code=400, detail="No files provided")
+    
+    # Get current date info
+    now = datetime.now()
+    year = now.strftime("%Y")
+    month_name = now.strftime("%B")
+    
+    billing_result_ids = []
+    uploaded_files = []
+    
+    # Create all billing result records first
+    for pdf_file in pdf_files:
+        # Read PDF content
+        pdf_content = await pdf_file.read()
+        
+        # Upload to Azure storage
+        success, blob_url, blob_name = azure_storage_service.upload_pdf_to_azure(
+            pdf_content=pdf_content,
+            email="manual_upload",
+            original_filename=pdf_file.filename,
+            provider=provider.name
+        )
+        
+        if not success:
+            continue  # Skip failed uploads
+        
+        # Create billing result record
+        billing_result = BillingResult(
+            azure_blob_url=blob_name,
+            status="processing",
+            year=year,
+            month=month_name,
+            original_filename=pdf_file.filename,
+            provider_name=provider.name,
+            user_billing_credential_id=None
+        )
+        
+        db.add(billing_result)
+        db.flush()  # Get the ID
+        
+        # Log manual bill upload
+        AuditLogger.log_manual_bill_upload(
+            billing_result_id=billing_result.id,
+            filename=pdf_file.filename,
+            provider_name=provider.name,
+            month=month_name,
+            year=year
+        )
+        
+        billing_result_ids.append(billing_result.id)
+        uploaded_files.append({
+            "id": billing_result.id,
+            "filename": pdf_file.filename
+        })
+    
+    db.commit()
+    
+    # Start bulk extraction in background
+    thread = threading.Thread(
+        target=trigger_bulk_extraction_wrapper,
+        args=(billing_result_ids, provider.name)
+    )
+    thread.start()
+    
+    return {
+        "message": f"Successfully uploaded {len(uploaded_files)} bills. Extraction in progress.",
+        "uploaded_count": len(uploaded_files),
+        "uploaded_files": uploaded_files,
+        "failed_count": len(pdf_files) - len(uploaded_files)
+    }
+
+
 def trigger_manual_bill_extraction_wrapper(billing_result_id: str, provider_name: str):
     """Wrapper to run async extraction in background"""
     import asyncio
@@ -297,4 +393,83 @@ async def trigger_manual_bill_extraction(billing_result, provider_name):
             pass
         finally:
             db.close()
+
+
+def trigger_bulk_extraction_wrapper(billing_result_ids: List[str], provider_name: str):
+    """Wrapper to run bulk extraction in chunks with threading"""
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    import time
+    
+    CHUNK_SIZE = 10
+    
+    print(f"\n{'='*80}")
+    print(f"🚀 Starting bulk extraction for {len(billing_result_ids)} bills")
+    print(f"📦 Processing in chunks of {CHUNK_SIZE}")
+    print(f"{'='*80}\n")
+    
+    # Split into chunks of 10
+    chunks = [billing_result_ids[i:i + CHUNK_SIZE] 
+              for i in range(0, len(billing_result_ids), CHUNK_SIZE)]
+    
+    total_chunks = len(chunks)
+    
+    for chunk_idx, chunk in enumerate(chunks, 1):
+        print(f"\n{'─'*80}")
+        print(f"📦 Processing Chunk {chunk_idx}/{total_chunks} ({len(chunk)} bills)")
+        print(f"{'─'*80}\n")
+        
+        start_time = time.time()
+        
+        # Process this chunk with threading (up to 10 threads)
+        with ThreadPoolExecutor(max_workers=len(chunk)) as executor:
+            futures = []
+            
+            for billing_result_id in chunk:
+                future = executor.submit(
+                    process_single_bill,
+                    billing_result_id,
+                    provider_name
+                )
+                futures.append(future)
+            
+            # Wait for all threads in this chunk to complete
+            for future in futures:
+                try:
+                    future.result()  # This blocks until the thread completes
+                except Exception as e:
+                    print(f"❌ Thread error: {e}")
+        
+        elapsed = time.time() - start_time
+        print(f"\n✅ Chunk {chunk_idx}/{total_chunks} completed in {elapsed:.2f} seconds")
+    
+    print(f"\n{'='*80}")
+    print(f"🎉 Bulk extraction completed! Processed {len(billing_result_ids)} bills in {total_chunks} chunks")
+    print(f"{'='*80}\n")
+
+
+def process_single_bill(billing_result_id: str, provider_name: str):
+    """Process a single bill extraction (to be run in a thread)"""
+    import asyncio
+    
+    db = SessionLocal()
+    try:
+        billing_result = db.query(BillingResult).filter(
+            BillingResult.id == billing_result_id
+        ).first()
+        
+        if billing_result:
+            print(f"🔄 [{billing_result.original_filename}] Starting extraction...")
+            asyncio.run(trigger_manual_bill_extraction(billing_result, provider_name))
+            print(f"✅ [{billing_result.original_filename}] Extraction complete")
+        else:
+            print(f"❌ Billing result {billing_result_id} not found")
+            
+    except Exception as e:
+        print(f"❌ [{billing_result_id}] Extraction failed: {e}")
+        if billing_result:
+            billing_result.status = "error"
+            db.commit()
+    finally:
+        db.close()
 

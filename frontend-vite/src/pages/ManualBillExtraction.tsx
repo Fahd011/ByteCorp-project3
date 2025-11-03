@@ -13,7 +13,7 @@ const ManualBillExtraction: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState({
-    pdfFile: null as File | null,
+    pdfFiles: [] as File[],
     selectedProviderId: "",
   });
 
@@ -73,12 +73,14 @@ const ManualBillExtraction: React.FC = () => {
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type === "application/pdf") {
-      setFormData({ ...formData, pdfFile: file });
-    } else {
-      toast.error("Please select a valid PDF file");
+    const files = Array.from(e.target.files || []);
+    const pdfFiles = files.filter(file => file.type === "application/pdf");
+    
+    if (pdfFiles.length !== files.length) {
+      toast.error("Some files were skipped. Only PDF files are allowed.");
     }
+    
+    setFormData({ ...formData, pdfFiles: pdfFiles });
   };
 
   const handleProviderChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -92,8 +94,8 @@ const ManualBillExtraction: React.FC = () => {
   const handleUploadBill = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!formData.pdfFile) {
-      toast.error("Please select a PDF file");
+    if (formData.pdfFiles.length === 0) {
+      toast.error("Please select at least one PDF file");
       return;
     }
 
@@ -106,16 +108,33 @@ const ManualBillExtraction: React.FC = () => {
 
     try {
       const uploadData = new FormData();
-      uploadData.append("pdf_file", formData.pdfFile);
-      uploadData.append("provider_id", formData.selectedProviderId);
+      const isBulkUpload = formData.pdfFiles.length > 1;
+      
+      if (isBulkUpload) {
+        // Bulk upload - multiple files
+        formData.pdfFiles.forEach(file => {
+          uploadData.append("pdf_files", file);
+        });
+        uploadData.append("provider_id", formData.selectedProviderId);
 
-      const response = await manualBillsAPI.upload(uploadData);
+        const response = await manualBillsAPI.bulkUpload(uploadData);
 
-      toast.success(response.data.message || "Bill uploaded successfully");
+        toast.success(
+          `${response.data.uploaded_count} bills uploaded successfully. Extraction in progress.`,
+          { duration: 5000 }
+        );
+      } else {
+        // Single file upload
+        uploadData.append("pdf_file", formData.pdfFiles[0]);
+        uploadData.append("provider_id", formData.selectedProviderId);
+
+        const response = await manualBillsAPI.upload(uploadData);
+        toast.success(response.data.message || "Bill uploaded successfully");
+      }
 
       // Reset form and close modal
       setFormData({
-        pdfFile: null,
+        pdfFiles: [],
         selectedProviderId: "",
       });
       setShowModal(false);
@@ -377,16 +396,37 @@ const ManualBillExtraction: React.FC = () => {
             <form onSubmit={handleUploadBill}>
               <div className="form-group">
                 <label htmlFor="pdfFile" className="form-label">
-                  PDF File
+                  PDF File(s)
                 </label>
                 <input
                   type="file"
                   id="pdfFile"
                   accept=".pdf"
+                  multiple
                   onChange={handleFileChange}
                   className="form-input"
                   required
                 />
+                {formData.pdfFiles.length > 0 && (
+                  <div style={{ 
+                    marginTop: "0.5rem", 
+                    fontSize: "0.875rem", 
+                    color: "#3b82f6",
+                    fontWeight: 500
+                  }}>
+                    📎 {formData.pdfFiles.length} file(s) selected
+                    {formData.pdfFiles.length > 1 && (
+                      <span style={{ 
+                        display: "block", 
+                        marginTop: "0.25rem",
+                        color: "#64748b",
+                        fontWeight: 400
+                      }}>
+                        ℹ️ Multiple files will be processed in chunks of 10
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
