@@ -110,6 +110,7 @@ class AuditLogResponse(BaseModel):
     triggered_by: str
     timestamp: datetime
     details: Optional[dict]
+    message: Optional[str]
 
 # Removed ImportResultResponse - no longer needed
 
@@ -193,3 +194,4 @@ class AuditLog(Base):
     
     # Additional context
     details = Column(JSON, nullable=True)         # Store metadata (provider, errors, file paths, etc.)
+    message = Column(String, nullable=True)       # Human-readable message

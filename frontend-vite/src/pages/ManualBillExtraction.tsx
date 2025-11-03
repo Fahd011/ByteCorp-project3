@@ -298,7 +298,10 @@ const ManualBillExtraction: React.FC = () => {
           {filteredBills.map((bill) => (
             <div key={bill.id} className="credential-card">
               <div className="credential-header">
-                <h3 className="credential-email">
+                <h3 
+                  className="credential-email"
+                  title={bill.original_filename || "Unnamed Bill"}
+                >
                   {bill.original_filename || "Unnamed Bill"}
                 </h3>
                 <span

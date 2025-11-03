@@ -154,6 +154,14 @@ export const manualBillsAPI = {
   getAll: (): Promise<AxiosResponse<any[]>> => api.get("/manual-bills"),
 };
 
+// Audit logs API
+export const auditLogsAPI = {
+  downloadCSV: (): Promise<AxiosResponse<Blob>> =>
+    api.get("/audit-logs/download", {
+      responseType: "blob",
+    }),
+};
+
 // Health check
 export const healthAPI = {
   check: (): Promise<AxiosResponse<any>> => api.get("/health"),

@@ -7,6 +7,83 @@ from datetime import datetime
 import uuid
 
 
+def format_audit_log_message(
+    entity_type: str,
+    entity_name: Optional[str],
+    entity_id: Optional[str],
+    action: str,
+    status: Optional[str],
+    triggered_by: str,
+    details: Optional[Dict[str, Any]],
+    timestamp: datetime
+) -> str:
+    """Convert audit log data to human-readable message"""
+    details = details or {}
+    entity = entity_name or entity_id or "Unknown"
+    
+    # Format timestamp as readable string
+    time_str = timestamp.strftime("%Y-%m-%d %I:%M:%S %p UTC")
+    
+    # Manual bill logs
+    if entity_type == "manual_bill":
+        if action == "upload":
+            return f"User uploaded manual bill '{entity}' for {details.get('provider', 'Unknown')} ({details.get('month', '')} {details.get('year', '')}) at {time_str}"
+        elif action == "extract_start":
+            return f"Agent started extracting '{entity}' for {details.get('provider', 'Unknown')} at {time_str}"
+        elif action == "extract_complete":
+            if status == "success":
+                return f"Agent successfully extracted '{entity}' for {details.get('provider', 'Unknown')} at {time_str}"
+            else:
+                return f"Agent failed to extract '{entity}' for {details.get('provider', 'Unknown')} at {time_str}: {details.get('error', 'Unknown error')}"
+    
+    # Billing result (automated extraction)
+    elif entity_type == "billing_result":
+        if action == "extract_start":
+            return f"Agent started extraction for {details.get('provider', 'Unknown')} - {details.get('email', 'Unknown')} at {time_str}"
+        elif action == "extract_complete":
+            if status == "success":
+                return f"Agent completed extraction for {details.get('provider', 'Unknown')} - {details.get('email', 'Unknown')} at {time_str}"
+            else:
+                return f"Agent failed extraction for {details.get('provider', 'Unknown')} - {details.get('email', 'Unknown')} at {time_str}: {details.get('error', 'Unknown error')}"
+    
+    # Credential logs
+    elif entity_type == "credential":
+        if action == "bulk_upload":
+            return f"User uploaded {details.get('count', 0)} credential(s) for {details.get('provider', 'Unknown')} at {time_str}"
+        elif action == "delete":
+            return f"User deleted credential for {entity} at {time_str}"
+    
+    # Agent control
+    elif entity_type == "agent":
+        if action == "start":
+            return f"User started agent for {details.get('email', 'Unknown')} ({details.get('provider', 'Unknown')}) at {time_str}"
+        elif action == "stop":
+            return f"User stopped agent for {details.get('email', 'Unknown')} ({details.get('provider', 'Unknown')}) at {time_str}"
+    
+    # Scheduled jobs
+    elif entity_type == "scheduled_job":
+        job_name = entity_name or "Job"
+        if action in ["daily_job_start", "retry_job_start"]:
+            return f"{job_name} started at {time_str} (schedule: {details.get('schedule', 'Unknown')})"
+        elif action in ["daily_job_complete", "retry_job_complete"]:
+            if status == "success":
+                return f"{job_name} completed at {time_str}: {details.get('processed', 0)} processed, {details.get('success', 0)} success, {details.get('errors', 0)} errors"
+            else:
+                return f"{job_name} failed at {time_str}: {details.get('error', 'Unknown error')}"
+    
+    # Provider logs
+    elif entity_type == "provider":
+        if action == "create":
+            return f"User created provider '{entity}' at {time_str}"
+        elif action == "update":
+            return f"User updated provider '{entity}' at {time_str}"
+        elif action == "delete":
+            return f"User deleted provider '{entity}' at {time_str}"
+    
+    # Fallback
+    return f"{triggered_by.capitalize()} performed {action} on {entity_type} {entity} at {time_str}"
+
+
 class AuditLogger:
     """Helper class for creating audit log entries."""
     
@@ -37,6 +114,21 @@ class AuditLogger:
         """
         db = SessionLocal()
         try:
+            # Create timestamp
+            timestamp = datetime.utcnow()
+            
+            # Generate human-readable message
+            message = format_audit_log_message(
+                entity_type=entity_type,
+                entity_name=entity_name,
+                entity_id=entity_id,
+                action=action,
+                status=status,
+                triggered_by=triggered_by,
+                details=details,
+                timestamp=timestamp
+            )
+            
             audit_entry = AuditLog(
                 id=str(uuid.uuid4()),
                 entity_type=entity_type,
@@ -45,8 +137,9 @@ class AuditLogger:
                 action=action,
                 status=status,
                 triggered_by=triggered_by,
-                timestamp=datetime.utcnow(),
-                details=details
+                timestamp=timestamp,
+                details=details,
+                message=message
             )
             
             db.add(audit_entry)
