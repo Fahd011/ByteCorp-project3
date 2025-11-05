@@ -4,8 +4,6 @@ import os
 import tempfile
 import shutil
 from typing import List, Dict, Any, Optional
-import PyPDF2
-import openai
 import pandas as pd
 from datetime import datetime
 import uuid
@@ -16,9 +14,8 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 from fastapi.responses import FileResponse
 import threading
-from openai import AzureOpenAI
-from app.rag_extraction import extract_from_pdf_bytes
 from config import config
+from app.rag_extraction import extract_bill_by_provider
 
 
 router = APIRouter()
@@ -137,13 +134,6 @@ class UtilityBillExtraction(BaseModel):
 
 # Note: Data model is now defined using Pydantic models above (UtilityBillExtraction)
 
-# Initialize OpenAI client
-openai_client = AzureOpenAI(
-    api_key=config.AZURE_OPENAI_API_KEY,
-    api_version=config.AZURE_API_VERSION,
-    azure_endpoint=config.AZURE_OPENAI_ENDPOINT
-)
-
 class ExtractionResult(BaseModel):
     filename: str
     extracted_data: Dict[str, Any]
@@ -158,88 +148,6 @@ extraction_results: Dict[str, List[ExtractionResult]] = {}
 
 # Add a global dictionary to store usernames for sessions
 session_usernames = {}
-
-def extract_text_from_pdf(pdf_file_path: str) -> str:
-    """Extract text from PDF file using pdfplumber first (preferred) with PyPDF2 fallback"""
-    try:
-        import pdfplumber
-        with pdfplumber.open(pdf_file_path) as pdf:
-            text = "\n".join([page.extract_text() or "" for page in pdf.pages[:5]])
-        # print(text)
-        return text
-    except Exception as e:
-        print(f"pdfplumber failed, trying PyPDF2: {str(e)}")
-        try:
-            import PyPDF2
-            with open(pdf_file_path, 'rb') as file:
-                reader = PyPDF2.PdfReader(file)
-                text = ""
-                for page in reader.pages[:5]:
-                    text += page.extract_text() or ""
-            return text
-        except Exception as e2:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Error extracting text from PDF with both pdfplumber and PyPDF2: {str(e2)}"
-            )
-
-def extract_data_with_openai(text: str) -> Dict[str, Any]:
-    """Extract structured data from PDF text using Azure OpenAI with structured output"""
-    
-    # Create a comprehensive prompt for data extraction
-    prompt = f"""
-You are an expert in extracting structured data from utility bills.
-
-Your task:
-- Extract bill data following the exact JSON schema structure.
-- Capture all relevant entities:
-  • Provider information (name, country)
-  • Statement dates, due dates, period dates
-  • Financial amounts (total charges, amount due, previous balance, payments)
-  • Charges → each line item (customer charge, tiered energy charges, riders, late fees, taxes)
-  • Account data with billing address
-  • Meter data → meter number, service address, usage readings, charges per meter
-  • Usages → start/end dates, measured usage, billed kWh/therms, number of days
-  • Disconnect notices → past due amounts, disconnect dates, reconnection fees
-  • Payment coupon → amount due, remit-to address, scanline
-  • Messages or notices from the bill
-
-Formatting Rules:
-1. Monetary values → numbers only (remove $ and commas).
-2. Dates → "YYYY-MM-DD" format.
-3. If a field is missing or not found, omit it (use defaults defined in schema).
-4. Taxes must be included as charges (e.g. "Sales Tax").
-5. For serviceType, use: "ELECTRICITY", "GAS", or "WATER".
-6. For chargeType, use: "DEBIT" or "CREDIT".
-
-Utility Bill Text:
-{text}
-"""
-    
-    try:
-        # Use Azure OpenAI with structured output (Pydantic model)
-        response = openai_client.beta.chat.completions.parse(
-            model=config.AZURE_CHAT_DEPLOYMENT_NAME,
-            messages=[
-                {"role": "system", "content": "You are a data extraction specialist for utility bills. Extract all information accurately following the schema."},
-                {"role": "user", "content": prompt}
-            ],
-            response_format=UtilityBillExtraction,
-            temperature=0.1
-        )
-        
-        # Get the parsed structured output
-        extracted_bill = response.choices[0].message.parsed
-        
-        if extracted_bill is None:
-            raise HTTPException(status_code=500, detail="Failed to parse bill data from OpenAI response")
-        
-        # Convert Pydantic model to dict
-        return extracted_bill.model_dump()
-            
-    except Exception as e:
-        print(f"Error in extract_data_with_openai: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
 @router.post("/api/pdf-extraction/upload")
 async def upload_files(request: BillingResultRequest):
@@ -273,32 +181,8 @@ async def upload_files(request: BillingResultRequest):
         # Extract filename from blob name
         filename = azure_blob_name.split('/')[-1]
         
-        # Route to appropriate extraction method based on provider
-        if provider_name == "Xcel Energy":
-            print("🔄 Using RAG-based extraction for Xcel Energy")
-            extracted_data = await extract_from_pdf_bytes(pdf_content)
-        else:
-            print("🔄 Using OpenAI extraction for standard providers")
-            # Create bills directory if it doesn't exist
-            bills_dir = Path("bills")
-            bills_dir.mkdir(exist_ok=True)
-            
-            # Save PDF content to bills folder
-            pdf_file_path = bills_dir / filename
-            with open(pdf_file_path, 'wb') as pdf_file:
-                pdf_file.write(pdf_content)
-            
-            print(f"📄 PDF saved to: {pdf_file_path}")
-            
-            # Extract text from PDF
-            text = extract_text_from_pdf(str(pdf_file_path))
-            
-            # Extract structured data using Azure OpenAI
-            extracted_data = extract_data_with_openai(text)
-            
-            # Clean up the PDF file after processing
-            os.unlink(pdf_file_path)
-            print(f"🗑️ Deleted PDF file: {pdf_file_path}")
+        # Extract bill data using RAG
+        extracted_data = await extract_bill_by_provider(provider_name, pdf_content)
         
         # Store result with billing context
         result = ExtractionResult(
@@ -315,14 +199,6 @@ async def upload_files(request: BillingResultRequest):
         import traceback
         print(f"Error processing Azure blob {azure_blob_name}:", str(e))
         traceback.print_exc()
-        
-        # Clean up PDF file if it was created
-        if 'pdf_file_path' in locals():
-            try:
-                os.unlink(pdf_file_path)
-                print(f"🗑️ Deleted PDF file after error: {pdf_file_path}")
-            except:
-                pass
         
         # Store error result
         filename = azure_blob_name.split('/')[-1] if azure_blob_name else "unknown"

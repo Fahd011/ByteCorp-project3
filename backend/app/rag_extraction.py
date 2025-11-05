@@ -509,3 +509,201 @@ async def extract_from_pdf_bytes(pdf_bytes: bytes) -> Dict[str, Any]:
             print(f"⚠️ Warning: Failed to cleanup temporary directory {temp_dir}: {e}")
             print(f"   You may need to manually delete this directory later.")
 
+
+# ============================================================================
+# SHARED EXTRACTION ROUTER
+# ============================================================================
+
+async def extract_bill_by_provider(provider_name: str, pdf_content: bytes) -> Dict[str, Any]:
+    """
+    Route to appropriate RAG extraction method based on provider.
+    
+    Args:
+        provider_name: Name of the utility provider
+        pdf_content: PDF file content as bytes
+        
+    Returns:
+        Dictionary containing extracted bill data
+        
+    Raises:
+        ValueError: If no extraction method is configured for the provider
+    """
+    print(f"🏢 Provider: {provider_name}")
+    
+    if provider_name == "Xcel Energy":
+        print("🔄 Using RAG extraction for Xcel Energy (premise-based schema)")
+        return await extract_from_pdf_bytes(pdf_content)
+    elif "Duke Energy" in provider_name:
+        print("🔄 Using RAG extraction for Duke Energy (meter-based schema)")
+        return await extract_duke_from_pdf_bytes(pdf_content)
+    else:
+        error_msg = f"No RAG extraction method configured for provider: {provider_name}"
+        print(f"❌ {error_msg}")
+        raise ValueError(error_msg)
+
+
+# ============================================================================
+# DUKE ENERGY RAG EXTRACTION (Meter-based, no premises)
+# ============================================================================
+
+async def extract_duke_from_pdf_bytes(pdf_bytes: bytes) -> Dict[str, Any]:
+    """
+    RAG extraction for Duke Energy bills (meter-based, no premises).
+    Uses the same RAG approach but with Duke's simpler schema structure.
+    
+    Args:
+        pdf_bytes: The PDF content as bytes
+        
+    Returns:
+        Dictionary containing the extracted Duke Energy bill data
+    """
+    # Create temporary directory for this extraction
+    temp_dir = tempfile.mkdtemp(prefix="duke_rag_extraction_")
+    vector_store = None
+    
+    try:
+        print(f"\n{'='*60}")
+        print(f"Starting RAG extraction for Duke Energy bill")
+        print(f"Temporary directory: {temp_dir}")
+        print(f"{'='*60}\n")
+        
+        # Create vector store from PDF
+        vector_store = create_vector_store_from_pdf(pdf_bytes, temp_dir)
+        
+        # Single-pass extraction using Duke schema
+        print("\n--- Extracting Duke Energy Bill Data ---")
+        duke_bill_data = extract_duke_bill_data(vector_store)
+        
+        if not duke_bill_data:
+            print("❌ Critical error: Failed to extract Duke bill data.")
+            return {}
+        
+        print(f"\n{'='*60}")
+        print(f"✅ Duke RAG extraction completed successfully")
+        print(f"{'='*60}\n")
+        
+        return duke_bill_data
+        
+    except Exception as e:
+        print(f"\n❌ Error during Duke RAG extraction: {e}")
+        import traceback
+        traceback.print_exc()
+        return {}
+        
+    finally:
+        # Cleanup: Properly close ChromaDB client before deleting files
+        try:
+            if vector_store is not None:
+                # Delete the collection and close the client
+                try:
+                    vector_store.delete_collection()
+                except:
+                    pass
+                
+                # Access the underlying client and reset
+                if hasattr(vector_store, '_client'):
+                    try:
+                        vector_store._client.clear_system_cache()
+                    except:
+                        pass
+            
+            # Small delay to ensure file handles are released on Windows
+            import time
+            time.sleep(0.5)
+            
+            # Remove temporary directory
+            shutil.rmtree(temp_dir)
+            print(f"🗑️ Cleaned up temporary directory: {temp_dir}")
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to cleanup temporary directory {temp_dir}: {e}")
+            print(f"   You may need to manually delete this directory later.")
+
+
+def extract_duke_bill_data(vector_store: Chroma) -> Optional[Dict[str, Any]]:
+    """
+    Extract complete Duke Energy bill in single pass using RAG + structured output.
+    Returns data matching the Duke/OpenAI schema (UtilityBillExtraction).
+    """
+    
+    # Import Duke schema from pdf_extraction dynamically to avoid circular imports
+    from app.routes.pdf_extraction import UtilityBillExtraction as DukeUtilityBill
+    
+    # Create comprehensive prompt for Duke-specific extraction
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """You are an expert at extracting structured data from Duke Energy utility bills.
+
+Extract ALL information following the exact schema structure provided. Be thorough and accurate.
+
+Key sections to extract:
+1. Provider information (name, country)
+2. Statement dates, due dates, period dates
+3. Financial amounts (total charges, amount due, previous balance, payments)
+4. Charges → each line item (customer charge, energy charges by tier, riders, late fees, taxes)
+5. Account data with billing address
+6. Meter data → for each meter: meter number, service address, usage readings, charges per meter
+7. Usages → start/end dates, measured usage, billed kWh/therms, number of days
+8. Disconnect notices → past due amounts, disconnect dates, reconnection fees if present
+9. Payment coupon → amount due, remit-to address, scanline
+10. Messages or notices from the bill
+
+Formatting Rules:
+- Monetary values → numbers only (remove $ and commas)
+- Dates → "YYYY-MM-DD" format
+- If a field is missing or not found, omit it
+- Taxes must be included as charges (e.g. "Sales Tax")
+- For serviceType, use: "ELECTRICITY", "GAS", or "WATER"
+- For chargeType, use: "DEBIT" or "CREDIT"
+"""),
+        ("human", "Extract all data from this Duke Energy utility bill:\n\n{context}")
+    ])
+    
+    # Retrieve relevant chunks - get more context for Duke bills
+    retriever = vector_store.as_retriever(search_kwargs={"k": 15})
+    
+    # Get comprehensive context
+    queries = [
+        "Extract all bill information including charges, totals, dates, and account details",
+        "Extract meter readings, usage information, and service addresses",
+        "Extract payment information, notices, and any disconnect warnings"
+    ]
+    
+    all_docs = []
+    for query in queries:
+        docs = retriever.invoke(query)
+        all_docs.extend(docs)
+    
+    # Deduplicate documents by content
+    seen_content = set()
+    unique_docs = []
+    for doc in all_docs:
+        if doc.page_content not in seen_content:
+            seen_content.add(doc.page_content)
+            unique_docs.append(doc)
+    
+    context = "\n\n".join([doc.page_content for doc in unique_docs[:20]])  # Use top 20 unique chunks
+    
+    # Use Azure OpenAI with structured output
+    llm = AzureChatOpenAI(
+        azure_endpoint=AZURE_OPENAI_ENDPOINT,
+        api_key=AZURE_OPENAI_API_KEY,
+        azure_deployment=AZURE_CHAT_DEPLOYMENT_NAME,
+        api_version="2024-08-01-preview",
+        temperature=0.1
+    )
+    
+    structured_llm = llm.with_structured_output(DukeUtilityBill)
+    chain = prompt | structured_llm
+    
+    try:
+        result = chain.invoke({"context": context})
+        print("✅ Duke bill data extracted successfully")
+        
+        # Convert Pydantic model to dict
+        return result.model_dump()
+        
+    except Exception as e:
+        print(f"❌ Error extracting Duke bill data: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+

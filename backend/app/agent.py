@@ -18,6 +18,7 @@ from config import config
 from app.models import BillingResult, UserBillingCredential
 from app.db import SessionLocal
 from app.prompts import get_provider_prompt
+from app.rag_extraction import extract_bill_by_provider
 
 
 # ---------------------------------------------------------------------------
@@ -365,28 +366,8 @@ async def trigger_automatic_extraction(billing_result, email, provider_name):
         
         print(f"✅ PDF downloaded successfully from Azure")
         
-        # Run extraction directly based on provider
-        extracted_data = None
-        if provider_name == "Xcel Energy":
-            print("🔄 Using RAG-based extraction for Xcel Energy")
-            from app.rag_extraction import extract_from_pdf_bytes
-            extracted_data = await extract_from_pdf_bytes(pdf_content)
-        else:
-            print("🔄 Using OpenAI extraction for standard providers")
-            from app.routes.pdf_extraction import extract_text_from_pdf, extract_data_with_openai
-            
-            # Save PDF to temporary file for text extraction
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                tmp_file.write(pdf_content)
-                tmp_path = tmp_file.name
-            
-            try:
-                # Extract text and data
-                text = extract_text_from_pdf(tmp_path)
-                extracted_data = extract_data_with_openai(text)
-            finally:
-                # Cleanup temp file
-                Path(tmp_path).unlink()
+        # Extract bill data using RAG
+        extracted_data = await extract_bill_by_provider(provider_name, pdf_content)
         
         if extracted_data:
             print(f"[✅] Extraction completed successfully")
