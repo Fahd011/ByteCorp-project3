@@ -151,6 +151,12 @@ export const manualBillsAPI = {
         "Content-Type": "multipart/form-data",
       },
     }),
+  bulkUpload: (formData: FormData): Promise<AxiosResponse<any>> =>
+    api.post("/manual-bills/bulk-upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }),
   getAll: (): Promise<AxiosResponse<any[]>> => api.get("/manual-bills"),
 };
 
