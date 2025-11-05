@@ -1,20 +1,18 @@
 # Fetch all billing results for a credential_id
 from fastapi import APIRouter, Depends, HTTPException
-from app.models import BillingResult, Provider, ProviderResponse, UserBillingCredential
+from fastapi.responses import StreamingResponse
+from app.models import BillingResult, Provider, ProviderResponse, UserBillingCredential, AuditLog
 from app.db import get_db
 from sqlalchemy.orm import Session
-
-
 from typing import List
-from app.db import get_db
 from app.utils import hash_password
 from app.models import User
 from app.routes.auth import verify_token
 from config import config
-
-from sqlalchemy.orm import Session
-from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
+import io
+import csv
+import json
 
 router = APIRouter()
 
@@ -90,3 +88,48 @@ def get_provider(provider_id: str, db: Session = Depends(get_db)):
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
     return provider
+
+@router.get("/api/audit-logs/download")
+def download_audit_logs(
+    user_id: str = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Download all audit logs as CSV"""
+    
+    # Query all audit logs ordered by timestamp asc
+    logs = db.query(AuditLog).order_by(AuditLog.timestamp.asc()).all()
+    
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow([
+        'id', 'entity_type', 'entity_id', 'entity_name', 
+        'action', 'status', 'triggered_by', 'timestamp', 'message', 'details_json'
+    ])
+    
+    # Write data
+    for log in logs:
+        writer.writerow([
+            log.id,
+            log.entity_type,
+            log.entity_id or '',
+            log.entity_name or '',
+            log.action,
+            log.status or '',
+            log.triggered_by,
+            log.timestamp.isoformat(),
+            log.message or '',
+            json.dumps(log.details) if log.details else ''
+        ])
+    
+    # Prepare response
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=audit_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        }
+    )

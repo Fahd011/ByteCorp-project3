@@ -1,5 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { toast } from "react-hot-toast";
+import { auditLogsAPI } from "../services/api";
 
 const Navigation: React.FC = () => {
   const { logout } = useAuth();
@@ -7,6 +9,24 @@ const Navigation: React.FC = () => {
 
   const handleLogout = () => {
     logout();
+  };
+
+  const handleDownloadLogs = async () => {
+    try {
+      const response = await auditLogsAPI.downloadCSV();
+      const blob = new Blob([response.data], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `audit_logs_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success("Audit logs downloaded successfully");
+    } catch (error) {
+      toast.error("Failed to download audit logs");
+    }
   };
 
   return (
@@ -38,12 +58,12 @@ const Navigation: React.FC = () => {
         </li>
       </ul>
 
-      <div style={{ marginTop: "auto", paddingTop: "1rem" }}>
-        <button
-          onClick={handleLogout}
-          className="nav-link"
-          style={{ width: "100%", justifyContent: "flex-start" }}
-        >
+      <div className="nav-footer">
+        <button onClick={handleDownloadLogs} className="nav-link">
+          <span className="nav-icon">📥</span>
+          Download Logs
+        </button>
+        <button onClick={handleLogout} className="nav-link">
           <span className="nav-icon">🚪</span>
           Logout
         </button>

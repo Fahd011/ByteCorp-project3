@@ -19,6 +19,7 @@ from app.models import BillingResult, UserBillingCredential
 from app.db import SessionLocal
 from app.prompts import get_provider_prompt
 from app.rag_extraction import extract_bill_by_provider
+from app.audit_logger import AuditLogger
 
 
 # ---------------------------------------------------------------------------
@@ -366,6 +367,13 @@ async def trigger_automatic_extraction(billing_result, email, provider_name):
         
         print(f"✅ PDF downloaded successfully from Azure")
         
+        # Log extraction start
+        AuditLogger.log_extraction_start(
+            billing_result_id=billing_result.id,
+            provider_name=provider_name,
+            email=email
+        )
+        
         # Extract bill data using RAG
         extracted_data = await extract_bill_by_provider(provider_name, pdf_content)
         
@@ -445,6 +453,16 @@ async def trigger_automatic_extraction(billing_result, email, provider_name):
                                 billing_record.json_blob_url = uploaded_json_name
                                 db.commit()
                                 print(f"[✅] Updated BillingResult with Excel and JSON blob URLs")
+                                
+                                # Log extraction success
+                                AuditLogger.log_extraction_complete(
+                                    billing_result_id=billing_result.id,
+                                    provider_name=provider_name,
+                                    email=email,
+                                    success=True,
+                                    excel_url=uploaded_excel_name,
+                                    json_url=uploaded_json_name
+                                )
                             else:
                                 print(f"[❌] BillingResult not found for ID: {billing_result.id}")
                         except Exception as db_error:
@@ -466,3 +484,12 @@ async def trigger_automatic_extraction(billing_result, email, provider_name):
         print(f"[❌] Error in automatic PDF extraction: {str(e)}")
         import traceback
         traceback.print_exc()
+        
+        # Log extraction failure
+        AuditLogger.log_extraction_complete(
+            billing_result_id=billing_result.id,
+            provider_name=provider_name,
+            email=email,
+            success=False,
+            error=str(e)
+        )

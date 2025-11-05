@@ -100,6 +100,18 @@ class ManualBillResponse(BaseModel):
     run_time: Optional[datetime]
     created_at: datetime
 
+class AuditLogResponse(BaseModel):
+    id: str
+    entity_type: str
+    entity_id: Optional[str]
+    entity_name: Optional[str]
+    action: str
+    status: Optional[str]
+    triggered_by: str
+    timestamp: datetime
+    details: Optional[dict]
+    message: Optional[str]
+
 # Removed ImportResultResponse - no longer needed
 
 # SQLAlchemy models
@@ -159,3 +171,27 @@ class BillingResult(Base):
     year = Column(String, nullable=False)
     month = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class AuditLog(Base):
+    __tablename__ = 'audit_logs'
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    
+    # What was affected
+    entity_type = Column(String, nullable=False)  # "credential", "billing_result", "provider", "manual_bill"
+    entity_id = Column(String, nullable=True)     # ID of the affected entity
+    entity_name = Column(String, nullable=True)   # Human-readable name (e.g., provider name, filename)
+    
+    # What happened
+    action = Column(String, nullable=False)       # "create", "update", "delete", "extract_start", "extract_complete"
+    status = Column(String, nullable=True)        # "success", "failure", "pending"
+    
+    # Who/what did it
+    triggered_by = Column(String, nullable=False) # "user" or "agent"
+    
+    # When
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Additional context
+    details = Column(JSON, nullable=True)         # Store metadata (provider, errors, file paths, etc.)
+    message = Column(String, nullable=True)       # Human-readable message
