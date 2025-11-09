@@ -1,17 +1,26 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-
-# Import configuration first
 from config import config
 
-
-# # Database setup
 DATABASE_URL = config.DATABASE_URL
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# ✅ Improved, production-safe engine configuration
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,      # ✅ Checks connection health before reusing it
+    pool_recycle=1800,       # ✅ Reconnects every 30 minutes (avoid idle timeout)
+    connect_args={"sslmode": "require"}  # ✅ Ensures SSL connection stays valid
+)
+
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
 Base = declarative_base()
 
-# Database dependency
+# ✅ Dependency for FastAPI / background jobs
 def get_db():
     db = SessionLocal()
     try:
