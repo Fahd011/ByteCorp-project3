@@ -1,10 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useEffect, ChangeEvent, FormEvent } from "react";
 import { toast } from "react-hot-toast";
 import { credentialsAPI, providerAPI } from "../services/api";
 import { Provider } from "../types";
-// import { formatDate } from "../utils/helpers";
 import { useNavigate } from "react-router-dom";
 import "./Dashboard.css";
 
@@ -131,38 +128,20 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // const handleAgentControl = async (
-  //   credId: string,
-  //   action: "RUN" | "STOPPED"
-  // ) => {
-  //   try {
-  //     await credentialsAPI.controlAgent(credId, { action });
-  //     toast.success(`Agent ${action.toLowerCase()}`);
-  //     fetchCredentials();
-  //   } catch (error) {
-  //     toast.error("Failed to control agent");
-  //   }
-  // };
-
-  // const handleDelete = async (credId: string) => {
-  //   try {
-  //     await credentialsAPI.delete(credId);
-  //     toast.success("Credential deleted");
-  //     fetchCredentials();
-  //   } catch (error) {
-  //     toast.error("Failed to delete credential");
-  //   }
-  // };
-
-  // const handleScheduleWeekly = async () => {
-  //   try {
-  //     await schedulingAPI.scheduleWeekly();
-  //     toast.success('Weekly schedule created successfully');
-  //     fetchCredentials();
-  //   } catch (error) {
-  //     toast.error('Failed to create weekly schedule');
-  //   }
-  // };
+  const handleDelete = async (credId: string) => {
+    // Show confirmation dialog
+    if (!window.confirm("Are you sure you want to delete this credential? This action cannot be undone and will also delete all associated billing results.")) {
+      return;
+    }
+    
+    try {
+      await credentialsAPI.delete(credId);
+      toast.success("Credential deleted successfully");
+      fetchCredentials();
+    } catch (error) {
+      toast.error("Failed to delete credential");
+    }
+  };
 
   const getStatusBadgeClass = (status: string | undefined) => {
     switch (status?.toLowerCase()) {
@@ -433,13 +412,15 @@ const Dashboard: React.FC = () => {
                   >
                     ⏹️ Stop
                   </button>
-                )}
+                )} */}
                 <button
                   onClick={() => handleDelete(cred.id)}
-                  className="btn btn-danger"
+                  className="btn-delete"
+                  title="Delete credential"
                 >
-                  🗑️ Delete
-                </button> */}
+                  <span className="delete-icon">🗑️</span>
+                  <span className="delete-text">Delete</span>
+                </button>
               </div>
             </div>
           ))}

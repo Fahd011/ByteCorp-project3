@@ -235,14 +235,23 @@ def delete_credential(
     if not credential:
         raise HTTPException(status_code=404, detail="Credential not found")
     
-    credential.is_deleted = True
-    db.commit()
+    # Import BillingResult here
+    from app.models import BillingResult
+    
+    # Set foreign key to NULL in related billing results
+    db.query(BillingResult).filter(
+        BillingResult.user_billing_credential_id == cred_id
+    ).update({BillingResult.user_billing_credential_id: None})
     
     # Log credential deletion
     AuditLogger.log_credential_delete(
         credential_id=credential.id,
         email=credential.email
     )
+    
+    # Now delete the credential
+    db.delete(credential)
+    db.commit()
     
     return {"message": "Credential deleted"}
 
