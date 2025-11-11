@@ -226,7 +226,7 @@ scheduler.add_job(
 # 🔹 Cron job
 scheduler.add_job(
     daily_agent_job,         
-    CronTrigger(hour=13, minute=20),  # will run at 06:30 UTC today
+    CronTrigger(hour=6, minute=10),  # will run at 06:30 UTC today
     id="daily_agent_job",    
     replace_existing=True        
 )
