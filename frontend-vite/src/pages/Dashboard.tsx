@@ -3,7 +3,6 @@ import { toast } from "react-hot-toast";
 import { credentialsAPI, providerAPI } from "../services/api";
 import { Provider } from "../types";
 import { useNavigate } from "react-router-dom";
-import "./Dashboard.css";
 
 const Dashboard: React.FC = () => {
   const [credentials, setCredentials] = useState<any[]>([]);
@@ -187,15 +186,15 @@ const Dashboard: React.FC = () => {
   });
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <div className="flex justify-center items-center h-[200px] text-slate-500">Loading...</div>;
   }
 
   return (
     <div>
       {/* Dashboard Header */}
-      <div className="dashboard-header">
-        <h1 className="dashboard-title">Dashboard</h1>
-        <p className="dashboard-subtitle">
+      <div className="mb-8">
+        <h1 className="text-3xl font-semibold text-slate-800 m-0 mb-2">Dashboard</h1>
+        <p className="text-slate-500 text-base m-0">
           Manage your utility providers and billing
         </p>
       </div>
@@ -250,29 +249,28 @@ const Dashboard: React.FC = () => {
       </div> */}
 
       {/* Search Section */}
-      <div className="search-section">
-        <div className="search-container">
-          <span className="search-icon">🔍</span>
+      <div className="flex justify-between items-center mb-8 gap-4">
+        <div className="relative flex-1 max-w-[800px]">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-base">🔍</span>
           <input
             type="text"
             placeholder="Search providers, clients, or account numbers..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
+            className="w-full py-3 pr-4 pl-10 border border-gray-300 rounded-lg text-sm bg-white transition-[border-color] duration-200 box-border focus:outline-none focus:border-blue-500 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)]"
           />
         </div>
-        <div className="results-count">
+        <div className="text-slate-500 text-sm whitespace-nowrap">
           Showing {filteredCredentials.length} of {credentials.length} providers
         </div>
       </div>
 
       {/* Create Session Button */}
-      <div className="credentials-header">
-        <div className="credentials-actions">
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex gap-4">
           <button
             onClick={() => setShowModal(true)}
-            className="btn btn-primary"
-            style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+            className="inline-flex items-center gap-2 px-6 py-3 border-0 rounded-lg font-medium text-sm cursor-pointer transition-all duration-200 no-underline bg-blue-500 text-white hover:bg-blue-600"
           >
             ➕ Create Session
           </button>
@@ -281,37 +279,43 @@ const Dashboard: React.FC = () => {
 
       {/* Credentials Grid */}
       {filteredCredentials.length === 0 ? (
-        <div className="empty-state">
-          <span
-            style={{ color: "#6b7280", marginBottom: "1rem", fontSize: "48px" }}
-          >
+        <div className="text-center p-12 bg-white rounded-xl border border-slate-200">
+          <span className="text-gray-500 mb-4 text-5xl block">
             📧
           </span>
-          <h3 style={{ color: "#374151", marginBottom: "0.5rem" }}>
+          <h3 className="text-gray-700 mb-2">
             {searchTerm ? "No matching providers found" : "No credentials found"}
           </h3>
-          <p style={{ color: "#6b7280", marginBottom: "1.5rem" }}>
+          <p className="text-gray-500 mb-6">
             {searchTerm ? "Try adjusting your search terms" : "Get started by creating your first credential session."}
           </p>
           {!searchTerm && (
             <button
               onClick={() => setShowModal(true)}
-              className="btn btn-primary"
+              className="inline-flex items-center gap-2 px-6 py-3 border-0 rounded-lg font-medium text-sm cursor-pointer transition-all duration-200 no-underline bg-blue-500 text-white hover:bg-blue-600"
             >
               Create Session
             </button>
           )}
         </div>
       ) : (
-        <div className="credentials-grid">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(350px,1fr))] gap-6 mt-8">
           {filteredCredentials.map((cred) => (
-            <div key={cred.id} className="credential-card">
-              <div className="credential-header">
-                <h3 className="credential-email">{cred.email}</h3>
+            <div key={cred.id} className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 transition-all duration-200 hover:shadow-md">
+              <div className="flex justify-between items-center gap-3 mb-4">
+                <h3 className="font-semibold text-slate-800 m-0 text-base leading-normal flex-1 min-w-0 truncate" title={cred.email}>{cred.email}</h3>
                 <span
-                  className={`status-badge ${getStatusBadgeClass(
-                    cred.last_state || "idle"
-                  )}`}
+                  className={`px-3 py-1 rounded-full text-xs font-medium capitalize flex items-center gap-1 flex-shrink-0 ${
+                    getStatusBadgeClass(cred.last_state || "idle") === "status-idle" 
+                      ? "bg-slate-100 text-slate-500"
+                      : getStatusBadgeClass(cred.last_state || "idle") === "status-running"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : getStatusBadgeClass(cred.last_state || "idle") === "status-completed"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : getStatusBadgeClass(cred.last_state || "idle") === "status-error"
+                      ? "bg-red-100 text-red-600"
+                      : "bg-amber-100 text-amber-800"
+                  }`}
                 >
                   ⏰ {cred.last_state ? cred.last_state : "Idle"}
                 </span>
@@ -326,14 +330,20 @@ const Dashboard: React.FC = () => {
                 </div>
               )} */}
 
-              <div className="credential-provider-section">
-                <span className={`provider-badge ${getProviderBadgeClass(cred.utility_co_name || "")}`}>
+              <div className="flex justify-between items-center mb-4">
+                <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
+                  getProviderBadgeClass(cred.utility_co_name || "") === "provider-energy"
+                    ? "bg-amber-100 text-amber-800"
+                    : getProviderBadgeClass(cred.utility_co_name || "") === "provider-gas"
+                    ? "bg-orange-200 text-orange-900"
+                    : "bg-blue-100 text-blue-800"
+                }`}>
                   {getProviderIcon(cred.utility_co_name || "")} {cred.utility_co_name || "Provider"}
                 </span>
               </div>
 
-              <div className="billing-cycle-info">
-                <span className="cycle-text">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4">
+                <span className="text-slate-500 text-sm leading-normal m-0">
                   {cred.billing_cycle_day
                     ? (() => {
                         const today = new Date();
@@ -371,12 +381,12 @@ const Dashboard: React.FC = () => {
                 </span>
               </div>
 
-              <div className="credential-links">
+              <div className="mb-4 flex flex-row gap-4">
                 <a
                   href={cred.login_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="credential-link"
+                  className="flex items-center gap-2 text-blue-500 no-underline text-sm font-medium transition-colors duration-200 hover:text-blue-600 hover:underline"
                 >
                   🔗 Login Portal
                 </a>
@@ -384,16 +394,16 @@ const Dashboard: React.FC = () => {
                   href={cred.billing_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="credential-link"
+                  className="flex items-center gap-2 text-blue-500 no-underline text-sm font-medium transition-colors duration-200 hover:text-blue-600 hover:underline"
                 >
                   🔗 Billing History
                 </a>
               </div>
 
-              <div className="credential-actions">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => navigate(`/billing-results/${cred.id}`)}
-                  className="btn btn-primary"
+                  className="px-6 py-3 text-sm font-semibold flex-1 min-w-0 justify-center bg-blue-500 border-0 rounded-lg text-white cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5"
                 >
                   View Bills
                 </button>
@@ -415,11 +425,11 @@ const Dashboard: React.FC = () => {
                 )} */}
                 <button
                   onClick={() => handleDelete(cred.id)}
-                  className="btn-delete"
+                  className="flex items-center justify-center gap-1.5 py-2 px-3.5 text-[0.8125rem] font-semibold bg-gradient-to-br from-red-500 to-red-600 text-white border-0 rounded-lg cursor-pointer transition-all duration-200 shadow-[0_2px_4px_rgba(239,68,68,0.2)] w-auto flex-[0_0_auto] hover:bg-gradient-to-br hover:from-red-600 hover:to-red-700 hover:-translate-y-0.5 hover:shadow-[0_4px_8px_rgba(239,68,68,0.3)] active:translate-y-0 active:shadow-[0_1px_2px_rgba(239,68,68,0.2)]"
                   title="Delete credential"
                 >
-                  <span className="delete-icon">🗑️</span>
-                  <span className="delete-text">Delete</span>
+                  <span className="text-sm flex items-center">🗑️</span>
+                  <span className="font-semibold tracking-wide">Delete</span>
                 </button>
               </div>
             </div>
@@ -429,21 +439,21 @@ const Dashboard: React.FC = () => {
 
       {/* Create Session Modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Create New Session</h2>
+        <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex justify-center items-center z-[1000]" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-xl p-8 w-[90%] max-w-[500px] shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-slate-800 m-0">Create New Session</h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="modal-close"
+                className="bg-transparent border-0 text-2xl cursor-pointer text-slate-500 p-0 w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-100 hover:text-slate-800"
               >
                 &times;
               </button>
             </div>
 
             <form onSubmit={handleCreateSession}>
-              <div className="form-group">
-                <label htmlFor="csvFile" className="form-label">
+              <div className="mb-6">
+                <label htmlFor="csvFile" className="block font-medium text-gray-700 mb-2 text-sm">
                   CSV File
                 </label>
                 <input
@@ -451,20 +461,20 @@ const Dashboard: React.FC = () => {
                   id="csvFile"
                   accept=".csv"
                   onChange={handleFileChange}
-                  className="form-input"
+                  className="w-full p-3 border border-gray-300 rounded-lg text-sm transition-[border-color] duration-200 focus:outline-none focus:border-blue-500 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] file:py-2 file:px-4 file:border file:border-gray-300 file:rounded-md file:bg-gray-50 file:text-gray-700 file:text-sm file:cursor-pointer file:mr-4 file:hover:bg-gray-100"
                   required
                 />
               </div>
 
-              <div className="form-group">
-                <label htmlFor="providerSelect" className="form-label">
+              <div className="mb-6">
+                <label htmlFor="providerSelect" className="block font-medium text-gray-700 mb-2 text-sm">
                   Provider
                 </label>
                 <select
                   id="providerSelect"
                   value={formData.selectedProviderId}
                   onChange={handleProviderChange}
-                  className="form-input"
+                  className="w-full py-3.5 px-4 border-2 border-gray-200 rounded-xl text-sm font-medium bg-white appearance-none cursor-pointer transition-all duration-300 shadow-sm text-gray-700 hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-[0_4px_12px_rgba(59,130,246,0.15),0_2px_4px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 focus:outline-none focus:border-blue-500 focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15),0_4px_12px_rgba(59,130,246,0.1)] focus:bg-blue-50/30 focus:-translate-y-0.5 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:opacity-70 disabled:border-gray-200 disabled:shadow-none disabled:translate-y-0 [background-image:url('data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%236b7280%27%3e%3cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3e%3c/svg%3e')] [background-position:right_1rem_center] [background-repeat:no-repeat] [background-size:1.25em_1.25em]"
                   required
                 >
                   <option value="">Select a provider...</option>
@@ -478,23 +488,17 @@ const Dashboard: React.FC = () => {
 
 
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "1rem",
-                  justifyContent: "flex-end",
-                }}
-              >
+              <div className="flex gap-4 justify-end">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="btn btn-secondary"
+                  className="inline-flex items-center gap-2 px-6 py-3 border-0 rounded-lg font-medium text-sm cursor-pointer transition-all duration-200 no-underline bg-slate-500 text-white hover:bg-slate-600"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary"
+                  className="inline-flex items-center gap-2 px-6 py-3 border-0 rounded-lg font-medium text-sm cursor-pointer transition-all duration-200 no-underline bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
                   disabled={uploading}
                 >
                   {uploading ? "Creating..." : "Create Session"}

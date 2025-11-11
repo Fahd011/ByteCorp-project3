@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { credentialsAPI, pdfExtractionAPI } from "../services/api";
-import "./BillingResults.css"; // custom CSS file
 import toast from "react-hot-toast";
 
 const BillingResults: React.FC = () => {
@@ -137,30 +136,40 @@ const BillingResults: React.FC = () => {
   };
 
   return (
-    <div className="billing-container">
-      <h2 className="billing-title">Billing Results</h2>
+    <div className="max-w-[800px] my-8 mx-auto p-6">
+      <h2 className="text-[1.75rem] font-bold text-slate-800 mb-6 border-b-2 border-slate-200 pb-2">Billing Results</h2>
 
       {loading ? (
-        <div className="loading-spinner-container">
-          <div className="loading-spinner"></div>
-          <p className="loading-text">Loading results...</p>
+        <div className="flex flex-col items-center mt-8">
+          <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin mb-2.5"></div>
+          <p className="text-base text-slate-500">Loading results...</p>
         </div>
       ) : results.length === 0 ? (
-        <div className="empty-state">No bills found.</div>
+        <div className="bg-amber-100 text-amber-900 py-3 px-4 rounded-lg shadow-sm">No bills found.</div>
       ) : (
-        <div className="billing-grid">
+        <div className="grid gap-4">
           {results.map((r: any) => (
-            <div key={r.id} className="billing-card">
-              <div className="billing-header">
-                <h3 className="billing-subtitle">
+            <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm transition-all duration-200 hover:shadow-md">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-[1.1rem] font-semibold text-slate-700">
                   Bill for {r.year} / {r.month}
                 </h3>
-                <span className={`status-badge ${r.status.toLowerCase()}`}>
+                <span className={`py-1 px-2.5 rounded-full text-[0.85rem] font-medium ${
+                  r.status.toLowerCase() === "completed"
+                    ? "bg-emerald-100 text-emerald-900"
+                    : r.status.toLowerCase() === "failed"
+                    ? "bg-red-100 text-red-800"
+                    : r.status.toLowerCase() === "pending"
+                    ? "bg-slate-100 text-slate-600"
+                    : r.status.toLowerCase() === "manual_upload"
+                    ? "bg-amber-100 text-amber-900"
+                    : "bg-slate-100 text-slate-600"
+                }`}>
                   {r.status === "manual_upload" ? "Manual Upload" : r.status}
                 </span>
               </div>
 
-              <div className="billing-details">
+              <div className="text-sm text-slate-500 mb-4">
                 <p>
                   <strong>Date:</strong>{" "}
                   {r.run_time ? new Date(r.run_time).toLocaleString() : "N/A"}
@@ -172,10 +181,10 @@ const BillingResults: React.FC = () => {
                 )}
               </div>
 
-              <div className="billing-actions">
+              <div className="flex gap-3 flex-wrap">
                 <button
                   onClick={() => handleDownloadPDF(r.azure_blob_url)}
-                  className="download-btn"
+                  className="py-2 px-4 bg-blue-600 text-white text-sm font-medium border-0 rounded-lg cursor-pointer transition-[background] duration-200 hover:bg-blue-800"
                 >
                   Download Bill
                 </button>
@@ -183,7 +192,7 @@ const BillingResults: React.FC = () => {
                 {r.excel_blob_url && (
                   <button
                     onClick={() => handleExportToExcel(r)}
-                    className="export-btn"
+                    className="py-2 px-4 bg-emerald-700 text-white text-sm font-medium border-0 rounded-lg cursor-pointer transition-[background] duration-200 hover:bg-emerald-800"
                   >
                     Export to Excel
                   </button>
@@ -191,8 +200,7 @@ const BillingResults: React.FC = () => {
                 {r.json_blob_url && (
                   <button
                     onClick={() => handleDownloadJSON(r)}
-                    className="download-json-btn"
-                    style={{ marginLeft: "8px" }}
+                    className="py-2 px-4 bg-amber-500 text-white text-sm font-medium border-0 rounded-lg cursor-pointer transition-[background] duration-200 hover:bg-amber-600"
                   >
                     Download JSON
                   </button>
