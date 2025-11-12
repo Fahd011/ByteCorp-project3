@@ -17,7 +17,7 @@ class Config:
     BROWSER_USE_API_KEY : str = os.getenv("BROWSER_USE_API_KEY")
     
     # OpenAI Configuration (for embeddings)
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
+    # OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
     
     # Azure OpenAI Configuration
     AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT")

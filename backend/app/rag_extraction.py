@@ -16,7 +16,7 @@ from langchain_openai import ChatOpenAI, AzureChatOpenAI
 
 # from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings, AzureOpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -397,10 +397,13 @@ def create_vector_store_from_pdf(pdf_bytes: bytes, temp_dir: str) -> Chroma:
     print(f"🔄 Creating embeddings for {len(chunks)} chunks...")
     
     # embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
-    embeddings = OpenAIEmbeddings(
-        model="text-embedding-3-large",
-        chunk_size=100
-    )
+    embeddings = AzureOpenAIEmbeddings(
+    azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
+    api_key=config.AZURE_OPENAI_API_KEY,
+    azure_deployment=config.AZURE_EMBEDDING_DEPLOYMENT_NAME,
+    api_version=config.AZURE_API_VERSION,
+    chunk_size=100
+)
     
     db = Chroma.from_documents(
         chunks, embeddings, persist_directory=str(chroma_path)
