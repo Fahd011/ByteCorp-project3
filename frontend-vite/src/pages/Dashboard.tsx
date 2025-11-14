@@ -316,6 +316,14 @@ const Dashboard: React.FC = () => {
                       ? "bg-red-100 text-red-600"
                       : "bg-amber-100 text-amber-800"
                   }`}
+                  title={
+                    cred.last_state?.toLowerCase() === "error" && cred.last_error
+                      ? cred.last_error
+                      : undefined
+                  }
+                  style={{
+                    cursor: cred.last_state?.toLowerCase() === "error" && cred.last_error ? "help" : "default"
+                  }}
                 >
                   ⏰ {cred.last_state ? cred.last_state : "Idle"}
                 </span>
