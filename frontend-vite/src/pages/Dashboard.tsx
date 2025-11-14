@@ -312,6 +312,14 @@ const Dashboard: React.FC = () => {
                   className={`status-badge ${getStatusBadgeClass(
                     cred.last_state || "idle"
                   )}`}
+                  title={
+                    cred.last_state?.toLowerCase() === "error" && cred.last_error
+                      ? cred.last_error
+                      : undefined
+                  }
+                  style={{
+                    cursor: cred.last_state?.toLowerCase() === "error" && cred.last_error ? "help" : "default"
+                  }}
                 >
                   ⏰ {cred.last_state ? cred.last_state : "Idle"}
                 </span>
