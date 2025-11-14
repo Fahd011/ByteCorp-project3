@@ -1,6 +1,6 @@
 import httpx
 from datetime import datetime
-from app.db import get_db, SessionLocal
+from app.db import get_db, get_db_context
 from app.models import BillingResult, Provider, ManualBillResponse
 from app.routes.auth import verify_token
 from fastapi import Depends, UploadFile, File, Form, APIRouter, HTTPException, BackgroundTasks
@@ -12,7 +12,7 @@ import json
 import tempfile
 from pathlib import Path
 import pandas as pd
-from app.rag_extraction import extract_bill_by_provider
+from app.extraction.extractor_router import extract_bill_by_provider
 from app.audit_logger import AuditLogger
 
 router = APIRouter()
@@ -213,20 +213,23 @@ def trigger_manual_bill_extraction_wrapper(billing_result_id: str, provider_name
     import asyncio
     
     # Get the billing result from database
-    db = SessionLocal()
     try:
-        billing_result = db.query(BillingResult).filter(BillingResult.id == billing_result_id).first()
-        if billing_result:
-            # Run the async function
-            asyncio.run(trigger_manual_bill_extraction(billing_result, provider_name))
+        with get_db_context() as db:
+            billing_result = db.query(BillingResult).filter(BillingResult.id == billing_result_id).first()
+            if billing_result:
+                # Run the async function
+                asyncio.run(trigger_manual_bill_extraction(billing_result, provider_name))
     except Exception as e:
         print(f"[ERROR] Background extraction failed: {e}")
         # Update status to error
-        if billing_result:
-            billing_result.status = "error"
-            db.commit()
-    finally:
-        db.close()
+        try:
+            with get_db_context() as db:
+                billing_result = db.query(BillingResult).filter(BillingResult.id == billing_result_id).first()
+                if billing_result:
+                    billing_result.status = "error"
+                    db.commit()
+        except:
+            pass
 
 
 async def trigger_manual_bill_extraction(billing_result, provider_name):
@@ -325,35 +328,32 @@ async def trigger_manual_bill_extraction(billing_result, provider_name):
                         print(f"[✅] JSON data uploaded to Azure: {uploaded_json_name}")
                         
                         # Update the BillingResult with the new blob URLs
-                        db = SessionLocal()
                         try:
-                            billing_record = db.query(BillingResult).filter(BillingResult.id == billing_result.id).first()
-                            if billing_record:
-                                billing_record.excel_blob_url = uploaded_excel_name
-                                billing_record.json_blob_url = uploaded_json_name
-                                billing_record.status = "completed"
-                                db.commit()
-                                print(f"[✅] Updated BillingResult with Excel and JSON blob URLs")
-                                # Log extraction success
-                                AuditLogger.agent_action(
-                                    entity_type="manual_bill",
-                                    action="extract_complete",
-                                    entity_id=billing_result.id,
-                                    entity_name=billing_result.original_filename,
-                                    status="success",
-                                    details={
-                                        "provider": provider_name,
-                                        "excel_url": uploaded_excel_name,
-                                        "json_url": uploaded_json_name
-                                    }
-                                )
-                            else:
-                                print(f"[❌] BillingResult not found for ID: {billing_result.id}")
+                            with get_db_context() as db:
+                                billing_record = db.query(BillingResult).filter(BillingResult.id == billing_result.id).first()
+                                if billing_record:
+                                    billing_record.excel_blob_url = uploaded_excel_name
+                                    billing_record.json_blob_url = uploaded_json_name
+                                    billing_record.status = "completed"
+                                    db.commit()
+                                    print(f"[✅] Updated BillingResult with Excel and JSON blob URLs")
+                                    # Log extraction success
+                                    AuditLogger.agent_action(
+                                        entity_type="manual_bill",
+                                        action="extract_complete",
+                                        entity_id=billing_result.id,
+                                        entity_name=billing_result.original_filename,
+                                        status="success",
+                                        details={
+                                            "provider": provider_name,
+                                            "excel_url": uploaded_excel_name,
+                                            "json_url": uploaded_json_name
+                                        }
+                                    )
+                                else:
+                                    print(f"[❌] BillingResult not found for ID: {billing_result.id}")
                         except Exception as db_error:
                             print(f"[❌] Failed to update BillingResult: {db_error}")
-                            db.rollback()
-                        finally:
-                            db.close()
                     else:
                         print(f"[❌] Failed to upload JSON data to Azure")
                 else:
@@ -383,16 +383,14 @@ async def trigger_manual_bill_extraction(billing_result, provider_name):
         )
 
         # Update billing result status to error
-        db = SessionLocal()
         try:
-            billing_record = db.query(BillingResult).filter(BillingResult.id == billing_result.id).first()
-            if billing_record:
-                billing_record.status = "error"
-                db.commit()
+            with get_db_context() as db:
+                billing_record = db.query(BillingResult).filter(BillingResult.id == billing_result.id).first()
+                if billing_record:
+                    billing_record.status = "error"
+                    db.commit()
         except:
             pass
-        finally:
-            db.close()
 
 
 def trigger_bulk_extraction_wrapper(billing_result_ids: List[str], provider_name: str):
@@ -452,24 +450,29 @@ def process_single_bill(billing_result_id: str, provider_name: str):
     """Process a single bill extraction (to be run in a thread)"""
     import asyncio
     
-    db = SessionLocal()
     try:
-        billing_result = db.query(BillingResult).filter(
-            BillingResult.id == billing_result_id
-        ).first()
-        
-        if billing_result:
-            print(f"🔄 [{billing_result.original_filename}] Starting extraction...")
-            asyncio.run(trigger_manual_bill_extraction(billing_result, provider_name))
-            print(f"✅ [{billing_result.original_filename}] Extraction complete")
-        else:
-            print(f"❌ Billing result {billing_result_id} not found")
+        with get_db_context() as db:
+            billing_result = db.query(BillingResult).filter(
+                BillingResult.id == billing_result_id
+            ).first()
             
+            if billing_result:
+                print(f"🔄 [{billing_result.original_filename}] Starting extraction...")
+                asyncio.run(trigger_manual_bill_extraction(billing_result, provider_name))
+                print(f"✅ [{billing_result.original_filename}] Extraction complete")
+            else:
+                print(f"❌ Billing result {billing_result_id} not found")
+                
     except Exception as e:
         print(f"❌ [{billing_result_id}] Extraction failed: {e}")
-        if billing_result:
-            billing_result.status = "error"
-            db.commit()
-    finally:
-        db.close()
+        try:
+            with get_db_context() as db:
+                billing_result = db.query(BillingResult).filter(
+                    BillingResult.id == billing_result_id
+                ).first()
+                if billing_result:
+                    billing_result.status = "error"
+                    db.commit()
+        except:
+            pass
 
