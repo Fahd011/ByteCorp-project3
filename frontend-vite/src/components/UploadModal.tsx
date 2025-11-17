@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import './UploadModal.css';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -56,33 +55,33 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload, up
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Upload PDF Bill</h2>
-          <button className="modal-close" onClick={handleClose} disabled={uploading}>
+    <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex justify-center items-center z-[1000]" onClick={handleClose}>
+      <div className="bg-white rounded-xl p-0 max-w-[500px] w-[90%] max-h-[90vh] overflow-y-auto shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center p-5 px-6 border-b border-slate-200">
+          <h2 className="m-0 text-xl font-semibold text-slate-800">Upload PDF Bill</h2>
+          <button className="bg-transparent border-0 text-2xl cursor-pointer text-slate-500 p-1 rounded hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleClose} disabled={uploading}>
             &times;
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="pdfFile">Select PDF File</label>
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="mb-5">
+            <label htmlFor="pdfFile" className="block mb-2 font-medium text-gray-700 text-sm">Select PDF File</label>
             <input
               type="file"
               id="pdfFile"
               accept=".pdf"
               onChange={handleFileChange}
-              className="form-input"
+              className="w-full p-3 border border-gray-300 rounded-lg text-sm transition-[border-color] duration-200 focus:outline-none focus:border-blue-500 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] file:py-2 file:px-4 file:border file:border-gray-300 file:rounded-md file:bg-gray-50 file:text-gray-700 file:text-sm file:cursor-pointer file:mr-4 file:hover:bg-gray-100"
               required
               disabled={uploading}
             />
 
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="year">Year</label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="mb-5">
+              <label htmlFor="year" className="block mb-2 font-medium text-gray-700 text-sm">Year</label>
               <input
                 type="number"
                 id="year"
@@ -90,19 +89,19 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload, up
                 onChange={(e) => setYear(e.target.value)}
                 min="1900"
                 max="2100"
-                className="form-input"
+                className="w-full py-3.5 px-4 border-2 border-gray-200 rounded-xl text-sm font-medium bg-white transition-all duration-300 shadow-sm text-gray-700 hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-[0_4px_12px_rgba(59,130,246,0.15),0_2px_4px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 focus:outline-none focus:border-blue-500 focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15),0_4px_12px_rgba(59,130,246,0.1)] focus:bg-blue-50/30 focus:-translate-y-0.5 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:opacity-70 disabled:border-gray-200 disabled:shadow-none disabled:translate-y-0"
                 required
                 disabled={uploading}
               />
             </div>
 
-            <div className="form-group">
-              <label htmlFor="month">Month</label>
+            <div className="mb-5">
+              <label htmlFor="month" className="block mb-2 font-medium text-gray-700 text-sm">Month</label>
               <select
                 id="month"
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
-                className="form-input"
+                className="w-full py-3.5 px-4 border-2 border-gray-200 rounded-xl text-sm font-medium bg-white appearance-none cursor-pointer transition-all duration-300 shadow-sm text-gray-700 hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-[0_4px_12px_rgba(59,130,246,0.15),0_2px_4px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 focus:outline-none focus:border-blue-500 focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15),0_4px_12px_rgba(59,130,246,0.1)] focus:bg-blue-50/30 focus:-translate-y-0.5 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:opacity-70 disabled:border-gray-200 disabled:shadow-none disabled:translate-y-0 [background-image:url('data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%236b7280%27%3e%3cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3e%3c/svg%3e')] [background-position:right_1rem_center] [background-repeat:no-repeat] [background-size:1.25em_1.25em]"
                 required
                 disabled={uploading}
               >
@@ -115,41 +114,19 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload, up
             </div>
           </div>
 
-          <div className="modal-actions">
+          <div className="flex justify-end gap-3 mt-6 pt-5 border-t border-slate-200">
             <button
               type="button"
               onClick={handleClose}
-              className="btn btn-secondary"
+              className="py-2.5 px-5 border-0 rounded-md text-sm font-medium cursor-pointer bg-gray-100 text-gray-700 transition-all duration-200 hover:bg-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
               disabled={uploading}
-              style={{
-                padding: '10px 20px',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                cursor: 'pointer',
-                backgroundColor: '#f3f4f6',
-                color: '#374151',
-                transition: 'all 0.2s'
-              }}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="btn btn-primary"
+              className="py-2.5 px-5 border-0 rounded-md text-sm font-medium cursor-pointer bg-blue-500 text-white transition-all duration-200 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
               disabled={!selectedFile || uploading}
-              style={{
-                padding: '10px 20px',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                cursor: 'pointer',
-                backgroundColor: '#3b82f6',
-                color: 'white',
-                transition: 'all 0.2s'
-              }}
             >
               {uploading ? 'Uploading...' : 'Upload PDF'}
             </button>

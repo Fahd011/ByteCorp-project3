@@ -10,7 +10,6 @@ import Navigation from "./components/Navigation";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import "./App.css";
 import BillingResults from "./pages/BillingResults";
 import ManualBillExtraction from "./pages/ManualBillExtraction";
 
@@ -20,16 +19,7 @@ const AppLayout: React.FC = () => {
   // Show loading screen while checking authentication
   if (loading) {
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-          fontSize: "1.2rem",
-          color: "#64748b",
-        }}
-      >
+      <div className="flex justify-center items-center h-screen text-xl text-slate-500">
         Loading...
       </div>
     );
@@ -51,9 +41,9 @@ const AppLayout: React.FC = () => {
   // If user is authenticated, show dashboard with navigation
   return (
     <Router>
-      <div className="app-container">
+      <div className="flex min-h-screen">
         <Navigation />
-        <main className="main-content">
+        <main className="flex-1 ml-[250px] p-8 bg-slate-50 min-h-screen">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route
