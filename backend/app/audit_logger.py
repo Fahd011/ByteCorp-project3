@@ -1,6 +1,6 @@
 """Audit logging utility for tracking important actions in the system."""
 
-from app.db import SessionLocal
+from app.db import get_db_context
 from app.models import AuditLog
 from typing import Optional, Dict, Any
 from datetime import datetime
@@ -112,53 +112,50 @@ class AuditLogger:
         Returns:
             ID of the created audit log entry, or None if logging failed
         """
-        db = SessionLocal()
         try:
-            # Create timestamp
-            timestamp = datetime.utcnow()
-            
-            # Generate human-readable message
-            message = format_audit_log_message(
-                entity_type=entity_type,
-                entity_name=entity_name,
-                entity_id=entity_id,
-                action=action,
-                status=status,
-                triggered_by=triggered_by,
-                details=details,
-                timestamp=timestamp
-            )
-            
-            audit_entry = AuditLog(
-                id=str(uuid.uuid4()),
-                entity_type=entity_type,
-                entity_id=entity_id,
-                entity_name=entity_name,
-                action=action,
-                status=status,
-                triggered_by=triggered_by,
-                timestamp=timestamp,
-                details=details,
-                message=message
-            )
-            
-            db.add(audit_entry)
-            db.commit()
-            
-            # Emoji for better console visibility
-            emoji = "👤" if triggered_by == "user" else "🤖"
-            status_emoji = "✅" if status == "success" else "❌" if status == "failure" else "⏳"
-            print(f"📝 {emoji} Audit: {entity_type}.{action} - {status_emoji} {status}")
-            
-            return audit_entry.id
+            with get_db_context() as db:
+                # Create timestamp
+                timestamp = datetime.utcnow()
+                
+                # Generate human-readable message
+                message = format_audit_log_message(
+                    entity_type=entity_type,
+                    entity_name=entity_name,
+                    entity_id=entity_id,
+                    action=action,
+                    status=status,
+                    triggered_by=triggered_by,
+                    details=details,
+                    timestamp=timestamp
+                )
+                
+                audit_entry = AuditLog(
+                    id=str(uuid.uuid4()),
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    entity_name=entity_name,
+                    action=action,
+                    status=status,
+                    triggered_by=triggered_by,
+                    timestamp=timestamp,
+                    details=details,
+                    message=message
+                )
+                
+                db.add(audit_entry)
+                db.commit()
+                
+                # Emoji for better console visibility
+                emoji = "👤" if triggered_by == "user" else "🤖"
+                status_emoji = "✅" if status == "success" else "❌" if status == "failure" else "⏳"
+                print(f"📝 {emoji} Audit: {entity_type}.{action} - {status_emoji} {status}")
+                
+                return audit_entry.id
             
         except Exception as e:
-            db.rollback()
             print(f"❌ Failed to create audit log: {e}")
             # Don't raise - audit logging shouldn't break the main flow
             return None
-        finally:
-            db.close()
     
     # Convenience methods for common patterns
     

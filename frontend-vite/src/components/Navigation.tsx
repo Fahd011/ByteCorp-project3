@@ -30,41 +30,47 @@ const Navigation: React.FC = () => {
   };
 
   return (
-    <nav className="nav">
-      <div className="nav-header">
-        <h1 className="nav-title">Sagiliti</h1>
+    <nav className="w-[250px] bg-slate-100 border-r border-slate-200 p-6 flex flex-col h-screen fixed left-0 top-0">
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-slate-800 m-0">Sagiliti</h1>
       </div>
 
-      <ul className="nav-menu">
-        <li className="nav-item">
+      <ul className="list-none p-0 m-0 flex-1">
+        <li className="mb-2">
           <Link
             to="/"
-            className={`nav-link ${location.pathname === "/" ? "active" : ""}`}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium no-underline ${
+              location.pathname === "/" 
+                ? "bg-blue-500 text-white" 
+                : "text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+            }`}
           >
-            <span className="nav-icon">🏠</span>
+            <span className="text-xl">🏠</span>
             Dashboard
           </Link>
         </li>
-        <li className="nav-item">
+        <li className="mb-2">
           <Link
             to="/manual-bills"
-            className={`nav-link ${
-              location.pathname === "/manual-bills" ? "active" : ""
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium no-underline ${
+              location.pathname === "/manual-bills"
+                ? "bg-blue-500 text-white"
+                : "text-slate-500 hover:bg-slate-200 hover:text-slate-800"
             }`}
           >
-            <span className="nav-icon">📄</span>
+            <span className="text-xl">📄</span>
             Manual Bill Extraction
           </Link>
         </li>
       </ul>
 
-      <div className="nav-footer">
-        <button onClick={handleDownloadLogs} className="nav-link">
-          <span className="nav-icon">📥</span>
+      <div>
+        <button onClick={handleDownloadLogs} className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-200 hover:text-slate-800 rounded-lg transition-all duration-200 font-medium no-underline w-full text-left bg-transparent border-0 cursor-pointer">
+          <span className="text-xl">📥</span>
           Download Logs
         </button>
-        <button onClick={handleLogout} className="nav-link">
-          <span className="nav-icon">🚪</span>
+        <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-200 hover:text-slate-800 rounded-lg transition-all duration-200 font-medium no-underline w-full text-left bg-transparent border-0 cursor-pointer">
+          <span className="text-xl">🚪</span>
           Logout
         </button>
       </div>

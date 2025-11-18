@@ -95,7 +95,8 @@ async def daily_agent_job():
     
     try:
         credentials = db.query(UserBillingCredential).filter(
-            UserBillingCredential.is_deleted == False
+            UserBillingCredential.is_deleted == False,
+            UserBillingCredential.is_active == True
             # UserBillingCredential.last_state.in_(["idle", "completed", "error"])
         ).all()
         
@@ -165,7 +166,8 @@ async def retry_agent_job():
     
     try:
         credentials = db.query(UserBillingCredential).filter(
-            UserBillingCredential.is_eligible_for_retry == True
+            UserBillingCredential.is_eligible_for_retry == True,
+            UserBillingCredential.is_active == True
             # UserBillingCredential.last_state.in_(["idle", "completed", "error"])
         ).all()
         
@@ -226,7 +228,7 @@ scheduler.add_job(
 # 🔹 Cron job
 scheduler.add_job(
     daily_agent_job,         
-    CronTrigger(hour=6, minute=10),  # will run at 06:30 UTC today
+    CronTrigger(hour=13, minute=41),  # will run at 06:30 UTC today
     id="daily_agent_job",    
     replace_existing=True        
 )

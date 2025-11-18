@@ -16,9 +16,9 @@ from azure_storage_service import azure_storage_service
 
 from config import config
 from app.models import BillingResult, UserBillingCredential
-from app.db import SessionLocal
-from app.prompts import get_provider_prompt
-from app.rag_extraction import extract_bill_by_provider
+from app.db import get_db_context
+from app.prompts.agent_prompts import get_provider_prompt
+from app.extraction.extractor_router import extract_bill_by_provider
 from app.audit_logger import AuditLogger
 
 
@@ -196,20 +196,17 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
             # Check if task failed based on done_output content and update credential error
             if result.done_output and any(keyword in result.done_output for keyword in ["Failed to log in", "Failed", "failed"]): # Removed extra unncessary keywords
                 try:
-                    db = SessionLocal()
-                    credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
-                    if credential:
-                        credential.last_error = result.done_output
-                        credential.last_state = "error"
-                        db.commit()
-                        print(f"[INFO] Updated credential {credential_id} with error: {result.done_output}")
-                    else:
-                        print(f"[WARNING] Credential {credential_id} not found")
-                    db.close()
+                    with get_db_context() as db:
+                        credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
+                        if credential:
+                            credential.last_error = result.done_output
+                            credential.last_state = "error"
+                            db.commit()
+                            print(f"[INFO] Updated credential {credential_id} with error: {result.done_output}")
+                        else:
+                            print(f"[WARNING] Credential {credential_id} not found")
                 except Exception as e:
                     print(f"[ERROR] Failed to update credential error: {e}")
-                    if 'db' in locals():
-                        db.close()
             else:
                 # Call handle_task_result with the same arguments as before
                 await handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id, provider_name)
@@ -278,39 +275,34 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id,
                                 print(f"[OK] Uploaded PDF to Azure Blob Name: {uploaded_blob_name}")
                                 # Insert BillingResult entry in DB
                                 try:
-                                    db = SessionLocal()
-                                    
-                                    billing_result = BillingResult(
-                                        user_billing_credential_id=credential_id,
-                                        azure_blob_url=uploaded_blob_name,
-                                        run_time=datetime.utcnow(),
-                                        status="success",
-                                        year=year,
-                                        month=month_name,
-                                        provider_name=provider_name
-                                    )
-                                    db.add(billing_result)
-                                    db.commit()
-                                    
-                                    # Reset is_eligible_for_retry to false on successful retry
-                                    credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
-                                    if credential:
-                                        credential.is_eligible_for_retry = False
-                                        credential.last_state = "completed"
-                                        credential.last_error = None  # Clear any previous error
+                                    with get_db_context() as db:
+                                        billing_result = BillingResult(
+                                            user_billing_credential_id=credential_id,
+                                            azure_blob_url=uploaded_blob_name,
+                                            run_time=datetime.utcnow(),
+                                            status="success",
+                                            year=year,
+                                            month=month_name,
+                                            provider_name=provider_name
+                                        )
+                                        db.add(billing_result)
                                         db.commit()
-                                        print(f"[INFO] Reset is_eligible_for_retry to false for credential {credential_id} after successful retry")
-                                    
-                                    # AUTOMATIC PDF EXTRACTION
-                                    print(f"[INFO] Triggering automatic PDF extraction for billing result {billing_result.id}")
-                                    await trigger_automatic_extraction(billing_result, email, provider_name)
-
-                                    db.close()
+                                        
+                                        # Reset is_eligible_for_retry to false on successful retry
+                                        credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
+                                        if credential:
+                                            credential.is_eligible_for_retry = False
+                                            credential.last_state = "completed"
+                                            credential.last_error = None  # Clear any previous error
+                                            db.commit()
+                                            print(f"[INFO] Reset is_eligible_for_retry to false for credential {credential_id} after successful retry")
+                                        
+                                        # AUTOMATIC PDF EXTRACTION
+                                        print(f"[INFO] Triggering automatic PDF extraction for billing result {billing_result.id}")
+                                        await trigger_automatic_extraction(billing_result, email, provider_name)
 
                                 except Exception as db_e:
                                     print(f"[ERROR] Failed to insert BillingResult: {db_e}")
-                                    if 'db' in locals():
-                                        db.close()
                             else:
                                 print(f"[ERROR] Upload to Azure failed for {blob_name}")
                         except Exception as e:
@@ -328,29 +320,26 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id,
         
         # Update is_eligible_for_retry to true when no output files found
         try:
-            db = SessionLocal()
-            credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
-            if credential and credential.is_eligible_for_retry == False:
-                credential.is_eligible_for_retry = True
-                credential.last_state = "retrying"
-                db.commit()
-                print(f"[INFO] Updated is_eligible_for_retry to true for credential {credential_id} and will be retried")
-            elif credential and credential.is_eligible_for_retry == True:
-                print(f"[RETRY FAILED] Credential 1{credential.is_eligible_for_retry} retried and failed again")
-                print(f"[RETRY FAILED] Credential 2{credential.last_state} retried and failed again")
-                print(f"[RETRY FAILED] Credential 3{credential.last_error} retried and failed again")
-                credential.is_eligible_for_retry = False
-                credential.last_state = "Failed"
-                credential.last_error = "Unable to download the bill"
-                db.commit()
-                print(f"[INFO] Credential {credential_id} retried and failed again")
-            else:
-                print(f"[WARNING] Credential {credential_id} not found")
-            db.close()
+            with get_db_context() as db:
+                credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
+                if credential and credential.is_eligible_for_retry == False:
+                    credential.is_eligible_for_retry = True
+                    credential.last_state = "retrying"
+                    db.commit()
+                    print(f"[INFO] Updated is_eligible_for_retry to true for credential {credential_id} and will be retried")
+                elif credential and credential.is_eligible_for_retry == True:
+                    print(f"[RETRY FAILED] Credential 1{credential.is_eligible_for_retry} retried and failed again")
+                    print(f"[RETRY FAILED] Credential 2{credential.last_state} retried and failed again")
+                    print(f"[RETRY FAILED] Credential 3{credential.last_error} retried and failed again")
+                    credential.is_eligible_for_retry = False
+                    credential.last_state = "Failed"
+                    credential.last_error = "Unable to download the bill"
+                    db.commit()
+                    print(f"[INFO] Credential {credential_id} retried and failed again")
+                else:
+                    print(f"[WARNING] Credential {credential_id} not found")
         except Exception as e:
             print(f"[ERROR] Failed to update is_eligible_for_retry: {e}")
-            if 'db' in locals():
-                db.close()
 
 
 async def trigger_automatic_extraction(billing_result, email, provider_name):
@@ -445,31 +434,28 @@ async def trigger_automatic_extraction(billing_result, email, provider_name):
                         print(f"[✅] JSON data uploaded to Azure: {uploaded_json_name}")
                         
                         # Update the BillingResult with the new blob URLs
-                        db = SessionLocal()
                         try:
-                            billing_record = db.query(BillingResult).filter(BillingResult.id == billing_result.id).first()
-                            if billing_record:
-                                billing_record.excel_blob_url = uploaded_excel_name
-                                billing_record.json_blob_url = uploaded_json_name
-                                db.commit()
-                                print(f"[✅] Updated BillingResult with Excel and JSON blob URLs")
-                                
-                                # Log extraction success
-                                AuditLogger.log_extraction_complete(
-                                    billing_result_id=billing_result.id,
-                                    provider_name=provider_name,
-                                    email=email,
-                                    success=True,
-                                    excel_url=uploaded_excel_name,
-                                    json_url=uploaded_json_name
-                                )
-                            else:
-                                print(f"[❌] BillingResult not found for ID: {billing_result.id}")
+                            with get_db_context() as db:
+                                billing_record = db.query(BillingResult).filter(BillingResult.id == billing_result.id).first()
+                                if billing_record:
+                                    billing_record.excel_blob_url = uploaded_excel_name
+                                    billing_record.json_blob_url = uploaded_json_name
+                                    db.commit()
+                                    print(f"[✅] Updated BillingResult with Excel and JSON blob URLs")
+                                    
+                                    # Log extraction success
+                                    AuditLogger.log_extraction_complete(
+                                        billing_result_id=billing_result.id,
+                                        provider_name=provider_name,
+                                        email=email,
+                                        success=True,
+                                        excel_url=uploaded_excel_name,
+                                        json_url=uploaded_json_name
+                                    )
+                                else:
+                                    print(f"[❌] BillingResult not found for ID: {billing_result.id}")
                         except Exception as db_error:
                             print(f"[❌] Failed to update BillingResult: {db_error}")
-                            db.rollback()
-                        finally:
-                            db.close()
                     else:
                         print(f"[❌] Failed to upload JSON data to Azure")
                 else:
