@@ -79,6 +79,7 @@ class UserBillingCredentialResponse(BaseModel):
     login_url: Optional[str]
     billing_url: Optional[str]
     billing_cycle_day: Optional[int]  # New field
+    is_active: bool
     is_deleted: bool
     last_state: str
     last_error: Optional[str]
@@ -149,6 +150,7 @@ class UserBillingCredential(Base):
     login_url = Column(String)  # Store login URL for each credential
     billing_url = Column(String)  # Store billing URL for each credential
     billing_cycle_day = Column(Integer, nullable=True)  # 👈 new field
+    is_active = Column(Boolean, default=True, nullable=False)
     is_deleted = Column(Boolean, default=False)
     last_state = Column(String, default="idle")  # idle, running, completed, error
     last_error = Column(String)
