@@ -8,23 +8,67 @@ import time
 import platform
 import gc
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from langchain_chroma import Chroma
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 
 from config import config
 
 
-def create_vector_store_from_pdf(pdf_bytes: bytes, temp_dir: str) -> Chroma:
+def table_to_markdown(table_data: List[List[str]]) -> str:
+    """
+    Converts a list-of-lists table into a clean Markdown table string.
+    Used for enhanced table extraction for providers with complex tables.
+    """
+    if not table_data or len(table_data) < 2:
+        return ""
+    
+    # Clean and flatten the data
+    cleaned_data = []
+    for row in table_data:
+        # Replace None with "-" for clarity
+        cleaned_row = [str(cell).strip() if cell else "-" for cell in row]
+        cleaned_data.append(cleaned_row)
+
+    # Calculate max width for each column (ensures proper alignment)
+    col_widths = [max(len(str(item)) for item in col) for col in zip(*cleaned_data)]
+
+    markdown_output = []
+    
+    # 1. Header Row
+    header = " | ".join(cleaned_data[0])
+    markdown_output.append(f"| {header} |")
+    
+    # 2. Separator Row
+    separator = " | ".join('-' * width for width in col_widths)
+    markdown_output.append(f"| {separator} |")
+    
+    # 3. Data Rows
+    for row in cleaned_data[1:]:
+        data_row = " | ".join(row)
+        markdown_output.append(f"| {data_row} |")
+        
+    return "\n".join(markdown_output)
+
+
+def create_vector_store_from_pdf(
+    pdf_bytes: bytes, 
+    temp_dir: str,
+    enhance_tables: bool = False,
+    table_pages: Optional[List[int]] = None
+) -> Chroma:
     """
     Create a Chroma vector store from PDF bytes.
     
     Args:
         pdf_bytes: The PDF content as bytes
         temp_dir: Temporary directory to store the PDF and Chroma DB
+        enhance_tables: If True, extract tables as clean markdown (for complex tables)
+        table_pages: List of page indices (0-based) to extract tables from
         
     Returns:
         Chroma vector store instance
@@ -39,6 +83,29 @@ def create_vector_store_from_pdf(pdf_bytes: bytes, temp_dir: str) -> Chroma:
     loader = PyPDFLoader(str(pdf_path))
     documents = loader.load()
     print(f"✅ Loaded {len(documents)} pages from PDF")
+    
+    # Enhanced table extraction (BEFORE chunking)
+    if enhance_tables and table_pages:
+        try:
+            import pdfplumber
+            print(f"🔄 Extracting tables from pages {table_pages} using PDFPlumber...")
+            with pdfplumber.open(pdf_path) as pdf:
+                for page_idx in table_pages:
+                    if page_idx < len(pdf.pages):
+                        page = pdf.pages[page_idx]
+                        tables = page.extract_tables()
+                        if tables:
+                            # Extract first table on the page
+                            markdown_table = table_to_markdown(tables[0])
+                            documents.append(Document(
+                                page_content=f"***CLEAN MARKDOWN TABLE (Page {page_idx + 1})***\n{markdown_table}",
+                                metadata={"source": "table_extract", "page": page_idx}
+                            ))
+                            print(f"✅ Extracted table from page {page_idx + 1}")
+        except ImportError:
+            print("⚠️ pdfplumber not installed, skipping table enhancement")
+        except Exception as e:
+            print(f"⚠️ Error extracting tables: {e}")
     
     # Split text into chunks
     text_splitter = RecursiveCharacterTextSplitter(

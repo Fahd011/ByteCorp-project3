@@ -21,14 +21,14 @@ PROVIDERS_DATA = [
             "wait_text": "Billing History"
         }
     },
-    # {
-    #     "name": "Green Mountain Power",
-    #     "login_url": "https://www.greenmountainenergy.com/en/customer-service-center/my-account",
-    #     "billing_url": "https://www.greenmountainenergy.com/account/billing",
-    #     "extras": {
-    #         "wait_text": "Billing & Payment Activity"
-    #     }
-    # },
+    {
+        "name": "Green Mountain Energy",
+        "login_url": "https://www.greenmountainenergy.com/en/customer-service-center/my-account",
+        "billing_url": "https://www.greenmountainenergy.com/account/billing",
+        "extras": {
+            "wait_text": "Billing & Payment Activity"
+        }
+    },
     {
         "name": "CenterPoint Energy",
         "login_url": "https://www.centerpointenergy.com/en-us/",

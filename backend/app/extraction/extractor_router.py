@@ -6,7 +6,7 @@ from typing import Dict, Any
 
 from app.extraction.xcel_extractor import extract_xcel_from_pdf_bytes
 from app.extraction.duke_extractor import extract_duke_from_pdf_bytes
-# from app.extraction.green_mountain_extractor import extract_green_mountain_from_pdf_bytes
+from app.extraction.green_mountain_extractor import extract_green_mountain_from_pdf_bytes
 from app.extraction.centerpoint_extractor import extract_centerpoint_from_pdf_bytes
 
 
@@ -32,9 +32,9 @@ async def extract_bill_by_provider(provider_name: str, pdf_content: bytes) -> Di
     elif "Duke Energy" in provider_name:
         print("🔄 Using RAG extraction for Duke Energy (meter-based schema)")
         return await extract_duke_from_pdf_bytes(pdf_content)
-    # elif "Green Mountain Power" in provider_name:
-    #     print("🔄 Using RAG extraction for Green Mountain Power (premise-based schema)")
-    #     return await extract_green_mountain_from_pdf_bytes(pdf_content)
+    elif "Green Mountain Energy" in provider_name:
+        print("🔄 Using RAG extraction for Green Mountain Energy (premise-based schema)")
+        return await extract_green_mountain_from_pdf_bytes(pdf_content)
     elif "CenterPoint Energy" in provider_name:
         print("🔄 Using RAG extraction for CenterPoint Energy (meter-based schema)")
         return await extract_centerpoint_from_pdf_bytes(pdf_content)
