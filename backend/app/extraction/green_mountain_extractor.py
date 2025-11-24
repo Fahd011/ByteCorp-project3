@@ -2,6 +2,7 @@
 Green Mountain Energy bill extraction using RAG
 """
 
+import logging
 import tempfile
 from typing import Dict, Any, Optional
 
@@ -12,6 +13,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from config import config
 from app.extraction.vector_store import create_vector_store_from_pdf, cleanup_vector_store
 from app.prompts.extraction_prompts import GREEN_MOUNTAIN_SYSTEM_PROMPT, GREEN_MOUNTAIN_EXTRACTION_PROMPT
+
+logger = logging.getLogger(__name__)
 
 
 def extract_green_mountain_bill_data(vector_store: Chroma) -> Optional[Dict[str, Any]]:
@@ -31,7 +34,7 @@ def extract_green_mountain_bill_data(vector_store: Chroma) -> Optional[Dict[str,
     # Use all chunks for comprehensive context (important for multi-meter bills)
     all_chunks = vector_store.get(include=["documents"])
     context_text = "\n\n---\n\n".join([doc for doc in all_chunks['documents']])
-    print(f"ℹ️  Context created with {len(all_chunks['documents'])} chunks.")
+    logger.info(f"Context created with {len(all_chunks['documents'])} chunks.")
     
     # Use Azure OpenAI with structured output
     llm = AzureChatOpenAI(
@@ -47,13 +50,11 @@ def extract_green_mountain_bill_data(vector_store: Chroma) -> Optional[Dict[str,
     
     try:
         result = chain.invoke({"context": context_text})
-        print("✅ Green Mountain Energy bill data extracted successfully")
+        logger.info("Green Mountain Energy bill data extracted successfully")
         return result.model_dump()
         
-    except Exception as e:
-        print(f"❌ Error extracting Green Mountain Energy bill data: {e}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error extracting Green Mountain Energy bill data")
         return None
 
 
@@ -71,10 +72,10 @@ async def extract_green_mountain_from_pdf_bytes(pdf_bytes: bytes) -> Dict[str, A
     vector_store = None
     
     try:
-        print(f"\n{'='*60}")
-        print(f"Starting RAG extraction for Green Mountain Energy bill")
-        print(f"Temporary directory: {temp_dir}")
-        print(f"{'='*60}\n")
+        logger.info("="*60)
+        logger.info("Starting RAG extraction for Green Mountain Energy bill")
+        logger.info(f"Temporary directory: {temp_dir}")
+        logger.info("="*60)
         
         # Create vector store from PDF with table enhancement for Page 2
         vector_store = create_vector_store_from_pdf(
@@ -85,23 +86,21 @@ async def extract_green_mountain_from_pdf_bytes(pdf_bytes: bytes) -> Dict[str, A
         )
         
         # Single-pass extraction using Green Mountain schema
-        print("\n--- Extracting Green Mountain Energy Bill Data ---")
+        logger.info("Extracting Green Mountain Energy Bill Data")
         green_mountain_bill_data = extract_green_mountain_bill_data(vector_store)
         
         if not green_mountain_bill_data:
-            print("❌ Critical error: Failed to extract Green Mountain Energy bill data.")
+            logger.error("Critical error: Failed to extract Green Mountain Energy bill data.")
             return {}
         
-        print(f"\n{'='*60}")
-        print(f"✅ Green Mountain Energy RAG extraction completed successfully")
-        print(f"{'='*60}\n")
+        logger.info("="*60)
+        logger.info("Green Mountain Energy RAG extraction completed successfully")
+        logger.info("="*60)
         
         return green_mountain_bill_data
         
-    except Exception as e:
-        print(f"\n❌ Error during Green Mountain Energy RAG extraction: {e}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error during Green Mountain Energy RAG extraction")
         return {}
         
     finally:

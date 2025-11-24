@@ -40,7 +40,7 @@ def table_to_markdown(table_data: List[List[str]]) -> str:
     markdown_output = []
     
     # 1. Header Row
-    header = " | ".join(cleaned_data[0])
+    header = " | ".join(cell.ljust(col_widths[i]) for i, cell in enumerate(cleaned_data[0]))
     markdown_output.append(f"| {header} |")
     
     # 2. Separator Row
@@ -49,7 +49,7 @@ def table_to_markdown(table_data: List[List[str]]) -> str:
     
     # 3. Data Rows
     for row in cleaned_data[1:]:
-        data_row = " | ".join(row)
+        data_row = " | ".join(cell.ljust(col_widths[i]) for i, cell in enumerate(row))
         markdown_output.append(f"| {data_row} |")
         
     return "\n".join(markdown_output)

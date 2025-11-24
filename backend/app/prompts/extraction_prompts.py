@@ -151,4 +151,4 @@ Formatting Rules:
 - For chargeType, use: "DEBIT" or "CREDIT"
 """
 
-GREEN_MOUNTAIN_EXTRACTION_PROMPT = "Extract all data from this Green Mountain Power utility bill:\n\n{context}"
+GREEN_MOUNTAIN_EXTRACTION_PROMPT = "Extract all data from this Green Mountain Energy utility bill:\n\n{context}"

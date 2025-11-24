@@ -2,6 +2,7 @@
 CenterPoint Energy bill extraction using RAG
 """
 
+import logging
 import tempfile
 from typing import Dict, Any, Optional
 
@@ -12,6 +13,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from config import config
 from app.extraction.vector_store import create_vector_store_from_pdf, cleanup_vector_store
 from app.prompts.extraction_prompts import CENTERPOINT_SYSTEM_PROMPT, CENTERPOINT_EXTRACTION_PROMPT
+
+logger = logging.getLogger(__name__)
 
 
 def extract_centerpoint_bill_data(vector_store: Chroma) -> Optional[Dict[str, Any]]:
@@ -67,13 +70,11 @@ def extract_centerpoint_bill_data(vector_store: Chroma) -> Optional[Dict[str, An
     
     try:
         result = chain.invoke({"context": context})
-        print("✅ CenterPoint Energy bill data extracted successfully")
+        logger.info("CenterPoint Energy bill data extracted successfully")
         return result.model_dump()
         
-    except Exception as e:
-        print(f"❌ Error extracting CenterPoint Energy bill data: {e}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error extracting CenterPoint Energy bill data")
         return None
 
 
@@ -91,32 +92,30 @@ async def extract_centerpoint_from_pdf_bytes(pdf_bytes: bytes) -> Dict[str, Any]
     vector_store = None
     
     try:
-        print(f"\n{'='*60}")
-        print(f"Starting RAG extraction for CenterPoint Energy bill")
-        print(f"Temporary directory: {temp_dir}")
-        print(f"{'='*60}\n")
+        logger.info("="*60)
+        logger.info("Starting RAG extraction for CenterPoint Energy bill")
+        logger.info(f"Temporary directory: {temp_dir}")
+        logger.info("="*60)
         
         # Create vector store from PDF
         vector_store = create_vector_store_from_pdf(pdf_bytes, temp_dir)
         
         # Single-pass extraction using CenterPoint Energy schema
-        print("\n--- Extracting CenterPoint Energy Bill Data ---")
+        logger.info("Extracting CenterPoint Energy Bill Data")
         centerpoint_bill_data = extract_centerpoint_bill_data(vector_store)
         
         if not centerpoint_bill_data:
-            print("❌ Critical error: Failed to extract CenterPoint Energy bill data.")
+            logger.error("Critical error: Failed to extract CenterPoint Energy bill data.")
             return {}
         
-        print(f"\n{'='*60}")
-        print(f"✅ CenterPoint Energy RAG extraction completed successfully")
-        print(f"{'='*60}\n")
+        logger.info("="*60)
+        logger.info("CenterPoint Energy RAG extraction completed successfully")
+        logger.info("="*60)
         
         return centerpoint_bill_data
         
-    except Exception as e:
-        print(f"\n❌ Error during CenterPoint Energy RAG extraction: {e}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error during CenterPoint Energy RAG extraction")
         return {}
         
     finally:
