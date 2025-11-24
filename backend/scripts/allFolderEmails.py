@@ -1,165 +1,191 @@
+
 import requests
-import json
 import sys
 from time import sleep
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
-# --- 1. CONFIGURATION ---
-# Use the credentials that successfully obtained the token
-TENANT_ID = os.getenv("TENANT_ID")
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 
-# GUID of the Primary Mailbox (billing@sagility.com)
-TARGET_MAILBOX_GUID = os.getenv("TARGET_MAILBOX_GUID")
-# TARGET_MAILBOX_GUID = "billing@sagiliti.com"
-# TARGET_MAILBOX_GUID = "c1aeadae-eda7-4a1e-bd60-f8997d3b2c47"    # GUID for billing@jitservicesinc.com
-TARGET_MAILBOX_UPN = "billing@sagility.com" # For display
-
-# API Endpoints
-TOKEN_URL = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
-GRAPH_API_URL = "https://graph.microsoft.com/v1.0"
-SCOPE = "https://graph.microsoft.com/.default"
-
-# --- 2. AUTHENTICATION ---
-
-def get_access_token():
-    """Retrieves an access token using the Client Credentials Flow."""
-    print("--- 1. Requesting Access Token ---")
-    data = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "scope": SCOPE,
-        "grant_type": "client_credentials"
-    }
-    try:
-        response = requests.post(TOKEN_URL, data=data)
-        response.raise_for_status()
-        print("Successfully retrieved access token.")
-        return response.json()["access_token"]
-    except requests.exceptions.RequestException as e:
-        print(f"ERROR: Could not retrieve token. Check credentials and tenant ID. {e}")
-        sys.exit(1)
-
-# --- 3. FOLDER LOOKUP (Step 1) ---
-
-def get_child_folder_id(token, folder_name):
-    """
-    Finds the unique ID (FolderID) for a child folder by its display name.
-    """
-    print(f"\n--- 2. Searching for folder '{folder_name}' ---")
-
-    # API call to get all child folders of the Inbox, selecting only the name and ID
-    folder_url = (
-        f"{GRAPH_API_URL}/users/{TARGET_MAILBOX_GUID}/mailFolders/Inbox/childFolders"
-        f"?$select=displayName,id"
-    )
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
-    try:
-        response = requests.get(folder_url, headers=headers)
-        response.raise_for_status()
-        
-        folders = response.json().get("value", [])
-        
-        for folder in folders:
-            if folder.get("displayName") == folder_name:
-                folder_id = folder.get("id")
-                print(f"Found folder '{folder_name}'. ID: {folder_id}")
-                return folder_id
-        
-        print(f"ERROR: Folder '{folder_name}' not found in the Inbox children.")
-        return None
-
-    except requests.exceptions.RequestException as e:
-        print(f"ERROR during folder lookup: {e}")
-        return None
-
-# --- 4. EMAIL RETRIEVAL (Step 2 - with Pagination) ---
-
-def get_all_emails_from_folder(token, folder_id, folder_name):
-    """
-    Retrieves ALL emails from the specified folder using pagination.
-    """
-    print(f"\n--- 3. Fetching all messages from '{folder_name}' ---")
+class GraphAPIEmailClient:
+    """Client for accessing Microsoft Graph API to retrieve emails from Outlook mailboxes."""
     
-    # Initial URL for the first page (using $top=50 for larger batches)
-    # MODIFIED: Added 'body' to the $select query to retrieve the full message content
-    initial_url = (
-        f"{GRAPH_API_URL}/users/{TARGET_MAILBOX_GUID}/mailFolders/{folder_id}/messages"
-        f"?$top=50&$select=subject,sender,receivedDateTime,bodyPreview,body"
-    )
+    def __init__(self, tenant_id=None, client_id=None, client_secret=None, mailbox_guid=None):
+        """
+        Initialize the Outlook Mailbox Client.
+        
+        Args:
+            tenant_id: Azure AD tenant ID (defaults to env var)
+            client_id: Azure AD application client ID (defaults to env var)
+            client_secret: Azure AD application client secret (defaults to env var)
+            mailbox_guid: Target mailbox GUID or UPN (defaults to env var)
+        """
+        load_dotenv()
+        
+        self.tenant_id = tenant_id or os.getenv("TENANT_ID")
+        self.client_id = client_id or os.getenv("CLIENT_ID")
+        self.client_secret = client_secret or os.getenv("CLIENT_SECRET")
+        self.mailbox_guid = mailbox_guid or os.getenv("TARGET_MAILBOX_GUID")
+        
+        self.token_url = f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token"
+        self.graph_api_url = "https://graph.microsoft.com/v1.0"
+        self.scope = "https://graph.microsoft.com/.default"
+        
+        self.access_token = None
     
-    current_url = initial_url
-    all_emails = []
-    page_count = 0
+    def get_access_token(self):
+        """Retrieves an access token using the Client Credentials Flow."""
+        print("--- Requesting Access Token ---")
+        data = {
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "scope": self.scope,
+            "grant_type": "client_credentials"
+        }
+        try:
+            response = requests.post(self.token_url, data=data)
+            response.raise_for_status()
+            self.access_token = response.json()["access_token"]
+            print("Successfully retrieved access token.")
+            return self.access_token
+        except requests.exceptions.RequestException as e:
+            print(f"ERROR: Could not retrieve token. Check credentials and tenant ID. {e}")
+            raise
     
-    headers = {"Authorization": f"Bearer {token}",
-        "Prefer": 'outlook.body-content-type="text"'  # <-- This is the fix}
-    }
-
-    while current_url:
-        page_count += 1
-        print(f"  Fetching page {page_count}...")
+    def get_child_folder_id(self, folder_name):
+        """
+        Finds the unique ID (FolderID) for a child folder by its display name.
+        
+        Args:
+            folder_name: Name of the folder to search for
+            
+        Returns:
+            Folder ID if found, None otherwise
+        """
+        if not self.access_token:
+            self.get_access_token()
+        
+        print(f"\n--- Searching for folder '{folder_name}' ---")
+        
+        folder_url = (
+            f"{self.graph_api_url}/users/{self.mailbox_guid}/mailFolders/Inbox/childFolders"
+            f"?$select=displayName,id"
+        )
+        headers = {"Authorization": f"Bearer {self.access_token}"}
         
         try:
-            response = requests.get(current_url, headers=headers)
+            response = requests.get(folder_url, headers=headers)
             response.raise_for_status()
             
-            messages_result = response.json()
-            emails_in_page = messages_result.get('value', [])
-            all_emails.extend(emails_in_page)
+            folders = response.json().get("value", [])
             
-            # Get the link to the next page for pagination
-            current_url = messages_result.get('@odata.nextLink')
-
-            # Small delay to prevent hitting rate limits during heavy pagination
-            if current_url:
-                sleep(0.3) 
-
+            for folder in folders:
+                if folder.get("displayName") == folder_name:
+                    folder_id = folder.get("id")
+                    print(f"Found folder '{folder_name}'. ID: {folder_id}")
+                    return folder_id
+            
+            print(f"ERROR: Folder '{folder_name}' not found in the Inbox children.")
+            return None
+        
         except requests.exceptions.RequestException as e:
-            print(f"ERROR during email retrieval: {e}")
-            return []
+            print(f"ERROR during folder lookup: {e}")
+            return None
+    
+    def get_all_emails_from_folder(self, folder_id, folder_name):
+        """
+        Retrieves ALL emails from the specified folder using pagination.
+        
+        Args:
+            folder_id: The unique ID of the folder
+            folder_name: Display name of the folder (for logging)
             
-    return all_emails
+        Returns:
+            List of email messages
+        """
+        if not self.access_token:
+            self.get_access_token()
+        
+        print(f"\n--- Fetching all messages from '{folder_name}' ---")
+        
+        initial_url = (
+            f"{self.graph_api_url}/users/{self.mailbox_guid}/mailFolders/{folder_id}/messages"
+            f"?$top=50&$select=subject,sender,receivedDateTime,bodyPreview,body"
+        )
+        
+        current_url = initial_url
+        all_emails = []
+        page_count = 0
+        
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Prefer": 'outlook.body-content-type="text"'
+        }
+        
+        while current_url:
+            page_count += 1
+            print(f"  Fetching page {page_count}...")
+            
+            try:
+                response = requests.get(current_url, headers=headers)
+                response.raise_for_status()
+                
+                messages_result = response.json()
+                emails_in_page = messages_result.get('value', [])
+                all_emails.extend(emails_in_page)
+                
+                current_url = messages_result.get('@odata.nextLink')
+                
+                if current_url:
+                    sleep(0.3)
+            
+            except requests.exceptions.RequestException as e:
+                print(f"ERROR during email retrieval: {e}")
+                return []
+        
+        return all_emails
+    
+    def get_emails_by_folder_name(self, folder_name):
+        """
+        Convenience method to get all emails from a folder by name.
+        
+        Args:
+            folder_name: Name of the folder to retrieve emails from
+            
+        Returns:
+            List of email messages
+        """
+        folder_id = self.get_child_folder_id(folder_name)
+        if not folder_id:
+            return []
+        
+        return self.get_all_emails_from_folder(folder_id, folder_name)
 
-# --- 5. MAIN EXECUTION ---
-
-if __name__ == "__main__":
+def main():
+    """Main execution function."""
     # Check for necessary imports
     try:
         import requests
     except ImportError:
         print("The 'requests' library is required. Install it using: pip install requests")
         sys.exit(1)
-
+    
     # Check for folder name argument, otherwise default to Ecolab
     if len(sys.argv) < 2:
         print("No folder name provided via command line.")
         print("Defaulting to search for folder: 'Ecolab'")
-        FOLDER_NAME = "Ecolab"
+        folder_name = "Ecolab"
     else:
-        FOLDER_NAME = sys.argv[1]
-
-    # 1. Get Access Token
-    token = get_access_token()
-
-    # 2. Get Folder ID
-    folder_id = get_child_folder_id(token, FOLDER_NAME)
+        folder_name = sys.argv[1]
     
-    if not folder_id:
-        sys.exit(1)
-
-    # 3. Get All Emails from Folder
-    emails = get_all_emails_from_folder(token, folder_id, FOLDER_NAME)
+    # Initialize the client
+    client = GraphAPIEmailClient()
     
-    # 4. Output Results
+    # Get emails from the specified folder
+    emails = client.get_emails_by_folder_name(folder_name)
+    
+    # Output Results
     print("\n" + "=" * 80)
-    print(f"TOTAL EMAILS RETRIEVED from '{FOLDER_NAME}' ({TARGET_MAILBOX_UPN}): {len(emails)}")
+    print(f"TOTAL EMAILS RETRIEVED from '{folder_name}': {len(emails)}")
     print("=" * 80)
     
     if emails:
@@ -171,10 +197,13 @@ if __name__ == "__main__":
             print("  Subject:", mail.get("subject", "N/A"))
             print("  Received:", mail.get("receivedDateTime", "N/A"))
             
-            # NEW LOGIC: Print the entire message body content
             body_dict = mail.get("body", {})
             full_body = body_dict.get("content", "N/A")
             
             print("  Full Message Body:")
             print(full_body)
             print("-" * 55)
+
+
+if __name__ == "__main__":
+    main()
