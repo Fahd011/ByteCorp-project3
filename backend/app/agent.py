@@ -1,7 +1,6 @@
 import os
 import asyncio
 import requests
-import httpx
 import calendar
 import json
 import time
@@ -20,6 +19,7 @@ from app.db import get_db_context
 from app.prompts.agent_prompts import get_provider_prompt
 from app.extraction.extractor_router import extract_bill_by_provider
 from app.audit_logger import AuditLogger
+from scripts.graphapi import GraphAPIEmailClient
 
 
 # ---------------------------------------------------------------------------
@@ -27,61 +27,217 @@ from app.audit_logger import AuditLogger
 # ---------------------------------------------------------------------------
 DOWNLOAD_DIR = os.path.expanduser("~/duke_bills")  # ~/duke_bills on any OS
 API_KEY = config.BROWSER_USE_API_KEY
-BASE_URL = 'https://api.browser-use.com/api/v1'
-HEADERS = {'Authorization': f'Bearer {API_KEY}'}
+BASE_URL = 'https://api.browser-use.com/api/v2'
 
 # ---------------------------------------------------------------------------
-# BROWSER USE CLOUD API FUNCTIONS -------------------------------------------
+# BROWSER USE CLOUD API V2 FUNCTIONS ----------------------------------------
 # ---------------------------------------------------------------------------
-def create_task(instructions: str):
-    """Create a new browser automation task"""
-    response = requests.post(f'{BASE_URL}/run-task', headers=HEADERS, json={'task': instructions})
-    response.raise_for_status()
-    return response.json()['id']
+def create_persistent_session(start_url: str, proxy_country_code: str = None, max_retries: int = 3):
+    """Create a new persistent browser session (v2 API) with retry logic"""
+    session_url = f"{BASE_URL}/sessions"
+    headers = {
+        "X-Browser-Use-API-Key": API_KEY,
+        "Content-Type": "application/json"
+    }
+    
+    payload = {"startUrl": start_url}
+    if proxy_country_code:
+        payload["proxyCountryCode"] = proxy_country_code
+        print(f"[INFO] Creating session with {proxy_country_code} proxy")
+    
+    # Retry logic with exponential backoff
+    for attempt in range(max_retries):
+        try:
+            print(f"[INFO] Attempting to create session (attempt {attempt + 1}/{max_retries})...")
+            # Add timeout: 60 seconds for connection, 120 seconds for read
+            response = requests.post(
+                session_url, 
+                headers=headers, 
+                json=payload,
+                timeout=(60, 120)  # (connect timeout, read timeout)
+            )
+            response.raise_for_status()
+            session_data = response.json()
+            session_id = session_data.get("id")
+            live_url = session_data.get("liveUrl")
+            
+            if session_id:
+                print(f"[INFO] Session created (ID: {session_id})")
+                if live_url:
+                    print(f"[INFO] Live view: {live_url}")
+                return session_id, live_url
+            else:
+                print("[ERROR] Failed to create session - no session ID in response")
+                return None, None
+                
+        except requests.exceptions.Timeout:
+            wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+            if attempt < max_retries - 1:
+                print(f"[WARNING] Request timed out. Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                print("[ERROR] Request timed out after all retries")
+                return None, None
+        except requests.exceptions.HTTPError as http_err:
+            # Don't retry on 4xx errors (client errors)
+            if http_err.response.status_code < 500:
+                print(f"[ERROR] HTTP error creating session: {http_err}")
+                print(f"Response: {http_err.response.text}")
+                return None, None
+            # Retry on 5xx errors (server errors)
+            wait_time = 2 ** attempt
+            if attempt < max_retries - 1:
+                print(f"[WARNING] Server error ({http_err.response.status_code}). Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                print(f"[ERROR] HTTP error creating session after retries: {http_err}")
+                print(f"Response: {http_err.response.text}")
+                return None, None
+        except Exception as err:
+            wait_time = 2 ** attempt
+            if attempt < max_retries - 1:
+                print(f"[WARNING] Error creating session: {err}. Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                print(f"[ERROR] Error creating session after retries: {err}")
+                return None, None
+    
+    return None, None
 
-def get_task_status(task_id: str):
-    """Get current task status"""
-    response = requests.get(f'{BASE_URL}/task/{task_id}/status', headers=HEADERS)
-    response.raise_for_status()
-    return response.json()
+def create_task_in_session(task_prompt: str, session_id: str, secrets: dict = None):
+    """Create a new task inside an existing session (v2 API)"""
+    task_url = f"{BASE_URL}/tasks"
+    headers = {
+        "X-Browser-Use-API-Key": API_KEY,
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "task": task_prompt,
+        "sessionId": session_id,
+        "secrets": secrets or {}
+    }
+    
+    try:
+        response = requests.post(task_url, headers=headers, json=payload)
+        response.raise_for_status()
+        task_data = response.json()
+        task_id = task_data.get("id")
+        
+        if task_id:
+            print(f"[INFO] Task created (ID: {task_id})")
+            return task_id
+        else:
+            print("[ERROR] Failed to create task")
+            return None
+            
+    except requests.exceptions.HTTPError as http_err:
+        print(f"[ERROR] HTTP error creating task: {http_err}")
+        print(f"Response: {http_err.response.text}")
+        return None
+    except Exception as err:
+        print(f"[ERROR] Error creating task: {err}")
+        return None
 
 def get_task_details(task_id: str):
-    """Get full task details including output"""
-    response = requests.get(f'{BASE_URL}/task/{task_id}', headers=HEADERS)
-    response.raise_for_status()
-    return response.json()
-
-def wait_for_completion(task_id: str, poll_interval: int = 2):
-    """Poll task status until completion with real-time step monitoring"""
-    count = 0
-    unique_steps = []
+    """Get full task details including output (v2 API)"""
+    task_url = f"{BASE_URL}/tasks/{task_id}"
+    headers = {"X-Browser-Use-API-Key": API_KEY}
     
+    try:
+        response = requests.get(task_url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"[ERROR] Error getting task details: {e}")
+        return None
+
+def wait_for_task_completion(task_id: str, poll_interval: int = 3):
+    """Poll task status until completion with real-time step monitoring (v2 API)"""
     print(f"[INFO] Monitoring task {task_id}...")
+    
+    unique_steps = []
     
     while True:
         try:
             details = get_task_details(task_id)
-            new_steps = details.get('steps', [])
+            if not details:
+                print("[ERROR] Failed to get task details")
+                return None
             
-            # Print only new steps that haven't been seen before
+            # Monitor and print new steps
+            new_steps = details.get('steps', [])
             if new_steps != unique_steps:
                 for step in new_steps:
                     if step not in unique_steps:
                         print(f"[STEP] {json.dumps(step, indent=2)}")
                 unique_steps = new_steps
             
-            count += 1
             status = details.get('status', 'unknown')
             
-            if status in ['finished', 'failed', 'stopped']:
-                print(f"[INFO] Task completed with status: {status}")
+            if status == 'finished':
+                print(f"[INFO] Task finished successfully")
                 return details
+            elif status in ['failed', 'stopped']:
+                print(f"[ERROR] Task {status}")
+                return details
+            # elif status in ['created', 'started', 'paused']:
+            #     # Only print status if no new steps (to avoid spam)
+            #     if new_steps == unique_steps:
+            #         print(f"[INFO] Task status: {status}...")
+            #     time.sleep(poll_interval)
+            # else:
+            #     print(f"[WARNING] Unknown task status: {status}")
+            #     time.sleep(poll_interval)
                 
-            time.sleep(poll_interval)
-            
         except Exception as e:
             print(f"[ERROR] Error monitoring task: {e}")
             time.sleep(poll_interval)
+def get_email_otp_for_duke(user_email: str, max_wait_seconds: int = 90, check_interval: int = 5):
+    """
+    Fetch OTP code from email for Duke Energy 2FA.
+    Polls email inbox until OTP is found or timeout.
+    
+    Args:
+        user_email: User's email address (used for logging only)
+        max_wait_seconds: Maximum time to wait for OTP email
+        check_interval: How often to check for new emails (seconds)
+        
+    Returns:
+        OTP code as string if found, None otherwise
+    """
+    print(f"[INFO] Waiting for Duke Energy OTP email...")
+    print(f"[INFO] Filtering by sender: no-reply@verify.dukeenergy.com")
+    
+    start_time = time.time()
+    email_client = GraphAPIEmailClient()
+    
+    while time.time() - start_time < max_wait_seconds:
+        try:
+            # Get OTP from latest emails
+            otp, subject, sender = email_client.get_latest_otp_from_inbox(
+                sender_filter="no-reply@verify.dukeenergy.com",
+                recipient_email=user_email,
+                max_emails=5
+            )
+            
+            if otp:
+                print(f"[SUCCESS] Found OTP code: {otp}")
+                print(f"[INFO] From: {sender}")
+                print(f"[INFO] Subject: {subject}")
+                return otp
+            
+            # No OTP found yet, wait and retry
+            elapsed = int(time.time() - start_time)
+            print(f"[INFO] Waiting for OTP email... ({elapsed}/{max_wait_seconds}s)")
+            time.sleep(check_interval)
+            
+        except Exception as e:
+            print(f"[ERROR] Error fetching email OTP: {e}")
+            time.sleep(check_interval)
+    
+    print("[WARNING] Timeout waiting for OTP email")
+    return None
 
 # ---------------------------------------------------------------------------
 # MOCK RESULT OBJECT CLASS --------------------------------------------------
@@ -109,10 +265,13 @@ class MockClient:
     class tasks:
         @staticmethod
         async def get_output_file(file_id, task_id):
-            """Get download URL for output file"""
+            """Get download URL for output file (v2 API)"""
+            headers = {"X-Browser-Use-API-Key": API_KEY}
+            
+            # Use correct v2 endpoint: /files/tasks/{task_id}/output-files/{file_id}
             response = requests.get(
-                f"{BASE_URL}/task/{task_id}/output-file/{file_id}", 
-                headers=HEADERS
+                f"{BASE_URL}/files/tasks/{task_id}/output-files/{file_id}",
+                headers=headers
             )
             response.raise_for_status()
             file_data = response.json()
@@ -121,7 +280,9 @@ class MockClient:
                 def __init__(self, download_url):
                     self.download_url = download_url
             
-            return MockFileResponse(file_data.get('download_url'))
+            # v2 API might return 'url' or 'downloadUrl' or 'download_url'
+            download_url = file_data.get('url') or file_data.get('downloadUrl') or file_data.get('download_url')
+            return MockFileResponse(download_url)
 
 # ---------------------------------------------------------------------------
 # AGENT FUNCTION ------------------------------------------------------------
@@ -129,6 +290,8 @@ class MockClient:
 def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_url: str, provider_name: str):
     """
     Runs the agent for a single user's credentials.
+    For Duke Energy: 3-task flow with 2FA (login -> OTP -> download)
+    For other providers: Single-task flow (no 2FA)
     Designed to be called in a separate process (multiprocessing).
     """
     async def _run():
@@ -138,38 +301,124 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         email = user_cred.get("username")
         password = user_cred.get("password")
         credential_id = user_cred.get("credential_id")
+        
+        # Normalize provider name to check if Duke Energy
+        is_duke = "duke" in provider_name.lower()
 
-        # Create the task instructions using provider-specific template
-        task_instructions = get_provider_prompt(provider_name)
-        task_instructions = task_instructions.format(
-            signin_url=signin_url,
-            email=email,
-            password=password,
-            billing_history_url=billing_history_url
-        )
-
-        print("[INFO] Starting remote browser task …")
+        print(f"[INFO] Starting remote browser task for {provider_name}...")
         
         try:
-            # Create the task
-            task_id = create_task(task_instructions)
-            print(f"[SUCCESS] Task created with ID: {task_id}")
+            # Create persistent session with proxy for Duke Energy
+            proxy_code = "us" if is_duke else None
+            session_id, live_url = create_persistent_session(signin_url, proxy_code)
             
-            # Monitor task completion
-            task_details = wait_for_completion(task_id)
+            if not session_id:
+                raise Exception("Failed to create browser session")
             
-            # Check final status
+            if is_duke:
+                # Duke Energy: 3-task flow with 2FA
+                print("[INFO] Duke Energy detected - using 3-task flow with 2FA")
+                
+                # Task 1: Login and wait for 2FA page
+                print("\n=== TASK 1: Login ===")
+                task1_prompt = get_provider_prompt(provider_name, "task1_login")
+                task1_prompt = task1_prompt.format(
+                    signin_url=signin_url,
+                    email=email,
+                    password=password
+                )
+                
+                task1_id = create_task_in_session(task1_prompt, session_id, {})
+                if not task1_id:
+                    raise Exception("Failed to create Task 1 (login)")
+                
+                task1_result = wait_for_task_completion(task1_id)
+                if not task1_result or task1_result.get('status') != 'finished':
+                    raise Exception(f"Task 1 failed: {task1_result.get('output', 'Unknown error')}")
+                
+                # Check if login completed without 2FA (went directly to dashboard)
+                task1_output = (task1_result.get('output') or '').lower()
+                skip_2fa = "successfully logged in" in task1_output
+                
+                if skip_2fa:
+                    print("[INFO] Login completed without 2FA prompt - skipping OTP retrieval and Task 2")
+                else:
+                    # Fetch OTP from email
+                    print("\n=== Fetching OTP from email ===")
+                    otp_code = get_email_otp_for_duke(email, max_wait_seconds=90)
+                    if not otp_code:
+                        raise Exception("Failed to retrieve OTP code from email")
+                    
+                    # Task 2: Submit OTP
+                    print("\n=== TASK 2: Submit 2FA ===")
+                    task2_prompt = get_provider_prompt(provider_name, "task2_2fa")
+                    task2_prompt = task2_prompt.format(otp_code=otp_code)
+                    
+                    task2_id = create_task_in_session(task2_prompt, session_id, {})
+                    if not task2_id:
+                        raise Exception("Failed to create Task 2 (2FA)")
+                    
+                    task2_result = wait_for_task_completion(task2_id)
+                    if not task2_result or task2_result.get('status') != 'finished':
+                        raise Exception(f"Task 2 failed: {task2_result.get('output', 'Unknown error')}")
+                
+                # Task 3: Navigate and download bill
+                print("\n=== TASK 3: Download Bill ===")
+                task3_prompt = get_provider_prompt(provider_name, "task3_download")
+                task3_prompt = task3_prompt.format(billing_history_url=billing_history_url)
+                
+                task3_id = create_task_in_session(task3_prompt, session_id, {})
+                if not task3_id:
+                    raise Exception("Failed to create Task 3 (download)")
+                
+                task3_result = wait_for_task_completion(task3_id)
+                final_task_id = task3_id
+                task_details = task3_result
+                
+            else:
+                # Non-Duke providers: Single task flow (no 2FA)
+                print(f"[INFO] {provider_name} - using single-task flow (no 2FA)")
+                
+                task_prompt = get_provider_prompt(provider_name)
+                task_prompt = task_prompt.format(
+                    signin_url=signin_url,
+                    email=email,
+                    password=password,
+                    billing_history_url=billing_history_url
+                )
+                
+                task_id = create_task_in_session(task_prompt, session_id, {})
+                if not task_id:
+                    raise Exception("Failed to create task")
+                
+                task_details = wait_for_task_completion(task_id)
+                final_task_id = task_id
+            
+            # Process final task result
+            if not task_details:
+                raise Exception("Failed to get task details")
+            
             final_status = task_details.get('status')
             print(f"[INFO] Final task status: {final_status}")
             
+            # Process final task result
+            if not task_details:
+                raise Exception("Failed to get task details")
+
+            final_status = task_details.get('status')
+            print(f"[INFO] Final task status: {final_status}")
+
+            # DEBUG: Print all keys in task_details to see what's available
+            print(f"[DEBUG] All task_details keys: {task_details.keys()}")
+            print(f"[DEBUG] Full task_details: {json.dumps(task_details, indent=2)}")
             # Create mock result object for compatibility
             output_files = []
-            if task_details.get('output_files'):
-                print(f"[DEBUG] Raw output_files: {task_details.get('output_files')}")
-                for file_info in task_details['output_files']:
+            if task_details.get('outputFiles'):  # v2 API uses camelCase
+                print(f"[DEBUG] Raw outputFiles: {task_details.get('outputFiles')}")
+                for file_info in task_details['outputFiles']:
                     if isinstance(file_info, dict):
                         file_id = file_info.get('id', 'unknown')
-                        file_name = file_info.get('file_name', 'unknown')
+                        file_name = file_info.get('fileName', 'unknown')  # v2 API uses camelCase
                     else:
                         file_id = str(file_info)
                         file_name = str(file_info)
@@ -178,7 +427,7 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
                         output_files.append(MockOutputFile(file_id, file_name))
             
             result = MockResult(
-                task_id=task_id,
+                task_id=final_task_id,
                 status=final_status,
                 output_files=output_files,
                 done_output=task_details.get('output', '')
@@ -191,10 +440,10 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
             print(f"  output_files      = {len(result.output_files)} files found")
             
             # Create mock client for compatibility
-            client = MockClient(task_id)
+            client = MockClient(final_task_id)
 
             # Check if task failed based on done_output content and update credential error
-            if result.done_output and any(keyword in result.done_output for keyword in ["Failed to log in", "Failed", "failed"]): # Removed extra unncessary keywords
+            if result.done_output and any(keyword in result.done_output for keyword in ["Failed to log in", "Failed", "failed"]):
                 try:
                     with get_db_context() as db:
                         credential = db.query(UserBillingCredential).filter(UserBillingCredential.id == credential_id).first()
