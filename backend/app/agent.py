@@ -5,6 +5,7 @@ import calendar
 import json
 import time
 import tempfile
+import threading
 from pathlib import Path
 import pandas as pd
 
@@ -34,6 +35,27 @@ PROVIDER_OTP_SENDERS = {
     "Duke Energy": "no-reply@verify.dukeenergy.com",
     # Add more providers as needed:
 }
+
+# ---------------------------------------------------------------------------
+# SHARED EMAIL CLIENT (SINGLETON) -------------------------------------------
+# ---------------------------------------------------------------------------
+_email_client_instance = None
+_email_client_lock = threading.Lock()
+
+def get_shared_email_client():
+    """
+    Get or create a shared GraphAPIEmailClient instance (thread-safe).
+    This ensures all jobs share the same token, avoiding redundant token requests.
+    """
+    global _email_client_instance
+    
+    if _email_client_instance is None:
+        with _email_client_lock:
+            # Double-check after acquiring lock
+            if _email_client_instance is None:
+                _email_client_instance = GraphAPIEmailClient()
+    
+    return _email_client_instance
 
 # ---------------------------------------------------------------------------
 # BROWSER USE CLOUD API V2 FUNCTIONS ----------------------------------------
@@ -231,7 +253,7 @@ def get_email_otp(
         print(f"[INFO] Filtering by sender: {sender_filter}")
     
     start_time = time.time()
-    email_client = GraphAPIEmailClient()
+    email_client = get_shared_email_client()  # Use shared instance for token reuse
     
     while time.time() - start_time < max_wait_seconds:
         try:

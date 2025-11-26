@@ -38,6 +38,7 @@ class GraphAPIEmailClient:
         self.scope = "https://graph.microsoft.com/.default"
         
         self.access_token = None
+        self.token_expires_at = None  # Track when token expires
     
     @staticmethod
     def get_mailbox_guid_for_recipient(recipient_email):
@@ -54,26 +55,58 @@ class GraphAPIEmailClient:
     
         return mailbox
     
-    def get_access_token(self):
-        """Retrieves an access token using the Client Credentials Flow."""
+    def get_access_token(self, force_refresh=False):
+        """
+        Retrieves an access token using the Client Credentials Flow.
+        Automatically refreshes if expired.
+        
+        Args:
+            force_refresh: Force token refresh even if not expired
+        """
+        # Check if we have a valid token
+        if not force_refresh and self.access_token and self.token_expires_at:
+            # Add 5 minute buffer before expiry
+            if datetime.now(timezone.utc) < self.token_expires_at - timedelta(minutes=5):
+                return self.access_token
+        
+        # Token is missing, expired, or forced refresh - get new token
         data = {
             "client_id": self.client_id,
             "client_secret": self.client_secret,
             "scope": self.scope,
             "grant_type": "client_credentials"
         }
+        
         response = requests.post(self.token_url, data=data)
         response.raise_for_status()
-        self.access_token = response.json()["access_token"]
+        
+        token_data = response.json()
+        self.access_token = token_data["access_token"]
+        
+        # Calculate expiry time (expires_in is in seconds)
+        expires_in = token_data.get("expires_in", 3600)  # Default to 1 hour
+        self.token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+        
+        print(f"[INFO] Token acquired, expires at {self.token_expires_at.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        
         return self.access_token
     
-    def get_latest_emails_from_inbox(self, count=3):
+    def is_token_valid(self):
+        """Check if current token is still valid (with 5 minute buffer)."""
+        if not self.access_token or not self.token_expires_at:
+            return False
+        
+        return datetime.now(timezone.utc) < self.token_expires_at - timedelta(minutes=5)
+    
+    def get_latest_emails_from_inbox(self, count=3, mailbox_guid=None):
         """Get the latest N emails from the Inbox without any filtering."""
-        if not self.access_token:
+        if not self.is_token_valid():
             self.get_access_token()
         
+        mailbox = mailbox_guid or self.mailbox_guid  # Use parameter or default
+        
         url = (
-            f"{self.graph_api_url}/users/{self.mailbox_guid}/mailFolders/Inbox/messages"
+            f"{self.graph_api_url}/users/{mailbox}/mailFolders/Inbox/messages"
             f"?$top={count}"
             f"&$select=subject,sender,receivedDateTime,bodyPreview,body,toRecipients"
             f"&$orderby=receivedDateTime desc"
@@ -122,16 +155,17 @@ class GraphAPIEmailClient:
 
         return None
     
-    def get_emails_by_search(self, recipient_email):
+    def get_emails_by_search(self, recipient_email, mailbox_guid=None):
         """Retrieve emails sent to a specific recipient using Graph $search parameter."""
-        if not self.access_token:
+        if not self.is_token_valid():
             self.get_access_token()
 
         encoded_recipient = quote(recipient_email, safe='@._-')
         search_query = f"to:{encoded_recipient}"
+        mailbox = mailbox_guid or self.mailbox_guid
 
         url = (
-            f"{self.graph_api_url}/users/{self.mailbox_guid}/messages"
+            f"{self.graph_api_url}/users/{mailbox}/messages"
             f"?$search=\"{search_query}\""
             f"&$select=id,subject,sender,toRecipients,receivedDateTime,bodyPreview,body"
             f"&$top=5"
@@ -164,20 +198,21 @@ class GraphAPIEmailClient:
             (otp_code, subject, sender_address) or (None, None, None)
         """
         # Auto-detect mailbox based on recipient email domain
+        mailbox_to_use = self.mailbox_guid  # Default fallback
         if recipient_email:
             detected_mailbox = self.get_mailbox_guid_for_recipient(recipient_email)
             if detected_mailbox:
                 print(f"📬 Auto-detected mailbox for {recipient_email}: {detected_mailbox}")
-                self.mailbox_guid = detected_mailbox
+                mailbox_to_use = detected_mailbox
         
-        if not self.access_token:
+        if not self.is_token_valid():
             self.get_access_token()
 
         # Query logic
         if recipient_email:
-            emails = self.get_emails_by_search(recipient_email)  # uses $search
+            emails = self.get_emails_by_search(recipient_email, mailbox_to_use)  # uses $search
         else:
-            emails = self.get_latest_emails_from_inbox(max_emails)  # fallback
+            emails = self.get_latest_emails_from_inbox(max_emails, mailbox_to_use)  # fallback
 
         if not emails:
             return None, None, None
