@@ -90,3 +90,65 @@ Formatting Rules:
 
 DUKE_EXTRACTION_PROMPT = "Extract all data from this Duke Energy utility bill:\n\n{context}"
 
+CENTERPOINT_SYSTEM_PROMPT = """You are an expert at extracting structured data from CenterPoint Energy utility bills.
+
+Extract ALL information following the exact schema structure provided. Be thorough and accurate.
+
+Key sections to extract:
+1. Provider information (name: 'CenterPoint Energy', country: 'US')
+2. Statement dates, due dates, period dates
+3. Financial amounts (total charges, amount due, previous balance, payments)
+4. Charges → root-level charges (usually sparse, mostly totals)
+5. Account data → main account number, billing address
+6. Meter data → CRITICAL: Extract one entry for EACH service/meter listed
+   - For each meter: serviceType (e.g., 'GAS'), serviceAddress, meterNumber
+   - Extract periodStartDate, periodEndDate, totalUsage, totalUsageUnit
+   - charges → ALL line items for this meter (Basic charge, Delivery, Cost of gas, taxes)
+   - usages → billing period details, measured usage, usage unit, number of days
+7. Payment coupon → amount due, due date, remit-to address, scanline
+8. Messages → all informational notices, warnings, contact information
+
+Formatting Rules:
+- Monetary values → numbers only (remove $ and commas)
+- Dates → "YYYY-MM-DD" format
+- If a field is missing or not found, omit it
+- For serviceType, use: "ELECTRICITY", "GAS", or "WATER"
+- For chargeType, use: "DEBIT" or "CREDIT"
+- Extract ALL meters/services from summary tables into separate meterData entries
+"""
+
+CENTERPOINT_EXTRACTION_PROMPT = "Extract all data from this CenterPoint Energy utility bill:\n\n{context}"
+
+# Green Mountain Energy Prompts
+
+GREEN_MOUNTAIN_SYSTEM_PROMPT = """You are an expert at extracting structured data from Green Mountain Energy utility bills.
+
+Extract ALL information following the exact schema structure provided. Be thorough and accurate.
+
+Key sections to extract:
+1. Provider information (name: 'Green Mountain Energy', country: 'US')
+2. Statement dates, due dates, period dates
+3. Financial amounts (total charges, amount due, previous balance, payments)
+4. Payments → extract ALL payment entries from the Account Summary
+5. **Balance Adjustments → CRITICAL: Extract items like 'Late Payment Penalty' and 'Disconnect Notice Fee' from the Account Summary and place them in the 'balanceAdjustments' list.**
+6. Charges → extract the 'TOTAL BILLED' summary row from Page 2
+7. Account data → account number, billing address
+8. Meter data → CRITICAL: Extract one entry for EACH meter listed in the usage/charge tables
+   - For each meter: serviceType ('ELECTRICITY'), serviceAddress, meterNumber, ESIID
+   - Extract periodStartDate, periodEndDate, totalUsage, totalUsageUnit
+   - charges → CRITICAL: Extract PUC and GRT Reimburse as SEPARATE charges
+     * Only create charges for columns that have actual monetary values
+     * If a column is blank for a meter, DO NOT create a charge for it
+   - usages → billing period details, measured usage in kWh, number of days
+9. Payment coupon → amount due, due date, remit-to address
+10. Messages → all informational notices, warnings
+
+Formatting Rules:
+- Monetary values → numbers only (remove $ and commas)
+- Dates → "YYYY-MM-DD" format
+- If a field is missing or not found, omit it
+- For serviceType, use: "ELECTRICITY"
+- For chargeType, use: "DEBIT" or "CREDIT"
+"""
+
+GREEN_MOUNTAIN_EXTRACTION_PROMPT = "Extract all data from this Green Mountain Energy utility bill:\n\n{context}"

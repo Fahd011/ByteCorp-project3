@@ -1,0 +1,123 @@
+"""
+CenterPoint Energy bill extraction using RAG
+"""
+
+import logging
+import tempfile
+from typing import Dict, Any, Optional
+
+from langchain_openai import AzureChatOpenAI
+from langchain_chroma import Chroma
+from langchain_core.prompts import ChatPromptTemplate
+
+from config import config
+from app.extraction.vector_store import create_vector_store_from_pdf, cleanup_vector_store
+from app.prompts.extraction_prompts import CENTERPOINT_SYSTEM_PROMPT, CENTERPOINT_EXTRACTION_PROMPT
+
+logger = logging.getLogger(__name__)
+
+
+def extract_centerpoint_bill_data(vector_store: Chroma) -> Optional[Dict[str, Any]]:
+    """
+    Extract complete CenterPoint Energy bill in single pass using RAG + structured output.
+    Returns data matching the CenterPoint Energy schema (UtilityBillExtraction).
+    """
+    # Import CenterPoint schema
+    from app.schemas.centerpoint_schema import UtilityBillExtraction as CenterPointUtilityBill
+    
+    # Create comprehensive prompt for CenterPoint-specific extraction
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", CENTERPOINT_SYSTEM_PROMPT),
+        ("human", CENTERPOINT_EXTRACTION_PROMPT)
+    ])
+    
+    # Retrieve relevant chunks
+    retriever = vector_store.as_retriever(search_kwargs={"k": 15})
+    
+    # Get comprehensive context
+    queries = [
+        "Extract all bill information including charges, totals, dates, and account details",
+        "Extract meter readings, usage information, and service addresses",
+        "Extract payment information, notices, and any disconnect warnings"
+    ]
+    
+    all_docs = []
+    for query in queries:
+        docs = retriever.invoke(query)
+        all_docs.extend(docs)
+    
+    # Deduplicate documents by content
+    seen_content = set()
+    unique_docs = []
+    for doc in all_docs:
+        if doc.page_content not in seen_content:
+            seen_content.add(doc.page_content)
+            unique_docs.append(doc)
+    
+    context = "\n\n".join([doc.page_content for doc in unique_docs[:20]])
+    
+    # Use Azure OpenAI with structured output
+    llm = AzureChatOpenAI(
+        azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
+        api_key=config.AZURE_OPENAI_API_KEY,
+        azure_deployment=config.AZURE_CHAT_DEPLOYMENT_NAME,
+        api_version="2024-08-01-preview",
+        temperature=0.1
+    )
+    
+    structured_llm = llm.with_structured_output(CenterPointUtilityBill)
+    chain = prompt | structured_llm
+    
+    try:
+        result = chain.invoke({"context": context})
+        logger.info("CenterPoint Energy bill data extracted successfully")
+        return result.model_dump()
+        
+    except Exception:
+        logger.exception("Error extracting CenterPoint Energy bill data")
+        return None
+
+
+async def extract_centerpoint_from_pdf_bytes(pdf_bytes: bytes) -> Dict[str, Any]:
+    """
+    RAG extraction for CenterPoint Energy bills (meter-based).
+    
+    Args:
+        pdf_bytes: The PDF content as bytes
+        
+    Returns:
+        Dictionary containing the extracted CenterPoint Energy bill data
+    """
+    temp_dir = tempfile.mkdtemp(prefix="centerpoint_rag_extraction_")
+    vector_store = None
+    
+    try:
+        logger.info("="*60)
+        logger.info("Starting RAG extraction for CenterPoint Energy bill")
+        logger.info(f"Temporary directory: {temp_dir}")
+        logger.info("="*60)
+        
+        # Create vector store from PDF
+        vector_store = create_vector_store_from_pdf(pdf_bytes, temp_dir)
+        
+        # Single-pass extraction using CenterPoint Energy schema
+        logger.info("Extracting CenterPoint Energy Bill Data")
+        centerpoint_bill_data = extract_centerpoint_bill_data(vector_store)
+        
+        if not centerpoint_bill_data:
+            logger.error("Critical error: Failed to extract CenterPoint Energy bill data.")
+            return {}
+        
+        logger.info("="*60)
+        logger.info("CenterPoint Energy RAG extraction completed successfully")
+        logger.info("="*60)
+        
+        return centerpoint_bill_data
+        
+    except Exception:
+        logger.exception("Error during CenterPoint Energy RAG extraction")
+        return {}
+        
+    finally:
+        cleanup_vector_store(vector_store, temp_dir)
+
