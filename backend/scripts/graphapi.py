@@ -8,6 +8,8 @@ import os
 from urllib.parse import quote
 from html import unescape
 from dotenv import load_dotenv
+from datetime import datetime, timedelta, timezone
+
 
 
 class GraphAPIEmailClient:
@@ -121,47 +123,71 @@ class GraphAPIEmailClient:
         response.raise_for_status()
         return response.json().get('value', [])
     
-    def get_latest_otp_from_inbox(self, sender_filter=None, recipient_email=None, max_emails=5):
+    def get_latest_otp_from_inbox(
+    self,
+    sender_filter=None,
+    recipient_email=None,
+    max_emails=10,
+    max_age_minutes=5):
         """
-        Get the OTP code from emails sent to a specific recipient.
-        Optionally filter by sender email address.
+        Get the latest OTP code from inbox emails.
+        Optionally filter by sender email and recipient email.
         
         Returns:
-            Tuple of (otp_code, email_subject, sender_address) if found, (None, None, None) otherwise
+            (otp_code, subject, sender_address) or (None, None, None)
         """
         if not self.access_token:
             self.get_access_token()
-        
+
+        # Query logic
         if recipient_email:
-            emails = self.get_emails_by_search(recipient_email)
+            emails = self.get_emails_by_search(recipient_email)  # uses $search
         else:
-            emails = self.get_latest_emails_from_inbox(max_emails)
-        
+            emails = self.get_latest_emails_from_inbox(max_emails)  # fallback
+
         if not emails:
             return None, None, None
-        
-        # Search through emails for OTP
+
+        # Filter by time (recent emails only)
+        time_threshold = datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
+
+        def parse_time(dt):
+            return datetime.fromisoformat(dt.replace("Z", "+00:00"))
+
+        emails = [
+            e for e in emails
+            if parse_time(e.get("receivedDateTime", "1970-01-01T00:00:00Z")) >= time_threshold
+        ]
+
+        if not emails:
+            return None, None, None
+
+        # Sort emails by received datetime DESC (latest first)
+        emails = sorted(
+            emails,
+            key=lambda e: e.get("receivedDateTime", ""),
+            reverse=True
+        )
+
+        # Search for sender match + OTP
         for email in emails:
             sender = email.get("sender", {}).get("emailAddress", {}).get("address", "")
             subject = email.get("subject", "N/A")
-            
-            # If sender filter is provided, skip emails not from that sender
+
             if sender_filter and sender_filter.lower() not in sender.lower():
                 continue
-            
-            # Try to extract OTP from this email
+
             otp = self.extract_otp_from_email(email)
-            
             if otp:
                 return otp, subject, sender
-        
+
         return None, None, None
 
 if __name__ == "__main__":
     # Test the OTP extraction
     client = GraphAPIEmailClient()
     
-    recipient_email = "billing+ree@sagiliti.com"
+    recipient_email = "billing+rtx@sagiliti.com"
     
     print(f"Searching for OTP in emails sent to: {recipient_email}")
     otp, subject, sender = client.get_latest_otp_from_inbox(
