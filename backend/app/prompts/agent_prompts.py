@@ -13,6 +13,7 @@ PROVIDER_PROMPTS = {
 6. Click the sign-in/login button
 7. Wait for the 2FA verification page to appear (look for a verification code input field)
 8 If you are redirected to the home page, go to https://businessportal2.duke-energy.com/BusinessDashboard and stop the task with status "Successfully logged in"
+9. If you are on the disambiguation page, STOP the task with status "Successfully logged in"
 8. If you see the dashboard or the home page, STOP the task with status "Successfully logged in"
 9. Once you see the 2FA code input field, use the 'done' action with output: "Ready for 2FA code"
 """,

@@ -29,6 +29,12 @@ DOWNLOAD_DIR = os.path.expanduser("~/duke_bills")  # ~/duke_bills on any OS
 API_KEY = config.BROWSER_USE_API_KEY
 BASE_URL = 'https://api.browser-use.com/api/v2'
 
+# Provider-specific OTP sender email addresses
+PROVIDER_OTP_SENDERS = {
+    "Duke Energy": "no-reply@verify.dukeenergy.com",
+    # Add more providers as needed:
+}
+
 # ---------------------------------------------------------------------------
 # BROWSER USE CLOUD API V2 FUNCTIONS ----------------------------------------
 # ---------------------------------------------------------------------------
@@ -193,21 +199,36 @@ def wait_for_task_completion(task_id: str, poll_interval: int = 3):
         except Exception as e:
             print(f"[ERROR] Error monitoring task: {e}")
             time.sleep(poll_interval)
-def get_email_otp_for_duke(user_email: str, max_wait_seconds: int = 90, check_interval: int = 5):
+
+def get_email_otp(
+    user_email: str, 
+    provider_name: str = None,
+    sender_filter: str = None,
+    max_wait_seconds: int = 90, 
+    check_interval: int = 5
+):
     """
-    Fetch OTP code from email for Duke Energy 2FA.
+    Fetch OTP code from email for 2FA authentication.
     Polls email inbox until OTP is found or timeout.
     
     Args:
-        user_email: User's email address (used for logging only)
+        user_email: User's email address to search for OTP
+        provider_name: Provider name (e.g., "Duke Energy") - used to auto-detect sender
+        sender_filter: Optional explicit sender email to filter by (overrides provider lookup)
         max_wait_seconds: Maximum time to wait for OTP email
         check_interval: How often to check for new emails (seconds)
         
     Returns:
         OTP code as string if found, None otherwise
     """
-    print(f"[INFO] Waiting for Duke Energy OTP email...")
-    print(f"[INFO] Filtering by sender: no-reply@verify.dukeenergy.com")
+    # Determine sender filter
+    if not sender_filter and provider_name:
+        sender_filter = PROVIDER_OTP_SENDERS.get(provider_name)
+    
+    provider_display = provider_name or "Provider"
+    print(f"[INFO] Waiting for {provider_display} OTP email...")
+    if sender_filter:
+        print(f"[INFO] Filtering by sender: {sender_filter}")
     
     start_time = time.time()
     email_client = GraphAPIEmailClient()
@@ -216,9 +237,8 @@ def get_email_otp_for_duke(user_email: str, max_wait_seconds: int = 90, check_in
         try:
             # Get OTP from latest emails
             otp, subject, sender = email_client.get_latest_otp_from_inbox(
-                sender_filter="no-reply@verify.dukeenergy.com",
+                sender_filter=sender_filter,
                 recipient_email=user_email,
-                max_emails=5
             )
             
             if otp:
@@ -345,7 +365,11 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
                 else:
                     # Fetch OTP from email
                     print("\n=== Fetching OTP from email ===")
-                    otp_code = get_email_otp_for_duke(email, max_wait_seconds=90)
+                    otp_code = get_email_otp(
+                                    user_email=email, 
+                                    provider_name=provider_name,
+                                    max_wait_seconds=90
+                                )
                     if not otp_code:
                         raise Exception("Failed to retrieve OTP code from email")
                     
@@ -401,12 +425,6 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
             final_status = task_details.get('status')
             print(f"[INFO] Final task status: {final_status}")
             
-            # Process final task result
-            if not task_details:
-                raise Exception("Failed to get task details")
-
-            final_status = task_details.get('status')
-            print(f"[INFO] Final task status: {final_status}")
             # Create mock result object for compatibility
             output_files = []
             if task_details.get('outputFiles'):  # v2 API uses camelCase

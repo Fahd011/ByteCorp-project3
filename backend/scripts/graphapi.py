@@ -15,9 +15,12 @@ from datetime import datetime, timedelta, timezone
 class GraphAPIEmailClient:
     """Client for extracting OTP codes from Outlook emails via Microsoft Graph API."""
     
+    # Default mailbox GUID (sagility.com mailbox)
+    DEFAULT_MAILBOX_GUID = "8a570157-0bb9-4090-a5c2-ed200b210c8b"
+    
     # Mailbox mapping - automatically selects correct mailbox based on recipient email domain
     MAILBOX_MAP = {
-        "sagiliti.com": "8a570157-0bb9-4090-a5c2-ed200b210c8b",
+        "sagiliti.com": DEFAULT_MAILBOX_GUID,
         "jitservicesinc.com": "c1aeadae-eda7-4a1e-bd60-f8997d3b2c47"
     }
     
@@ -47,7 +50,7 @@ class GraphAPIEmailClient:
         
         if not mailbox:
             print(f"⚠️ WARNING: Unknown domain '{domain}'. Using default mailbox.")
-            return "8a570157-0bb9-4090-a5c2-ed200b210c8b"  # Default
+            return GraphAPIEmailClient.DEFAULT_MAILBOX_GUID  # Use constant instead
     
         return mailbox
     
@@ -150,7 +153,7 @@ class GraphAPIEmailClient:
     self,
     sender_filter=None,
     recipient_email=None,
-    max_emails=10,
+    max_emails=5,
     max_age_minutes=2):
         """
         Get the latest OTP code from inbox emails.
