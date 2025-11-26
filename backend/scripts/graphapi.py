@@ -15,6 +15,12 @@ from datetime import datetime, timedelta, timezone
 class GraphAPIEmailClient:
     """Client for extracting OTP codes from Outlook emails via Microsoft Graph API."""
     
+    # Mailbox mapping - automatically selects correct mailbox based on recipient email domain
+    MAILBOX_MAP = {
+        "sagility.com": "8a570157-0bb9-4090-a5c2-ed200b210c8b",
+        "jitservicesinc.com": "c1aeadae-eda7-4a1e-bd60-f8997d3b2c47"
+    }
+    
     def __init__(self, tenant_id=None, client_id=None, client_secret=None, mailbox_guid=None):
         """Initialize the Graph API Email Client."""
         load_dotenv()
@@ -29,6 +35,21 @@ class GraphAPIEmailClient:
         self.scope = "https://graph.microsoft.com/.default"
         
         self.access_token = None
+    
+    @staticmethod
+    def get_mailbox_guid_for_recipient(recipient_email):
+        """Determine which mailbox GUID to use based on recipient email domain."""
+        if not recipient_email:
+            return None
+        
+        domain = recipient_email.split('@')[-1].lower()
+        mailbox = GraphAPIEmailClient.MAILBOX_MAP.get(domain)
+        
+        if not mailbox:
+            print(f"⚠️ WARNING: Unknown domain '{domain}'. Using default mailbox.")
+            return "8a570157-0bb9-4090-a5c2-ed200b210c8b"  # Default
+    
+        return mailbox
     
     def get_access_token(self):
         """Retrieves an access token using the Client Credentials Flow."""
@@ -121,7 +142,9 @@ class GraphAPIEmailClient:
 
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-        return response.json().get('value', [])
+        emails = response.json().get('value', [])
+        
+        return emails
     
     def get_latest_otp_from_inbox(
     self,
@@ -132,10 +155,18 @@ class GraphAPIEmailClient:
         """
         Get the latest OTP code from inbox emails.
         Optionally filter by sender email and recipient email.
+        Automatically selects the correct mailbox based on recipient email domain.
         
         Returns:
             (otp_code, subject, sender_address) or (None, None, None)
         """
+        # Auto-detect mailbox based on recipient email domain
+        if recipient_email:
+            detected_mailbox = self.get_mailbox_guid_for_recipient(recipient_email)
+            if detected_mailbox:
+                print(f"📬 Auto-detected mailbox for {recipient_email}: {detected_mailbox}")
+                self.mailbox_guid = detected_mailbox
+        
         if not self.access_token:
             self.get_access_token()
 
@@ -187,7 +218,7 @@ if __name__ == "__main__":
     # Test the OTP extraction
     client = GraphAPIEmailClient()
     
-    recipient_email = "billing+rtx@sagiliti.com"
+    recipient_email = "billing-pds@jitservicesinc.com"
     
     print(f"Searching for OTP in emails sent to: {recipient_email}")
     otp, subject, sender = client.get_latest_otp_from_inbox(
