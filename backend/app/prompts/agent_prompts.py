@@ -12,6 +12,7 @@ PROVIDER_PROMPTS = {
 5. Click the "Verify you are human" checkbox and wait until it is checked and says success
 6. Click the sign-in/login button
 7. Wait for the 2FA verification page to appear (look for a verification code input field)
+8 If you are redirected to the home page, go to https://businessportal2.duke-energy.com/BusinessDashboard and stop the task with status "Successfully logged in"
 8. If you see the dashboard or the home page, STOP the task with status "Successfully logged in"
 9. Once you see the 2FA code input field, use the 'done' action with output: "Ready for 2FA code"
 """,
@@ -20,16 +21,17 @@ The browser is now on the 2FA page. If you see the dashboard or the home page, S
 1. Find the 2FA/verification code input field
 2. Fill it with the code: {otp_code}
 3. Click the Submit or Verify button
-4. Wait for the dashboard to load
+4. Wait for the dashboard to load and is visible
 5. Use the 'done' action with output: "2FA completed"
 """,
         "task3_download": """
-1. Navigate to {billing_history_url}
-2. Wait until the text "Billing & Payment Activity" is visible
-3. If "Oops, something went wrong." appears, STOP the task with status "Failed"
-4. Click only the "View Bill" button in the FIRST row
-5. Wait until the bill PDF finishes downloading
-6. Use the 'done' action with output: "Successfully downloaded one bill"
+1. Wait until the dashboard is loaded and visible
+2. Navigate to {billing_history_url}
+3. Wait until the text "Billing & Payment Activity" is visible
+4. If "Oops, something went wrong." appears, STOP the task with status "Failed"
+5. Click only the "View Bill" button in the FIRST row
+6. Wait until the bill PDF finishes downloading
+7. Use the 'done' action with output: "Successfully downloaded one bill"
 """
     },
     

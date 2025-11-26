@@ -17,7 +17,7 @@ class GraphAPIEmailClient:
     
     # Mailbox mapping - automatically selects correct mailbox based on recipient email domain
     MAILBOX_MAP = {
-        "sagility.com": "8a570157-0bb9-4090-a5c2-ed200b210c8b",
+        "sagiliti.com": "8a570157-0bb9-4090-a5c2-ed200b210c8b",
         "jitservicesinc.com": "c1aeadae-eda7-4a1e-bd60-f8997d3b2c47"
     }
     
@@ -151,7 +151,7 @@ class GraphAPIEmailClient:
     sender_filter=None,
     recipient_email=None,
     max_emails=10,
-    max_age_minutes=5):
+    max_age_minutes=2):
         """
         Get the latest OTP code from inbox emails.
         Optionally filter by sender email and recipient email.

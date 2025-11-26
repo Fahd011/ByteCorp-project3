@@ -407,10 +407,6 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
 
             final_status = task_details.get('status')
             print(f"[INFO] Final task status: {final_status}")
-
-            # DEBUG: Print all keys in task_details to see what's available
-            print(f"[DEBUG] All task_details keys: {task_details.keys()}")
-            print(f"[DEBUG] Full task_details: {json.dumps(task_details, indent=2)}")
             # Create mock result object for compatibility
             output_files = []
             if task_details.get('outputFiles'):  # v2 API uses camelCase
