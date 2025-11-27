@@ -26,13 +26,14 @@ The browser is now on the 2FA page. If you see the dashboard or the home page, S
 5. Use the 'done' action with output: "2FA completed"
 """,
         "task3_download": """
-1. Wait until the dashboard is loaded and visible
-2. Navigate to {billing_history_url}
-3. Wait until the text "Billing & Payment Activity" is visible
-4. If "Oops, something went wrong." appears, STOP the task with status "Failed"
-5. Click only the "View Bill" button in the FIRST row
-6. Wait until the bill PDF finishes downloading
-7. Use the 'done' action with output: "Successfully downloaded one bill"
+1. If you are on the disambiguation page, select Business 
+2. Wait until the dashboard is loaded and visible, DO NOT MOVE TO STEP 3 UNTIL YOU SEE THE DASHBOARD. Wait for 10 seconds and check again if necessary.
+3. Click on "Billing" and Select "Billing & Payment Activity"
+4. Wait until the text "Billing & Payment Activity" is visible
+5. If "Oops, something went wrong." appears, STOP the task with status "Failed"
+6. Click only the "View Bill" button in the FIRST row
+7. Wait until the bill PDF finishes downloading
+8. Use the 'done' action with output: "Successfully downloaded one bill"
 """
     },
     

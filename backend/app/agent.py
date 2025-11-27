@@ -143,7 +143,8 @@ def create_task_in_session(task_prompt: str, session_id: str, secrets: dict = No
     payload = {
         "task": task_prompt,
         "sessionId": session_id,
-        "secrets": secrets or {}
+        "secrets": secrets or {},
+        "maxSteps": 50
     }
     
     try:
