@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { UserBillingCredential } from "@/types";
 
