@@ -8,16 +8,23 @@ const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableE
     // TableHeader has displayName "TableHeader" (set below) and renders a thead element
     const childrenArray = React.Children.toArray(children);
     const hasHeader = childrenArray.some((child) => {
-      if (React.isValidElement(child)) {
-        const childType = child.type;
-        // Check displayName for forwardRef components
-        if (typeof childType === "object" && childType !== null && "displayName" in childType) {
-          return childType.displayName === "TableHeader";
-        }
-        // Fallback: check function name (may not work for forwardRef)
-        if (typeof childType === "function") {
-          return childType.displayName === "TableHeader" || childType.name === "TableHeader";
-        }
+      if (!React.isValidElement(child)) {
+        return false;
+      }
+      // Check if child is TableHeader by checking its type's displayName
+      // Use type assertion to handle React's complex type system
+      const childType = child.type as unknown;
+      if (childType === null || childType === undefined) {
+        return false;
+      }
+      // Check displayName for forwardRef components
+      if (typeof childType === "object" && "displayName" in childType) {
+        return (childType as { displayName?: string }).displayName === "TableHeader";
+      }
+      // Fallback: check function name (may not work for forwardRef)
+      if (typeof childType === "function") {
+        const funcType = childType as { displayName?: string; name?: string };
+        return funcType.displayName === "TableHeader" || funcType.name === "TableHeader";
       }
       return false;
     });

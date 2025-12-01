@@ -54,7 +54,7 @@ export function AppSidebar() {
       a.href = url;
       
       // Generate filename with timestamp
-      const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-").slice(0, -5);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5);
       a.download = `audit_logs_${timestamp}.csv`;
       
       document.body.appendChild(a);
