@@ -1,102 +1,105 @@
-// AuthContext with proper TypeScript types
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authAPI } from '../services/api';
-import { AuthContextType, User, LoginCredentials, RegisterData } from '../types';
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { authAPI } from "@/services/api";
+import { LoginCredentials, RegisterData, Token } from "@/types";
+
+interface AuthContextType {
+  user: any | null;
+  token: string | null;
+  loading: boolean;
+  login: (credentials: LoginCredentials) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
+  logout: () => void;
+  isAuthenticated: boolean;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<any | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
 
+  // Check for existing token on mount
   useEffect(() => {
-    if (token) {
-      // You could verify the token here if needed
-      setUser({ id: 'temp', email: 'user@example.com', created_at: new Date().toISOString() }); // For now, just set basic user info
+    const storedToken = localStorage.getItem("token");
+    if (storedToken) {
+      setToken(storedToken);
+      // Optionally decode token to get user info
+      try {
+        const payload = JSON.parse(atob(storedToken.split(".")[1]));
+        setUser({ email: payload.sub || payload.email });
+      } catch (e) {
+        // Token might not be JWT, that's okay
+        setUser({ email: "user" });
+      }
     }
     setLoading(false);
-  }, [token]);
+  }, []);
 
   const login = async (credentials: LoginCredentials) => {
     try {
       const response = await authAPI.login(credentials);
-      const { access_token } = response.data;
+      const tokenData: Token = response.data;
+      const accessToken = tokenData.access_token;
       
-      localStorage.setItem('token', access_token);
-      setToken(access_token);
-      setUser({ id: 'temp', email: credentials.email, created_at: new Date().toISOString() });
+      localStorage.setItem("token", accessToken);
+      setToken(accessToken);
       
-      return { success: true };
+      // Decode token to get user info
+      try {
+        const payload = JSON.parse(atob(accessToken.split(".")[1]));
+        setUser({ email: payload.sub || payload.email || credentials.email });
+      } catch (e) {
+        setUser({ email: credentials.email });
+      }
     } catch (error: any) {
-      return { 
-        success: false, 
-        error: error.response?.data?.detail || 'Login failed' 
-      };
+      throw new Error(error.response?.data?.detail || "Login failed");
     }
   };
 
-  const register = async (userData: RegisterData) => {
+  const register = async (data: RegisterData) => {
     try {
-      const response = await authAPI.register(userData);
-      const { access_token } = response.data;
+      const response = await authAPI.register(data);
+      const tokenData: Token = response.data;
+      const accessToken = tokenData.access_token;
       
-      localStorage.setItem('token', access_token);
-      setToken(access_token);
-      setUser({ id: 'temp', email: userData.email, created_at: new Date().toISOString() });
-      
-      return { success: true };
+      localStorage.setItem("token", accessToken);
+      setToken(accessToken);
+      setUser({ email: data.email });
     } catch (error: any) {
-      return { 
-        success: false, 
-        error: error.response?.data?.detail || 'Registration failed' 
-      };
-    }
-  };
-
-  const createTestUser = async () => {
-    try {
-      const response = await authAPI.createTestUser();
-      return { success: true, data: response.data };
-    } catch (error: any) {
-      return { 
-        success: false, 
-        error: error.response?.data?.detail || 'Failed to create test user' 
-      };
+      throw new Error(error.response?.data?.detail || "Registration failed");
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem("token");
     setToken(null);
     setUser(null);
-  };
-
-  const value: AuthContextType = {
-    user,
-    loading,
-    login,
-    register,
-    logout,
-    createTestUser,
-    isAuthenticated: !!token,
+    // Clear any React Query cache if needed
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        register,
+        logout,
+        isAuthenticated: !!token,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
-};
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+}
+

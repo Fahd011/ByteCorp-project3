@@ -213,8 +213,23 @@ def get_credentials(
     user_id: str = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
+    # Handle root user case: if user_id is an email, look up the actual user ID
+    from app.models import User
+    from config import config
+    
+    actual_user_id = user_id
+    
+    # Check if user_id is an email (root user case)
+    if user_id == config.ROOT_USER_EMAIL:
+        user = db.query(User).filter(User.email == user_id).first()
+        if user:
+            actual_user_id = user.id
+        else:
+            # If root user doesn't exist in DB, return empty list
+            return []
+    
     credentials = db.query(UserBillingCredential).filter(
-        UserBillingCredential.user_id == user_id,
+        UserBillingCredential.user_id == actual_user_id,
         UserBillingCredential.is_deleted == False
     ).all()
     

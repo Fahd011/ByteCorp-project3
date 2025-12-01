@@ -1,455 +1,587 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useRef, ChangeEvent, FormEvent } from "react";
-import { toast } from "react-hot-toast";
-import { manualBillsAPI, providerAPI, credentialsAPI } from "../services/api";
-import { Provider, ManualBill } from "../types";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Search, Upload, X, FileText, Trash2, Eye, ChevronRight, ExternalLink, FileJson, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { manualBillsAPI, providerAPI } from "@/services/api";
+import { ManualBill } from "@/types";
 
-const ManualBillExtraction: React.FC = () => {
-  const [manualBills, setManualBills] = useState<ManualBill[]>([]);
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [formData, setFormData] = useState({
-    pdfFiles: [] as File[],
-    selectedProviderId: "",
+type UploadedBill = {
+  id: string;
+  filename: string;
+  provider: string;
+  uploadDate: string;
+  status: "processing" | "completed" | "failed";
+  billingMonth: string;
+  loginUrl: string | null;
+  originalData?: ManualBill;
+};
+
+export default function ManualBillExtraction() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState("");
+  const [selectedProviderFilters, setSelectedProviderFilters] = useState<string[]>([]);
+  const [selectedStatusFilters, setSelectedStatusFilters] = useState<string[]>([]);
+  const [showAllProviders, setShowAllProviders] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch manual bills from API
+  const { data: manualBills, isLoading, error } = useQuery({
+    queryKey: ["manual-bills"],
+    queryFn: async () => {
+      const response = await manualBillsAPI.getAll();
+      return response.data;
+    },
   });
 
-  // Add a ref to track if polling is active
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Fetch providers from API
+  const { data: providers } = useQuery({
+    queryKey: ["providers"],
+    queryFn: async () => {
+      const response = await providerAPI.getAll();
+      return response.data;
+    },
+  });
 
-  useEffect(() => {
-    fetchManualBills();
-    fetchProviders();
+  // Transform backend data to frontend format
+  const uploadedBills = useMemo(() => {
+    if (!manualBills) return [];
     
-    // Cleanup only on unmount
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Add polling for processing bills (every 30 seconds)
-  useEffect(() => {
-    const hasProcessingBills = manualBills.some(
-      (bill) => bill.status?.toLowerCase() === "processing"
-    );
-
-    if (hasProcessingBills && !pollingIntervalRef.current) {
-      console.log("📊 Polling started (checking every 30 seconds)");
-      pollingIntervalRef.current = setInterval(() => {
-        console.log("🔄 Checking status...");
-        fetchManualBills();
-      }, 30000); // 30 seconds
-    } else if (!hasProcessingBills && pollingIntervalRef.current) {
-      console.log("⏹️ Polling stopped - all bills processed");
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
+    return manualBills.map((bill: ManualBill) => ({
+      id: bill.id,
+      filename: bill.original_filename || "unknown.pdf",
+      provider: bill.provider_name || "Unknown",
+      uploadDate: bill.created_at,
+      status: bill.status?.toLowerCase() === "completed" ? "completed" as const :
+              bill.status?.toLowerCase() === "processing" ? "processing" as const :
+              bill.status?.toLowerCase() === "failed" ? "failed" as const :
+              "processing" as const,
+      billingMonth: bill.month && bill.year ? `${bill.month} ${bill.year}` : "N/A",
+      loginUrl: bill.login_url || null,
+      originalData: bill,
+    }));
   }, [manualBills]);
 
-  const fetchManualBills = async () => {
-    try {
-      const response = await manualBillsAPI.getAll();
-      setManualBills(response.data || []);
-    } catch (error) {
-      toast.error("Failed to load manual bills");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Get unique providers list
+  const allProviders = useMemo(() => {
+    if (!providers) return [];
+    return providers.map((p: any) => p.name).sort();
+  }, [providers]);
 
-  const fetchProviders = async () => {
-    try {
-      const response = await providerAPI.getAll();
-      setProviders(response.data || []);
-    } catch (error) {
-      toast.error("Failed to load providers");
-    }
-  };
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const pdfFiles = files.filter(file => file.type === "application/pdf");
-    
-    if (pdfFiles.length !== files.length) {
-      toast.error("Some files were skipped. Only PDF files are allowed.");
-    }
-    
-    setFormData({ ...formData, pdfFiles: pdfFiles });
-  };
-
-  const handleProviderChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    const providerId = e.target.value;
-    setFormData({
-      ...formData,
-      selectedProviderId: providerId,
-    });
-  };
-
-  const handleUploadBill = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if (formData.pdfFiles.length === 0) {
-      toast.error("Please select at least one PDF file");
-      return;
-    }
-
-    if (!formData.selectedProviderId) {
-      toast.error("Please select a provider");
-      return;
-    }
-
-    setUploading(true);
-
-    try {
-      const uploadData = new FormData();
-      const isBulkUpload = formData.pdfFiles.length > 1;
+  // Upload mutation
+  const uploadMutation = useMutation({
+    mutationFn: async ({ files, providerId }: { files: FileList; providerId: string }) => {
+      const formData = new FormData();
+      Array.from(files).forEach((file) => {
+        formData.append("files", file);
+      });
+      formData.append("provider_id", providerId);
       
-      if (isBulkUpload) {
-        // Bulk upload - multiple files
-        formData.pdfFiles.forEach(file => {
-          uploadData.append("pdf_files", file);
-        });
-        uploadData.append("provider_id", formData.selectedProviderId);
-
-        const response = await manualBillsAPI.bulkUpload(uploadData);
-
-        toast.success(
-          `${response.data.uploaded_count} bills uploaded successfully. Extraction in progress.`,
-          { duration: 5000 }
-        );
+      if (files.length === 1) {
+        return await manualBillsAPI.upload(formData);
       } else {
-        // Single file upload
-        uploadData.append("pdf_file", formData.pdfFiles[0]);
-        uploadData.append("provider_id", formData.selectedProviderId);
-
-        const response = await manualBillsAPI.upload(uploadData);
-        toast.success(response.data.message || "Bill uploaded successfully");
+        return await manualBillsAPI.bulkUpload(formData);
       }
-
-      // Reset form and close modal
-      setFormData({
-        pdfFiles: [],
-        selectedProviderId: "",
+    },
+    onSuccess: () => {
+      toast({
+        title: "Upload started",
+        description: "Your bill(s) are being processed",
       });
-      setShowModal(false);
-
-      // Refresh manual bills list
-      fetchManualBills();
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || "Upload failed");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const getStatusBadgeClass = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case "processing":
-        return "status-running";
-      case "completed":
-        return "status-completed";
-      case "error":
-        return "status-error";
-      case "manual_upload":
-        return "status-idle";
-      default:
-        return "status-idle";
-    }
-  };
-
-  const getProviderIcon = (providerName: string) => {
-    const name = providerName?.toLowerCase() || "";
-    if (name.includes("duke") || name.includes("energy")) return "⚡";
-    if (name.includes("gas") || name.includes("piedmont")) return "🔥";
-    if (name.includes("water") || name.includes("charlotte")) return "💧";
-    return "📄";
-  };
-
-  const getProviderBadgeClass = (providerName: string) => {
-    const name = providerName?.toLowerCase() || "";
-    if (name.includes("duke") || name.includes("energy"))
-      return "provider-energy";
-    if (name.includes("gas") || name.includes("piedmont"))
-      return "provider-gas";
-    if (name.includes("water") || name.includes("charlotte"))
-      return "provider-water";
-    return "provider-energy";
-  };
-
-  const handleDownload = async (blobName: string, fileType: string) => {
-    try {
-      const response = await credentialsAPI.downloadPDF(blobName);
-      const blob = new Blob([response.data], {
-        type:
-          fileType === "pdf"
-            ? "application/pdf"
-            : fileType === "json"
-            ? "application/json"
-            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      setIsDialogOpen(false);
+      setSelectedFiles(null);
+      setSelectedProvider("");
+      queryClient.invalidateQueries({ queryKey: ["manual-bills"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Upload failed",
+        description: error.response?.data?.detail || "Failed to upload bills",
+        variant: "destructive",
       });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = blobName.split("/").pop() || `download.${fileType}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      toast.success(`${fileType.toUpperCase()} downloaded successfully`);
-    } catch (error) {
-      toast.error(`Failed to download ${fileType.toUpperCase()}`);
-    }
-  };
-
-  const filteredBills = manualBills.filter((bill) => {
-    if (!searchTerm) return true;
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      (bill.original_filename &&
-        bill.original_filename.toLowerCase().includes(searchLower)) ||
-      (bill.provider_name &&
-        bill.provider_name.toLowerCase().includes(searchLower))
-    );
+    },
   });
 
-  if (loading) {
-    return <div className="flex justify-center items-center h-[200px] text-slate-500">Loading...</div>;
-  }
+  const toggleProviderFilter = (provider: string) => {
+    setSelectedProviderFilters(prev => 
+      prev.includes(provider) 
+        ? prev.filter(p => p !== provider)
+        : [...prev, provider]
+    );
+  };
+
+  const toggleStatusFilter = (status: string) => {
+    setSelectedStatusFilters(prev => 
+      prev.includes(status) 
+        ? prev.filter(s => s !== status)
+        : [...prev, status]
+    );
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    // Validate number of files
+    if (files.length > 10) {
+      toast({
+        title: "Too many files",
+        description: "You can only upload up to 10 files at a time.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file sizes (15MB = 15 * 1024 * 1024 bytes)
+    const maxSize = 15 * 1024 * 1024;
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].size > maxSize) {
+        toast({
+          title: "File too large",
+          description: `${files[i].name} exceeds the 15MB limit.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    setSelectedFiles(files);
+  };
+
+  const handleUpload = () => {
+    if (!selectedFiles || selectedFiles.length === 0) {
+      toast({
+        title: "No files selected",
+        description: "Please select at least one file to upload.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedProvider) {
+      toast({
+        title: "Provider required",
+        description: "Please select a provider.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Find provider ID from name
+    const provider = providers?.find((p: any) => p.name === selectedProvider);
+    if (!provider) {
+      toast({
+        title: "Provider not found",
+        description: "Please select a valid provider.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    uploadMutation.mutate({ files: selectedFiles, providerId: provider.id });
+  };
+
+  const handleDownload = async (type: "json" | "excel" | "pdf", bill: UploadedBill) => {
+    if (!bill.originalData) return;
+    
+    try {
+      let response;
+      let blobName: string | null = null;
+      
+      // Get the blob path from the original data
+      if (type === "json" && bill.originalData.json_blob_url) {
+        blobName = bill.originalData.json_blob_url;
+        response = await manualBillsAPI.downloadJSON(blobName);
+      } else if (type === "excel" && bill.originalData.excel_blob_url) {
+        blobName = bill.originalData.excel_blob_url;
+        response = await manualBillsAPI.downloadExcel(blobName);
+      } else if (type === "pdf" && bill.originalData.azure_blob_url) {
+        blobName = bill.originalData.azure_blob_url;
+        response = await manualBillsAPI.downloadPDF(blobName);
+      } else {
+        toast({
+          title: "File not available",
+          description: `${type.toUpperCase()} file is not available for this bill`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create blob from response
+      const blob = new Blob([response.data], {
+        type: type === "json" ? "application/json" : 
+              type === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : 
+              "application/pdf"
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      
+      // Extract filename from blob path or use original filename
+      const filename = blobName?.split('/').pop() || bill.filename;
+      const extension = type === "json" ? "json" : type === "excel" ? "xlsx" : "pdf";
+      a.download = filename.endsWith(`.${extension}`) ? filename : `${filename}.${extension}`;
+      
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Download started",
+        description: `Downloading ${type.toUpperCase()} file...`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Download failed",
+        description: error.response?.data?.detail || "Failed to download file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const filteredBills = uploadedBills.filter((bill) => {
+    // Search filter
+    const matchesSearch = bill.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      bill.provider.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Provider filter
+    const matchesProvider = selectedProviderFilters.length === 0 || 
+      selectedProviderFilters.includes(bill.provider);
+    
+    // Status filter
+    const matchesStatus = selectedStatusFilters.length === 0 || 
+      selectedStatusFilters.includes(bill.status);
+    
+    return matchesSearch && matchesProvider && matchesStatus;
+  });
+
+  const getStatusBadge = (status: UploadedBill["status"]) => {
+    const variants = {
+      processing: "bg-warning/10 text-warning border-warning/20",
+      completed: "bg-primary/10 text-primary border-primary/20",
+      failed: "bg-destructive/10 text-destructive border-destructive/20",
+    };
+    return (
+      <Badge variant="outline" className={variants[status]}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    );
+  };
+
+  const displayedProviders = showAllProviders ? allProviders : allProviders.slice(0, 5);
+  const statusOptions = ["processing", "completed", "failed"];
 
   return (
-    <div>
-      {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-semibold text-slate-800 m-0 mb-2">Manual Bill Extraction</h1>
-        <p className="text-slate-500 text-base m-0">
-          Upload bills manually for automatic data extraction
-        </p>
-        {manualBills.some((bill) => bill.status?.toLowerCase() === "processing") && (
-          <div className="mt-4 py-3 px-4 bg-blue-50 border border-blue-300 rounded-lg flex items-center gap-2 text-sm text-blue-900">
-            <span className="inline-block w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></span>
-            <span>Bills are being processed... Status will update automatically every 30 seconds.</span>
-          </div>
-        )}
+    <div className="p-8 space-y-6">
+      {/* Header */}
+      <div className="space-y-2">
+        <h1 className="text-3xl font-semibold text-foreground">Manual Bill Extraction</h1>
+        <p className="text-muted-foreground">Upload bills manually for automatic data extraction</p>
       </div>
 
-      {/* Search Section */}
-      <div className="flex justify-between items-center mb-8 gap-4">
-        <div className="relative flex-1 max-w-[800px]">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-base">🔍</span>
-          <input
-            type="text"
-            placeholder="Search by filename or provider..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full py-3 pr-4 pl-10 border border-gray-300 rounded-lg text-sm bg-white transition-[border-color] duration-200 box-border focus:outline-none focus:border-blue-500 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)]"
-          />
-        </div>
-        <div className="text-slate-500 text-sm whitespace-nowrap">
-          Showing {filteredBills.length} of {manualBills.length} bills
-        </div>
-      </div>
-
-      {/* Upload Bill Button */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex gap-4">
-          <button
-            onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-2 px-6 py-3 border-0 rounded-lg font-medium text-sm cursor-pointer transition-all duration-200 no-underline bg-blue-500 text-white hover:bg-blue-600"
-          >
-            ➕ Upload Bill
-          </button>
-        </div>
-      </div>
-
-      {/* Bills Grid */}
-      {filteredBills.length === 0 ? (
-        <div className="text-center p-12 bg-white rounded-xl border border-slate-200">
-          <span className="text-gray-500 mb-4 text-5xl block">
-            📄
-          </span>
-          <h3 className="text-gray-700 mb-2">
-            {searchTerm ? "No matching bills found" : "No bills uploaded yet"}
-          </h3>
-          <p className="text-gray-500 mb-6">
-            {searchTerm
-              ? "Try adjusting your search terms"
-              : "Get started by uploading your first bill for extraction."}
-          </p>
-          {!searchTerm && (
+      {/* Filter Chips */}
+      <div className="space-y-3">
+        {/* Provider Filters */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {displayedProviders.map((provider) => (
             <button
-              onClick={() => setShowModal(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 border-0 rounded-lg font-medium text-sm cursor-pointer transition-all duration-200 no-underline bg-blue-500 text-white hover:bg-blue-600"
+              key={provider}
+              onClick={() => toggleProviderFilter(provider)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                selectedProviderFilters.includes(provider)
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+              }`}
             >
-              Upload Bill
+              {provider}
+            </button>
+          ))}
+          {allProviders.length > 5 && (
+            <button
+              onClick={() => setShowAllProviders(!showAllProviders)}
+              className="px-3 py-1.5 rounded-full text-xs font-medium transition-all border bg-muted text-muted-foreground border-border hover:border-primary/50 hover:text-foreground flex items-center gap-1"
+            >
+              {showAllProviders ? "Show Less" : `Show More (${allProviders.length - 5})`}
+              <ChevronRight className={`h-3 w-3 transition-transform ${showAllProviders ? "rotate-90" : ""}`} />
             </button>
           )}
         </div>
-      ) : (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(350px,1fr))] gap-6 mt-8">
-          {filteredBills.map((bill) => (
-            <div key={bill.id} className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 transition-all duration-200 hover:shadow-md">
-              <div className="flex justify-between items-center gap-3 mb-4">
-                <h3 
-                  className="font-semibold text-slate-800 m-0 text-base leading-normal flex-1 min-w-0 truncate"
-                  title={bill.original_filename || "Unnamed Bill"}
-                >
-                  {bill.original_filename || "Unnamed Bill"}
-                </h3>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium capitalize flex items-center gap-1 flex-shrink-0 ${
-                    getStatusBadgeClass(bill.status) === "status-running"
-                      ? "bg-emerald-100 text-emerald-800"
-                      : getStatusBadgeClass(bill.status) === "status-completed"
-                      ? "bg-emerald-100 text-emerald-800"
-                      : getStatusBadgeClass(bill.status) === "status-error"
-                      ? "bg-red-100 text-red-600"
-                      : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  ⏰ {bill.status}
-                </span>
-              </div>
 
-              <div className="flex justify-between items-center mb-4">
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${
-                    getProviderBadgeClass(bill.provider_name || "") === "provider-energy"
-                      ? "bg-amber-100 text-amber-800"
-                      : getProviderBadgeClass(bill.provider_name || "") === "provider-gas"
-                      ? "bg-orange-200 text-orange-900"
-                      : "bg-blue-100 text-blue-800"
-                  }`}
-                >
-                  {getProviderIcon(bill.provider_name || "")}{" "}
-                  {bill.provider_name || "Unknown Provider"}
-                </span>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4">
-                <span className="text-slate-500 text-sm leading-normal m-0">
-                  Uploaded: {bill.month} {bill.year}
-                </span>
-              </div>
-
-              <div className="flex gap-2 flex-wrap">
-                <button
-                  onClick={() => handleDownload(bill.azure_blob_url, "pdf")}
-                  className="px-6 py-3 text-sm font-semibold flex-1 min-w-0 justify-center bg-blue-500 border-0 rounded-lg text-white cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5"
-                  title="Download PDF"
-                >
-                  📄 PDF
-                </button>
-                {bill.excel_blob_url && (
-                  <button
-                    onClick={() => handleDownload(bill.excel_blob_url!, "xlsx")}
-                    className="px-6 py-3 text-sm font-semibold flex-1 min-w-0 justify-center bg-emerald-600 border-0 rounded-lg text-white cursor-pointer transition-all duration-200 hover:bg-emerald-700 hover:-translate-y-0.5"
-                    title="Download Excel"
-                  >
-                    📊 Excel
-                  </button>
-                )}
-                {bill.json_blob_url && (
-                  <button
-                    onClick={() => handleDownload(bill.json_blob_url!, "json")}
-                    className="px-6 py-3 text-sm font-semibold flex-1 min-w-0 justify-center bg-amber-500 border-0 rounded-lg text-white cursor-pointer transition-all duration-200 hover:bg-amber-600 hover:-translate-y-0.5"
-                    title="Download JSON"
-                  >
-                    📋 JSON
-                  </button>
-                )}
-              </div>
-            </div>
+        {/* Status Filters */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {statusOptions.map((status) => (
+            <button
+              key={status}
+              onClick={() => toggleStatusFilter(status)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                selectedStatusFilters.includes(status)
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+              }`}
+            >
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+            </button>
           ))}
         </div>
-      )}
+      </div>
 
-      {/* Upload Bill Modal */}
-      {showModal && (
-        <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex justify-center items-center z-[1000]" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-xl p-8 w-[90%] max-w-[500px] shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-slate-800 m-0">Upload Bill</h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="bg-transparent border-0 text-2xl cursor-pointer text-slate-500 p-0 w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-100 hover:text-slate-800"
-              >
-                &times;
-              </button>
-            </div>
+      {/* Search and Upload Section */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by filename or provider..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
 
-            <form onSubmit={handleUploadBill}>
-              <div className="mb-6">
-                <label htmlFor="pdfFile" className="block font-medium text-gray-700 mb-2 text-sm">
-                  PDF File(s)
-                </label>
-                <input
-                  type="file"
-                  id="pdfFile"
-                  accept=".pdf"
-                  multiple
-                  onChange={handleFileChange}
-                  className="w-full p-3 border border-gray-300 rounded-lg text-sm transition-[border-color] duration-200 focus:outline-none focus:border-blue-500 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] file:py-2 file:px-4 file:border file:border-gray-300 file:rounded-md file:bg-gray-50 file:text-gray-700 file:text-sm file:cursor-pointer file:mr-4 file:hover:bg-gray-100"
-                  required
-                />
-                {formData.pdfFiles.length > 0 && (
-                  <div className="mt-2 text-sm text-blue-500 font-medium">
-                    📎 {formData.pdfFiles.length} file(s) selected
-                    {formData.pdfFiles.length > 1 && (
-                      <span className="block mt-1 text-slate-500 font-normal">
-                        ℹ️ Multiple files will be processed in chunks of 10
-                      </span>
-                    )}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Upload className="h-4 w-4" />
+              Upload Bill
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Upload Bill</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              {/* File Input */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">PDF File(s)</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept=".pdf"
+                    multiple
+                    onChange={handleFileChange}
+                    className="flex-1"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Max 10 files, 15MB per file
+                </p>
+                {selectedFiles && selectedFiles.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {Array.from(selectedFiles).map((file, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <FileText className="h-4 w-4" />
+                        <span className="truncate">{file.name}</span>
+                        <span className="text-xs">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
 
-              <div className="mb-6">
-                <label htmlFor="providerSelect" className="block font-medium text-gray-700 mb-2 text-sm">
-                  Provider
-                </label>
-                <select
-                  id="providerSelect"
-                  value={formData.selectedProviderId}
-                  onChange={handleProviderChange}
-                  className="w-full py-3.5 px-4 border-2 border-gray-200 rounded-xl text-sm font-medium bg-white appearance-none cursor-pointer transition-all duration-300 shadow-sm text-gray-700 hover:border-blue-500 hover:bg-blue-50/30 hover:shadow-[0_4px_12px_rgba(59,130,246,0.15),0_2px_4px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 focus:outline-none focus:border-blue-500 focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15),0_4px_12px_rgba(59,130,246,0.1)] focus:bg-blue-50/30 focus:-translate-y-0.5 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:opacity-70 disabled:border-gray-200 disabled:shadow-none disabled:translate-y-0 [background-image:url('data:image/svg+xml,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%236b7280%27%3e%3cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3e%3c/svg%3e')] [background-position:right_1rem_center] [background-repeat:no-repeat] [background-size:1.25em_1.25em]"
-                  required
-                >
-                  <option value="">Select a provider...</option>
-                  {providers.map((provider) => (
-                    <option key={provider.id} value={provider.id}>
-                      {provider.name}
-                    </option>
-                  ))}
-                </select>
+              {/* Provider Select */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Provider</label>
+                <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a provider..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {allProviders.length > 0 ? (
+                      allProviders.map((provider: string) => (
+                        <SelectItem key={provider} value={provider}>
+                          {provider}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="loading" disabled>Loading providers...</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
+            </div>
 
-              <div className="flex gap-4 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="inline-flex items-center gap-2 px-6 py-3 border-0 rounded-lg font-medium text-sm cursor-pointer transition-all duration-200 no-underline bg-slate-500 text-white hover:bg-slate-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 px-6 py-3 border-0 rounded-lg font-medium text-sm cursor-pointer transition-all duration-200 no-underline bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={uploading}
-                >
-                  {uploading ? "Uploading..." : "Upload Bill"}
-                </button>
-              </div>
-            </form>
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDialogOpen(false);
+                  setSelectedFiles(null);
+                  setSelectedProvider("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleUpload}
+                disabled={uploadMutation.isPending}
+              >
+                {uploadMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  "Upload Bill"
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-lg border border-border bg-card overflow-hidden shadow-sm">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        </div>
-      )}
+        ) : error ? (
+          <div className="flex items-center justify-center py-12 text-destructive">
+            Failed to load bills. Please try again.
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent border-b border-border">
+                <TableHead className="font-medium">Filename</TableHead>
+                <TableHead className="font-medium">Provider</TableHead>
+                <TableHead className="font-medium">Upload Date</TableHead>
+                <TableHead className="font-medium">Status</TableHead>
+                <TableHead className="font-medium">Billing Month</TableHead>
+                <TableHead className="text-right font-medium">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredBills.length > 0 ? (
+              filteredBills.map((bill) => (
+                <TableRow key={bill.id} className="hover:bg-muted/50 transition-colors">
+                  <TableCell className="font-medium text-sm">{bill.filename}</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-warning/10 text-warning text-xs font-medium">
+                      ⚡ {bill.provider}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {new Date(bill.uploadDate).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>{getStatusBadge(bill.status)}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{bill.billingMonth}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {bill.status === "completed" ? (
+                        <>
+                          <TooltipProvider>
+                            <div className="flex items-center gap-1">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
+                                    onClick={() => handleDownload("json", bill)}
+                                  >
+                                    <FileJson className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Download JSON</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-8 w-8 p-0 text-success hover:text-success hover:bg-success/10"
+                                    onClick={() => handleDownload("excel", bill)}
+                                  >
+                                    <FileSpreadsheet className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Download Excel</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => handleDownload("pdf", bill)}
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Download PDF</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TooltipProvider>
+                        </>
+                      ) : (
+                        <>
+                          <Button variant="ghost" size="sm" className="h-8 px-3">
+                            <Eye className="h-4 w-4 mr-1" />
+                            View Bills
+                          </Button>
+                        </>
+                      )}
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  No bills found. Upload your first bill to get started.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+        )}
+      </div>
     </div>
   );
-};
-
-export default ManualBillExtraction;
+}

@@ -100,6 +100,7 @@ class ManualBillResponse(BaseModel):
     month: str
     run_time: Optional[datetime]
     created_at: datetime
+    login_url: Optional[str] = None
 
 class AuditLogResponse(BaseModel):
     id: str

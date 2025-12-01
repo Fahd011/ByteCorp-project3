@@ -17,7 +17,7 @@ router = APIRouter()
 # Security scheme
 security = HTTPBearer(auto_error=False)
 
-@router.post("api/auth/register", response_model=Token)
+@router.post("/api/auth/register", response_model=Token)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
@@ -46,6 +46,16 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     print(f"🔍 Login attempt for email: {user_credentials.email}")
     
+    # First, check against root user credentials from environment variables
+    if (config.ROOT_USER_EMAIL and config.ROOT_USER_PASSWORD and
+        user_credentials.email == config.ROOT_USER_EMAIL and
+        user_credentials.password == config.ROOT_USER_PASSWORD):
+        print(f"✅ Root user authentication successful")
+        # Create a token with root user identifier
+        access_token = create_access_token(data={"sub": config.ROOT_USER_EMAIL, "is_root": True})
+        return {"access_token": access_token, "token_type": "bearer"}
+    
+    # If not root user, check database
     user = db.query(User).filter(User.email == user_credentials.email).first()
     
     if not user:

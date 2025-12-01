@@ -1,94 +1,73 @@
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import Navigation from "./components/Navigation";
+import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import BillingResults from "./pages/BillingResults";
+import MainLayout from "./pages/MainLayout";
 import ManualBillExtraction from "./pages/ManualBillExtraction";
+import BillingResults from "./pages/BillingResults";
+import NotFound from "./pages/NotFound";
+import { Loader2 } from "lucide-react";
 
-const AppLayout: React.FC = () => {
-  const { user, loading } = useAuth();
+const queryClient = new QueryClient();
 
-  // Show loading screen while checking authentication
+// Protected Route Component
+function ProtectedRoute({ children }: { children: React.ReactElement }) {
+  const { isAuthenticated, loading } = useAuth();
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen text-xl text-slate-500">
-        Loading...
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  // If user is not authenticated, show auth pages without navigation
-  if (!user) {
-    return (
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </Router>
-    );
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" replace />;
   }
 
-  // If user is authenticated, show dashboard with navigation
+  return children;
+}
+
+const AppRoutes = () => {
   return (
-    <Router>
-      <div className="flex min-h-screen">
-        <Navigation />
-        <main className="flex-1 ml-[250px] p-8 bg-slate-50 min-h-screen">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route
-              path="/billing-results/:cred_id"
-              element={<BillingResults />}
-            />
-            <Route path="/manual-bills" element={<ManualBillExtraction />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-      </div>
-    </Router>
+    <Routes>
+      <Route path="/auth" element={<Auth />} />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <MainLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="extraction" element={<ManualBillExtraction />} />
+        <Route path="billing-results/:credId" element={<BillingResults />} />
+      </Route>
+      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 };
 
-const App: React.FC = () => {
-  return (
+const App = () => (
+  <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <AppLayout />
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: "#363636",
-            color: "#fff",
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: "#10b981",
-              secondary: "#fff",
-            },
-          },
-          error: {
-            duration: 5000,
-            iconTheme: {
-              primary: "#ef4444",
-              secondary: "#fff",
-            },
-          },
-        }}
-      />
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </TooltipProvider>
     </AuthProvider>
-  );
-};
+  </QueryClientProvider>
+);
 
 export default App;

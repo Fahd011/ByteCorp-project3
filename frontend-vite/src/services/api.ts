@@ -41,7 +41,7 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
-      window.location.href = "/login";
+      window.location.href = "/auth";
     }
     return Promise.reject(error);
   }
@@ -93,6 +93,8 @@ export const credentialsAPI = {
 
   getBillingResults: (credId: string): Promise<AxiosResponse<any>> =>
     api.get(`/billing-results/${credId}`),
+  getAllBillingResults: (): Promise<AxiosResponse<any>> =>
+    api.get(`/billing-results`),
 
   downloadPDF: (blobName: string): Promise<AxiosResponse<Blob>> =>
     api.get(`/azure/download/${encodeURIComponent(blobName)}`, {
@@ -158,6 +160,18 @@ export const manualBillsAPI = {
       },
     }),
   getAll: (): Promise<AxiosResponse<any[]>> => api.get("/manual-bills"),
+  downloadPDF: (blobName: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/azure/download/${encodeURIComponent(blobName)}`, {
+      responseType: "blob",
+    }),
+  downloadExcel: (blobName: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/azure/download/${encodeURIComponent(blobName)}`, {
+      responseType: "blob",
+    }),
+  downloadJSON: (blobName: string): Promise<AxiosResponse<Blob>> =>
+    api.get(`/azure/download/${encodeURIComponent(blobName)}`, {
+      responseType: "blob",
+    }),
 };
 
 // Audit logs API
@@ -174,3 +188,4 @@ export const healthAPI = {
 };
 
 export default api;
+

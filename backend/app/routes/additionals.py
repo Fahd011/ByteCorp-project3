@@ -74,6 +74,58 @@ def get_billing_results(credential_id: str, db: Session = Depends(get_db)):
         for r in results
     ]
 
+@router.get("/api/billing-results")
+def get_all_billing_results(
+    user_id: str = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Get all billing results for the current user across all credentials"""
+    # Handle root user case: if user_id is an email, look up the actual user ID
+    from app.models import User
+    from config import config
+    
+    actual_user_id = user_id
+    
+    # Check if user_id is an email (root user case)
+    if user_id == config.ROOT_USER_EMAIL:
+        user = db.query(User).filter(User.email == user_id).first()
+        if user:
+            actual_user_id = user.id
+        else:
+            return []
+    
+    # Get all credentials for the user
+    credentials = db.query(UserBillingCredential).filter(
+        UserBillingCredential.user_id == actual_user_id,
+        UserBillingCredential.is_deleted == False
+    ).all()
+    
+    credential_ids = [cred.id for cred in credentials]
+    
+    # Get all billing results for these credentials
+    results = db.query(BillingResult).filter(
+        BillingResult.user_billing_credential_id.in_(credential_ids)
+    ).order_by(BillingResult.run_time.desc()).all()
+    
+    # Create a map of credential_id to email for username lookup
+    cred_to_email = {cred.id: cred.email for cred in credentials}
+    
+    return [
+        {
+            "id": r.id,
+            "azure_blob_url": r.azure_blob_url,
+            "excel_blob_url": r.excel_blob_url,
+            "json_blob_url": r.json_blob_url,
+            "run_time": r.run_time.isoformat() if r.run_time else None,
+            "status": r.status,
+            "year": r.year,
+            "month": r.month,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "username": cred_to_email.get(r.user_billing_credential_id, "unknown")
+        }
+        for r in results
+    ]
+
 # Provider endpoints
 @router.get("/api/providers", response_model=List[ProviderResponse])
 def get_providers(db: Session = Depends(get_db)):
