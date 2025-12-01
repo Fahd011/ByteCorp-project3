@@ -1,9 +1,9 @@
 import React from "react";
 
 interface SagilityLogoProps {
-  className?: string;
-  width?: number;
-  height?: number;
+  readonly className?: string;
+  readonly width?: number;
+  readonly height?: number;
 }
 
 export function SagilityLogo({ className = "", width = 31, height = 31 }: SagilityLogoProps) {

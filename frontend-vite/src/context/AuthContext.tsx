@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from "react";
+import * as React from "react";
 import { authAPI } from "@/services/api";
 import { LoginCredentials, RegisterData, Token, User } from "@/types";
 import { extractErrorMessage } from "@/utils/errorHandling";
@@ -15,7 +16,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+interface AuthProviderProps {
+  readonly children: ReactNode;
+}
+
+export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,7 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const payload = JSON.parse(atob(storedToken.split(".")[1]));
         setUser({ email: payload.sub || payload.email });
       } catch (e) {
-        // Token might not be JWT, that's okay
+        // Token might not be JWT, that's okay - use default user
+        console.debug("Token parsing failed, using default user:", e);
         setUser({ email: "user" });
       }
     }
@@ -51,6 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const payload = JSON.parse(atob(accessToken.split(".")[1]));
         setUser({ email: payload.sub || payload.email || credentials.email });
       } catch (e) {
+        // Token parsing failed, use email from credentials
+        console.debug("Token parsing failed, using credentials email:", e);
         setUser({ email: credentials.email });
       }
     } catch (error: unknown) {
@@ -79,18 +87,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Clear any React Query cache if needed
   };
 
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(
+    () => ({
+      user,
+      token,
+      loading,
+      login,
+      register,
+      logout,
+      isAuthenticated: !!token,
+    }),
+    [user, token, loading, login, register, logout]
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        loading,
-        login,
-        register,
-        logout,
-        isAuthenticated: !!token,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

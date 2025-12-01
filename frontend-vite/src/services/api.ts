@@ -47,7 +47,7 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
-      window.location.href = "/auth";
+      globalThis.location.href = "/auth";
     }
     return Promise.reject(error);
   }

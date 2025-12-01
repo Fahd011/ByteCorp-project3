@@ -61,19 +61,33 @@ export default function BillingResults() {
         throw new Error("Invalid download type");
       }
 
-      const blob = new Blob([response.data], {
-        type: type === "pdf" ? "application/pdf" : type === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/json",
-      });
-      const url = window.URL.createObjectURL(blob);
+      // Determine MIME type
+      let mimeType: string;
+      if (type === "pdf") {
+        mimeType = "application/pdf";
+      } else if (type === "excel") {
+        mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      } else {
+        mimeType = "application/json";
+      }
+      
+      const blob = new Blob([response.data], { type: mimeType });
+      const url = globalThis.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
+      
+      // Determine file extension
       const extension = type === "pdf" ? "pdf" : type === "excel" ? "xlsx" : "json";
       const extractedFilename = extractFilename(blobName);
-      a.download = extractedFilename.endsWith(`.${extension}`) ? extractedFilename : `${extractedFilename}.${extension}`;
+      const finalFilename = extractedFilename.endsWith(`.${extension}`) 
+        ? extractedFilename 
+        : `${extractedFilename}.${extension}`;
+      a.download = finalFilename;
+      
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      globalThis.URL.revokeObjectURL(url);
+      a.remove();
       
       toast({
         title: "Download started",
@@ -168,7 +182,11 @@ export default function BillingResults() {
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0 text-success hover:text-success hover:bg-success/10"
-                            onClick={() => handleDownload("excel", result.excel_blob_url!)}
+                            onClick={() => {
+                              if (result.excel_blob_url) {
+                                handleDownload("excel", result.excel_blob_url);
+                              }
+                            }}
                             title="Download Excel"
                           >
                             <FileSpreadsheet className="h-4 w-4" />
@@ -179,7 +197,11 @@ export default function BillingResults() {
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
-                            onClick={() => handleDownload("json", result.json_blob_url!)}
+                            onClick={() => {
+                              if (result.json_blob_url) {
+                                handleDownload("json", result.json_blob_url);
+                              }
+                            }}
                             title="Download JSON"
                           >
                             <FileJson className="h-4 w-4" />

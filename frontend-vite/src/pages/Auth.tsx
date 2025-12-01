@@ -26,7 +26,7 @@ export default function Auth() {
 
   const handleEntraIDLogin = async () => {
     setIsLoading(true);
-    // TODO: Implement Entra ID authentication
+    // Entra ID authentication - to be implemented
     toast.error("Entra ID authentication not yet implemented");
     setIsLoading(false);
   };

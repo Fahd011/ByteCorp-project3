@@ -57,14 +57,8 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
     },
   });
 
-  // Fetch providers from API
-  const { data: providers } = useQuery({
-    queryKey: ["providers"],
-    queryFn: async () => {
-      const response = await providerAPI.getAll();
-      return response.data;
-    },
-  });
+  // Note: Providers are fetched but not directly used in this component
+  // They are available via the credentials' utility_co_name field
 
   // Transform backend data to frontend format
   const transformedProviders = useMemo(() => {
@@ -97,15 +91,30 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
             daysUntil = daysInMonth - currentDay + cred.billing_cycle_day;
           }
           
-          billCycle = `${daysUntil === 0 ? "Today" : daysUntil === 1 ? "1 day" : `${daysUntil} days`}`;
+          // Format bill cycle text
+          let billCycleText: string;
+          if (daysUntil === 0) {
+            billCycleText = "Today";
+          } else if (daysUntil === 1) {
+            billCycleText = "1 day";
+          } else {
+            billCycleText = `${daysUntil} days`;
+          }
+          billCycle = billCycleText;
         }
         
         // Determine utility type (default to Electricity)
-        const utilityType: "Electricity" | "Gas" | "Water" | "Waste/Trash" = 
-          cred.utility_co_name?.toLowerCase().includes("gas") ? "Gas" :
-          cred.utility_co_name?.toLowerCase().includes("water") ? "Water" :
-          cred.utility_co_name?.toLowerCase().includes("waste") || cred.utility_co_name?.toLowerCase().includes("trash") ? "Waste/Trash" :
-          "Electricity";
+        const utilityName = cred.utility_co_name?.toLowerCase() ?? "";
+        let utilityType: "Electricity" | "Gas" | "Water" | "Waste/Trash";
+        if (utilityName.includes("gas")) {
+          utilityType = "Gas";
+        } else if (utilityName.includes("water")) {
+          utilityType = "Water";
+        } else if (utilityName.includes("waste") || utilityName.includes("trash")) {
+          utilityType = "Waste/Trash";
+        } else {
+          utilityType = "Electricity";
+        }
         
         return {
           id: cred.id,
