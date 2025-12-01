@@ -1,217 +1,240 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { credentialsAPI, pdfExtractionAPI } from "../services/api";
-import toast from "react-hot-toast";
+import { useQuery } from "@tanstack/react-query";
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, FileText, FileSpreadsheet, FileJson, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { credentialsAPI } from "@/services/api";
+import { useToast } from "@/hooks/use-toast";
+import { getStatusBadge } from "@/utils/statusBadge";
+import { formatDate, formatBillingMonth } from "@/utils/dateFormatting";
+import { extractFilename } from "@/utils/filenameExtraction";
+import { extractErrorMessage } from "@/utils/errorHandling";
+import { getDefaultProviderFull } from "@/utils/defaultValues";
+import { EmptyState } from "@/components/EmptyState";
+import { UserBillingCredential, BillingResult } from "@/types";
 
-const BillingResults: React.FC = () => {
-  const { cred_id: credId } = useParams();
-  const [results, setResults] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function BillingResults() {
+  const { credId } = useParams<{ credId: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  useEffect(() => {
-    fetchResults();
-  }, [credId]);
+  // Fetch billing results
+  const { data: billingResults, isLoading, error } = useQuery({
+    queryKey: ["billing-results", credId],
+    queryFn: async () => {
+      if (!credId) throw new Error("Credential ID is required");
+      const response = await credentialsAPI.getBillingResults(credId);
+      return response.data as BillingResult[];
+    },
+    enabled: !!credId,
+  });
 
-  const handleDownloadPDF = async (blobName: string) => {
+  // Fetch credential to get provider name
+  const { data: credentials } = useQuery({
+    queryKey: ["credentials"],
+    queryFn: async () => {
+      const response = await credentialsAPI.getAll();
+      return response.data;
+    },
+  });
+
+  const credential = credentials?.find((c: UserBillingCredential) => c.id === credId);
+  const providerName = credential?.utility_co_name ?? getDefaultProviderFull();
+
+  const handleDownload = async (type: "pdf" | "excel" | "json", blobName: string) => {
     try {
-      const response = await credentialsAPI.downloadPDF(blobName);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `bill_${blobName}`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success("PDF downloaded successfully");
-    } catch (error) {
-      toast.error("Failed to download PDF");
-    }
-  };
-
-  const handleExportToExcel = async (result: any) => {
-    try {
-      // Check if we have an Excel blob URL in the database
-      if (result.excel_blob_url) {
-        // Download from Azure using the stored blob URL
-        const response = await credentialsAPI.downloadExcel(
-          result.excel_blob_url
-        );
-
-        // Extract filename from the blob URL or create one
-        const filename =
-          result.excel_blob_url.split("/").pop() ||
-          `utility_bills_extraction_${result.id}.xlsx`;
-
-        // Create download link
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement("a");
-        link.href = url;
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-
-        toast.success("Excel file downloaded successfully!");
+      let response;
+      if (type === "pdf") {
+        response = await credentialsAPI.downloadPDF(blobName);
+      } else if (type === "excel") {
+        response = await credentialsAPI.downloadExcel(blobName);
+      } else if (type === "json") {
+        response = await credentialsAPI.downloadJSON(blobName);
       } else {
-        // Fallback to the old method if no Excel blob URL exists
-        const response = await pdfExtractionAPI.exportToExcel(result.id);
-
-        // Extract filename from Content-Disposition header
-        const contentDisposition = response.headers["content-disposition"];
-        let filename = `utility_bills_extraction_${result.id}.xlsx`; // fallback
-
-        if (contentDisposition) {
-          const filenameMatch = contentDisposition.match(
-            /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
-          );
-          if (filenameMatch && filenameMatch[1]) {
-            filename = filenameMatch[1].replace(/['"]/g, "");
-          }
-        }
-
-        // Create download link
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement("a");
-        link.href = url;
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-
-        toast.success("Excel file downloaded successfully!");
+        throw new Error("Invalid download type");
       }
-    } catch (error: any) {
-      console.error("Export error:", error);
-      toast.error(error.response?.data?.detail || "Failed to export to Excel");
-    }
-  };
 
-  const handleDownloadJSON = async (result: any) => {
-    try {
-      if (result.json_blob_url) {
-        const response = await credentialsAPI.downloadJSON(
-          result.json_blob_url
-        );
-
-        const filename =
-          result.json_blob_url.split("/").pop() ||
-          `utility_bills_data_${result.id}.json`;
-
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement("a");
-        link.href = url;
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-
-        toast.success("JSON data downloaded successfully!");
+      // Determine MIME type
+      let mimeType: string;
+      if (type === "pdf") {
+        mimeType = "application/pdf";
+      } else if (type === "excel") {
+        mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
       } else {
-        toast.error("No JSON data available for this billing result");
+        mimeType = "application/json";
       }
-    } catch (error: any) {
-      console.error("JSON download error:", error);
-      toast.error("Failed to download JSON data");
+      
+      const blob = new Blob([response.data], { type: mimeType });
+      const url = globalThis.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      
+      // Determine file extension
+      let extension: string;
+      if (type === "pdf") {
+        extension = "pdf";
+      } else if (type === "excel") {
+        extension = "xlsx";
+      } else {
+        extension = "json";
+      }
+      const extractedFilename = extractFilename(blobName);
+      const finalFilename = extractedFilename.endsWith(`.${extension}`) 
+        ? extractedFilename 
+        : `${extractedFilename}.${extension}`;
+      a.download = finalFilename;
+      
+      document.body.appendChild(a);
+      a.click();
+      globalThis.URL.revokeObjectURL(url);
+      a.remove();
+      
+      toast({
+        title: "Download started",
+        description: `Downloading ${type.toUpperCase()} file`,
+      });
+    } catch (error: unknown) {
+      toast({
+        title: "Download failed",
+        description: extractErrorMessage(error, "Failed to download file"),
+        variant: "destructive",
+      });
     }
   };
 
-  const fetchResults = async () => {
-    try {
-      if (credId) {
-        const response = await credentialsAPI.getBillingResults(credId);
-        setResults(response.data || []);
-      }
-    } catch (err) {
-      console.error("❌ Failed to fetch billing results", err);
-      toast.error("Failed to fetch billing results");
-    } finally {
-      setLoading(false);
-    }
-  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-destructive mb-4">Failed to load billing results</p>
+          <Button onClick={() => navigate("/dashboard")}>Go Back to Dashboard</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-[800px] my-8 mx-auto p-6">
-      <h2 className="text-[1.75rem] font-bold text-slate-800 mb-6 border-b-2 border-slate-200 pb-2">Billing Results</h2>
-
-      {loading ? (
-        <div className="flex flex-col items-center mt-8">
-          <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin mb-2.5"></div>
-          <p className="text-base text-slate-500">Loading results...</p>
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/dashboard")}
+            className="mb-4 gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Button>
+          <h1 className="text-3xl font-semibold text-foreground mb-2">Billing Results</h1>
+          <p className="text-muted-foreground">
+            Provider: <span className="font-medium">{providerName}</span>
+            {credential?.email && (
+              <> • Account: <span className="font-medium">{credential.email}</span></>
+            )}
+          </p>
         </div>
-      ) : results.length === 0 ? (
-        <div className="bg-amber-100 text-amber-900 py-3 px-4 rounded-lg shadow-sm">No bills found.</div>
-      ) : (
-        <div className="grid gap-4">
-          {results.map((r: any) => (
-            <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm transition-all duration-200 hover:shadow-md">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="text-[1.1rem] font-semibold text-slate-700">
-                  Bill for {r.year} / {r.month}
-                </h3>
-                <span className={`py-1 px-2.5 rounded-full text-[0.85rem] font-medium ${
-                  r.status.toLowerCase() === "completed"
-                    ? "bg-emerald-100 text-emerald-900"
-                    : r.status.toLowerCase() === "failed"
-                    ? "bg-red-100 text-red-800"
-                    : r.status.toLowerCase() === "pending"
-                    ? "bg-slate-100 text-slate-600"
-                    : r.status.toLowerCase() === "manual_upload"
-                    ? "bg-amber-100 text-amber-900"
-                    : "bg-slate-100 text-slate-600"
-                }`}>
-                  {r.status === "manual_upload" ? "Manual Upload" : r.status}
-                </span>
-              </div>
 
-              <div className="text-sm text-slate-500 mb-4">
-                <p>
-                  <strong>Date:</strong>{" "}
-                  {r.run_time ? new Date(r.run_time).toLocaleString() : "N/A"}
-                </p>
-                {r.status === "manual_upload" && (
-                  <p>
-                    <strong>Type:</strong> Manually uploaded
-                  </p>
-                )}
-              </div>
-
-              <div className="flex gap-3 flex-wrap">
-                <button
-                  onClick={() => handleDownloadPDF(r.azure_blob_url)}
-                  className="py-2 px-4 bg-blue-600 text-white text-sm font-medium border-0 rounded-lg cursor-pointer transition-[background] duration-200 hover:bg-blue-800"
-                >
-                  Download Bill
-                </button>
-
-                {r.excel_blob_url && (
-                  <button
-                    onClick={() => handleExportToExcel(r)}
-                    className="py-2 px-4 bg-emerald-700 text-white text-sm font-medium border-0 rounded-lg cursor-pointer transition-[background] duration-200 hover:bg-emerald-800"
-                  >
-                    Export to Excel
-                  </button>
-                )}
-                {r.json_blob_url && (
-                  <button
-                    onClick={() => handleDownloadJSON(r)}
-                    className="py-2 px-4 bg-amber-500 text-white text-sm font-medium border-0 rounded-lg cursor-pointer transition-[background] duration-200 hover:bg-amber-600"
-                  >
-                    Download JSON
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+        {/* Table */}
+        <div className="rounded-lg border border-border bg-card overflow-hidden shadow-sm">
+          {!billingResults || billingResults.length === 0 ? (
+            <EmptyState
+              title="No billing results found"
+              description="No billing results found for this credential"
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-b border-border">
+                  <TableHead className="font-medium">Date</TableHead>
+                  <TableHead className="font-medium">Month/Year</TableHead>
+                  <TableHead className="font-medium">Status</TableHead>
+                  <TableHead className="font-medium">Username</TableHead>
+                  <TableHead className="text-right font-medium">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {billingResults.map((result) => (
+                  <TableRow key={result.id} className="hover:bg-muted/50 transition-colors">
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDate(result.run_time)}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {formatBillingMonth(result.month, result.year)}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(result.status)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {result.username}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {result.excel_blob_url && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-success hover:text-success hover:bg-success/10"
+                            onClick={() => {
+                              if (result.excel_blob_url) {
+                                handleDownload("excel", result.excel_blob_url);
+                              }
+                            }}
+                            title="Download Excel"
+                          >
+                            <FileSpreadsheet className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {result.json_blob_url && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
+                            onClick={() => {
+                              if (result.json_blob_url) {
+                                handleDownload("json", result.json_blob_url);
+                              }
+                            }}
+                            title="Download JSON"
+                          >
+                            <FileJson className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {result.azure_blob_url && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDownload("pdf", result.azure_blob_url)}
+                            title="Download PDF"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
-};
+}
 
-export default BillingResults;

@@ -1,7 +1,6 @@
-import httpx
 from datetime import datetime
 from app.db import get_db, get_db_context
-from app.models import BillingResult, Provider, ManualBillResponse
+from app.models import BillingResult, Provider, ManualBillResponse, UserBillingCredential
 from app.routes.auth import verify_token
 from fastapi import Depends, UploadFile, File, Form, APIRouter, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -103,13 +102,53 @@ def get_manual_bills(
     user_id: str = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
-    """Get all manual bills (where user_billing_credential_id is NULL)"""
+    """Get all manual bills (where user_billing_credential_id is NULL) with login_url from UserBillingCredential when available"""
     
+    # Query manual bills (where user_billing_credential_id is NULL)
     manual_bills = db.query(BillingResult).filter(
         BillingResult.user_billing_credential_id == None
     ).order_by(BillingResult.created_at.desc()).all()
     
-    return manual_bills
+    # Optimize: Batch fetch all matching credentials in a single query to avoid N+1 problem
+    # Get unique provider names from manual bills
+    provider_names = {bill.provider_name for bill in manual_bills if bill.provider_name}
+    
+    # Fetch all matching credentials for the user in a single query
+    provider_to_login_url = {}
+    if provider_names:
+        matching_credentials = db.query(UserBillingCredential).filter(
+            UserBillingCredential.user_id == user_id,
+            UserBillingCredential.utility_co_name.in_(provider_names),
+            UserBillingCredential.is_deleted == False
+        ).all()
+        
+        # Create a map of provider name to login_url, taking the first one found for each provider
+        for cred in matching_credentials:
+            if cred.utility_co_name not in provider_to_login_url:
+                provider_to_login_url[cred.utility_co_name] = cred.login_url
+    
+    # Build the response with login_urls from the in-memory map
+    result = []
+    for billing_result in manual_bills:
+        login_url = provider_to_login_url.get(billing_result.provider_name) if billing_result.provider_name else None
+        
+        bill_dict = {
+            "id": billing_result.id,
+            "original_filename": billing_result.original_filename,
+            "provider_name": billing_result.provider_name,
+            "azure_blob_url": billing_result.azure_blob_url,
+            "excel_blob_url": billing_result.excel_blob_url,
+            "json_blob_url": billing_result.json_blob_url,
+            "status": billing_result.status,
+            "year": billing_result.year,
+            "month": billing_result.month,
+            "run_time": billing_result.run_time,
+            "created_at": billing_result.created_at,
+            "login_url": login_url
+        }
+        result.append(ManualBillResponse(**bill_dict))
+    
+    return result
 
 
 @router.post("/api/manual-bills/bulk-upload")

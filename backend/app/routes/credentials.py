@@ -1,19 +1,20 @@
-import uuid
-from app.db import get_db
-from app.agent_utils import simulate_agent_run
-from app.models import AgentAction, UserBillingCredential, UserBillingCredentialResponse
-from app.routes.auth import verify_token
-from fastapi import Depends,UploadFile, File, Form, APIRouter, HTTPException, BackgroundTasks
-from sqlalchemy.orm import Session
-from fastapi.responses import FileResponse
-from typing import List
-
 import csv
 import io
 import os
+import uuid
 from datetime import datetime
+from typing import List
+from fastapi import Depends, UploadFile, File, Form, APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+
 from azure_storage_service import azure_storage_service
+from app.agent_utils import simulate_agent_run
 from app.audit_logger import AuditLogger
+from app.db import get_db
+from app.models import AgentAction, UserBillingCredential, UserBillingCredentialResponse, User
+from app.routes.auth import verify_token, get_actual_user_id
+from config import config
 
 
 router = APIRouter()
@@ -213,8 +214,14 @@ def get_credentials(
     user_id: str = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
+    # Handle root user case: if user_id is an email, look up the actual user ID
+    actual_user_id = get_actual_user_id(user_id, db)
+    if not actual_user_id:
+        # If root user doesn't exist in DB, return empty list
+        return []
+    
     credentials = db.query(UserBillingCredential).filter(
-        UserBillingCredential.user_id == user_id,
+        UserBillingCredential.user_id == actual_user_id,
         UserBillingCredential.is_deleted == False
     ).all()
     
