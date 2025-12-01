@@ -49,18 +49,18 @@ export function AppSidebar() {
       const blob = new Blob([response.data], { type: "text/csv" });
       
       // Create download link
-      const url = window.URL.createObjectURL(blob);
+      const url = globalThis.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       
       // Generate filename with timestamp
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5);
+      const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-").slice(0, -5);
       a.download = `audit_logs_${timestamp}.csv`;
       
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      globalThis.URL.revokeObjectURL(url);
+      a.remove();
       
       toast({
         title: "Download started",

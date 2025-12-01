@@ -1,11 +1,11 @@
 import { ReactNode } from "react";
 
 interface EmptyStateProps {
-  title: string;
-  description?: string;
-  action?: ReactNode;
-  icon?: ReactNode;
-  className?: string;
+  readonly title: string;
+  readonly description?: string;
+  readonly action?: ReactNode;
+  readonly icon?: ReactNode;
+  readonly className?: string;
 }
 
 /**

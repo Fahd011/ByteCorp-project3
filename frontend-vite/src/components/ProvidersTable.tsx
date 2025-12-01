@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpDown, ExternalLink, Trash2, Eye, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Trash2, Eye, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -35,7 +35,7 @@ type Provider = {
 const utilityTypes = ["Electricity", "Gas", "Water", "Waste/Trash"] as const;
 
 interface ProvidersTableProps {
-  searchTerm?: string;
+  readonly searchTerm?: string;
 }
 
 export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {

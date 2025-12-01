@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { UserBillingCredential } from "@/types";
 
 interface DashboardStatsProps {
-  credentials?: UserBillingCredential[];
+  readonly credentials?: readonly UserBillingCredential[];
 }
 
 export function DashboardStats({ credentials = [] }: DashboardStatsProps) {
@@ -24,7 +24,9 @@ export function DashboardStats({ credentials = [] }: DashboardStatsProps) {
     const idle = credentials.filter(c => c.last_state?.toLowerCase() === "idle").length;
     
     // Calculate average billing cycle days
-    const cyclesWithDays = credentials.filter(c => c.billing_cycle_day).map(c => c.billing_cycle_day!);
+    const cyclesWithDays = credentials
+      .filter((c): c is UserBillingCredential & { billing_cycle_day: number } => c.billing_cycle_day !== null && c.billing_cycle_day !== undefined)
+      .map(c => c.billing_cycle_day);
     const avgCycleDays = cyclesWithDays.length > 0 
       ? Math.round(cyclesWithDays.reduce((a, b) => a + b, 0) / cyclesWithDays.length)
       : 0;
