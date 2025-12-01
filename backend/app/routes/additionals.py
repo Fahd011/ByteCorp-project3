@@ -1,18 +1,18 @@
 # Fetch all billing results for a credential_id
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
-from app.models import BillingResult, Provider, ProviderResponse, UserBillingCredential, AuditLog
-from app.db import get_db
-from sqlalchemy.orm import Session
-from typing import List
-from app.utils import hash_password
-from app.models import User
-from app.routes.auth import verify_token
-from config import config
-from datetime import datetime
 import io
 import csv
 import json
+from datetime import datetime
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+
+from config import config
+from app.db import get_db
+from app.models import BillingResult, Provider, ProviderResponse, UserBillingCredential, AuditLog, User
+from app.routes.auth import verify_token, get_actual_user_id
+from app.utils import hash_password
 
 router = APIRouter()
 
@@ -81,18 +81,9 @@ def get_all_billing_results(
 ):
     """Get all billing results for the current user across all credentials"""
     # Handle root user case: if user_id is an email, look up the actual user ID
-    from app.models import User
-    from config import config
-    
-    actual_user_id = user_id
-    
-    # Check if user_id is an email (root user case)
-    if user_id == config.ROOT_USER_EMAIL:
-        user = db.query(User).filter(User.email == user_id).first()
-        if user:
-            actual_user_id = user.id
-        else:
-            return []
+    actual_user_id = get_actual_user_id(user_id, db)
+    if not actual_user_id:
+        return []
     
     # Get all credentials for the user
     credentials = db.query(UserBillingCredential).filter(

@@ -109,21 +109,28 @@ def get_manual_bills(
         BillingResult.user_billing_credential_id == None
     ).order_by(BillingResult.created_at.desc()).all()
     
-    # For each manual bill, try to find matching credential by provider_name to get login_url
+    # Optimize: Batch fetch all matching credentials in a single query to avoid N+1 problem
+    # Get unique provider names from manual bills
+    provider_names = {bill.provider_name for bill in manual_bills if bill.provider_name}
+    
+    # Fetch all matching credentials for the user in a single query
+    provider_to_login_url = {}
+    if provider_names:
+        matching_credentials = db.query(UserBillingCredential).filter(
+            UserBillingCredential.user_id == user_id,
+            UserBillingCredential.utility_co_name.in_(provider_names),
+            UserBillingCredential.is_deleted == False
+        ).all()
+        
+        # Create a map of provider name to login_url, taking the first one found for each provider
+        for cred in matching_credentials:
+            if cred.utility_co_name not in provider_to_login_url:
+                provider_to_login_url[cred.utility_co_name] = cred.login_url
+    
+    # Build the response with login_urls from the in-memory map
     result = []
     for billing_result in manual_bills:
-        login_url = None
-        
-        # Try to find a matching credential by provider_name for the current user
-        if billing_result.provider_name:
-            matching_credential = db.query(UserBillingCredential).filter(
-                UserBillingCredential.utility_co_name == billing_result.provider_name,
-                UserBillingCredential.user_id == user_id,
-                UserBillingCredential.is_deleted == False
-            ).first()
-            
-            if matching_credential:
-                login_url = matching_credential.login_url
+        login_url = provider_to_login_url.get(billing_result.provider_name) if billing_result.provider_name else None
         
         bill_dict = {
             "id": billing_result.id,

@@ -62,10 +62,7 @@ export function DashboardStats({ credentials = [] }: DashboardStatsProps) {
         <Card className="p-6 border border-border shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-medium text-muted-foreground">Total Providers</h3>
-            <div className="flex items-center gap-1 text-success text-sm">
-              <TrendingUp className="h-4 w-4" />
-              <span>+5.2%</span>
-            </div>
+            {/* Trend calculation removed - would need historical data to calculate */}
           </div>
           <div className="text-3xl font-semibold text-foreground mb-1">{stats.totalProviders}</div>
           <p className="text-xs text-muted-foreground">Active utility accounts</p>
