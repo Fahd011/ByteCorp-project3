@@ -41,7 +41,7 @@ PROVIDER_PROMPTS = {
             1. Go to {signin_url}
             2. Wait for the page to fully load (this site is slow)
             4. Log-in with email: {email} and password: {password}
-            5. Select email and get click continue 
+            5. Select email and click continue 
             6. If you see the dashboard or the home page, STOP the task with status "Successfully logged in"
             7. If you see the 2FA code input field, use the 'done' action with output: "Ready for 2FA code"
             """,
@@ -54,12 +54,30 @@ PROVIDER_PROMPTS = {
             5. Use the 'done' action with output: "2FA completed"
             """,
         "task3_download": """
-            1. expand the first account accordion
-            2. Click on view bill
-            3. A new window will pop up showing the bill in a pdf viewer
-            4. Click the download button 
-            7. Wait until the bill PDF finishes downloading
-            8. Use the 'done' action with output: "Successfully downloaded one bill"
+            1. Expand the first account accordion if needed
+            2. Click on "View Bill"
+            3. Wait for the new tab with the PDF URL to open.
+            4. IMPORTANT: The PDF viewer is not clickable. DO NOT try to click the download button.
+            5. Instead, execute the following JavaScript code to download the file directly:
+            
+            ```javascript
+            async function downloadPDF() {{
+                const response = await fetch(window.location.href);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'CenterPoint_Bill.pdf';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }}
+            downloadPDF();
+            ```
+            
+            6. Wait 5 seconds to ensure the download starts.
+            7. Use the 'done' action with output: "Successfully downloaded one bill"
             """,
     },
     "xcel_energy": """
