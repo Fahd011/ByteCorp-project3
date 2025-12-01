@@ -37,7 +37,7 @@ const ChartContainer = React.forwardRef<
   }
 >(({ id, className, children, config, ...props }, ref) => {
   const uniqueId = React.useId();
-  const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`;
+  const chartId = `chart-${id || uniqueId.replaceAll(":", "")}`;
 
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = React.useMemo(() => ({ config }), [config]);
