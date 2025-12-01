@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { ArrowUpDown, ExternalLink, Trash2, Eye, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +36,7 @@ interface ProvidersTableProps {
 }
 
 export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
+  const navigate = useNavigate();
   const [sortField, setSortField] = useState<keyof Provider>("daysUntil");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [activeTab, setActiveTab] = useState<"all" | "idle" | "active" | "failed" | "completed">("all");
@@ -236,7 +238,7 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
   
   const handleViewBills = (credId: string) => {
     // Navigate to billing results page
-    window.location.href = `/billing-results/${credId}`;
+    navigate(`/billing-results/${credId}`);
   };
 
   const handleLoginPortal = (loginUrl: string | null) => {

@@ -50,7 +50,7 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     if (config.ROOT_USER_EMAIL and config.ROOT_USER_PASSWORD and
         user_credentials.email == config.ROOT_USER_EMAIL and
         user_credentials.password == config.ROOT_USER_PASSWORD):
-        print(f"✅ Root user authentication successful")
+        print("✅ Root user authentication successful")
         # Create a token with root user identifier
         access_token = create_access_token(data={"sub": config.ROOT_USER_EMAIL, "is_root": True})
         return {"access_token": access_token, "token_type": "bearer"}

@@ -57,7 +57,17 @@ export default function BillingResults() {
 
   const handleDownload = async (type: "pdf" | "excel" | "json", blobName: string) => {
     try {
-      const response = await credentialsAPI.downloadPDF(blobName);
+      let response;
+      if (type === "pdf") {
+        response = await credentialsAPI.downloadPDF(blobName);
+      } else if (type === "excel") {
+        response = await credentialsAPI.downloadExcel(blobName);
+      } else if (type === "json") {
+        response = await credentialsAPI.downloadJSON(blobName);
+      } else {
+        throw new Error("Invalid download type");
+      }
+
       const blob = new Blob([response.data], {
         type: type === "pdf" ? "application/pdf" : type === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/json",
       });
@@ -74,10 +84,13 @@ export default function BillingResults() {
         title: "Download started",
         description: `Downloading ${type.toUpperCase()} file`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed to download file";
       toast({
         title: "Download failed",
-        description: error.response?.data?.detail || "Failed to download file",
+        description: errorMessage,
         variant: "destructive",
       });
     }
