@@ -30,7 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
  * @returns Badge component with appropriate styling
  */
 export function getStatusBadge(
-  status: string | StatusType | null | undefined,
+  status: string | null | undefined,
   capitalize: boolean = true
 ) {
   const statusLower = status?.toLowerCase() || "";
@@ -51,7 +51,7 @@ export function getStatusBadge(
 /**
  * Get status color class only (for use in other components)
  */
-export function getStatusColorClass(status: string | StatusType | null | undefined): string {
+export function getStatusColorClass(status: string | null | undefined): string {
   const statusLower = status?.toLowerCase() || "";
   return STATUS_COLORS[statusLower] || "bg-muted text-muted-foreground border-border";
 }

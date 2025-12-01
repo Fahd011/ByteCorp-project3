@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Upload, X, FileText, ChevronRight, ExternalLink, FileJson, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Search, Upload, FileText, ChevronRight, FileJson, FileSpreadsheet, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -81,6 +81,14 @@ export default function ManualBillExtraction() {
     },
   });
 
+  // Helper function to determine bill status
+  const getBillStatus = (status: string | null | undefined): "processing" | "completed" | "failed" => {
+    const statusLower = status?.toLowerCase();
+    if (statusLower === "completed") return "completed";
+    if (statusLower === "failed") return "failed";
+    return "processing";
+  };
+
   // Transform backend data to frontend format
   const uploadedBills = useMemo(() => {
     if (!manualBills) return [];
@@ -90,10 +98,7 @@ export default function ManualBillExtraction() {
       filename: bill.original_filename ?? DEFAULT_VALUES.FILENAME,
       provider: bill.provider_name ?? DEFAULT_VALUES.PROVIDER,
       uploadDate: bill.created_at,
-      status: bill.status?.toLowerCase() === "completed" ? "completed" as const :
-              bill.status?.toLowerCase() === "processing" ? "processing" as const :
-              bill.status?.toLowerCase() === "failed" ? "failed" as const :
-              "processing" as const,
+      status: getBillStatus(bill.status),
       billingMonth: formatBillingMonth(bill.month, bill.year),
       loginUrl: bill.login_url ?? null,
       originalData: bill,
@@ -172,11 +177,11 @@ export default function ManualBillExtraction() {
 
     // Validate file sizes (15MB = 15 * 1024 * 1024 bytes)
     const maxSize = 15 * 1024 * 1024;
-    for (let i = 0; i < files.length; i++) {
-      if (files[i].size > maxSize) {
+    for (const file of files) {
+      if (file.size > maxSize) {
         toast({
           title: "File too large",
-          description: `${files[i].name} exceeds the 15MB limit.`,
+          description: `${file.name} exceeds the 15MB limit.`,
           variant: "destructive",
         });
         return;
@@ -388,9 +393,10 @@ export default function ManualBillExtraction() {
             <div className="space-y-6 py-4">
               {/* File Input */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">PDF File(s)</label>
+                <label htmlFor="pdf-file-input" className="text-sm font-medium text-foreground">PDF File(s)</label>
                 <div className="flex items-center gap-2">
                   <Input
+                    id="pdf-file-input"
                     type="file"
                     accept=".pdf"
                     multiple
@@ -403,8 +409,8 @@ export default function ManualBillExtraction() {
                 </p>
                 {selectedFiles && selectedFiles.length > 0 && (
                   <div className="mt-2 space-y-1">
-                    {Array.from(selectedFiles).map((file, index) => (
-                      <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    {Array.from(selectedFiles).map((file) => (
+                      <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2 text-sm text-muted-foreground">
                         <FileText className="h-4 w-4" />
                         <span className="truncate">{file.name}</span>
                         <span className="text-xs">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
@@ -416,9 +422,9 @@ export default function ManualBillExtraction() {
 
               {/* Provider Select */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Provider</label>
+                <label htmlFor="provider-select" className="text-sm font-medium text-foreground">Provider</label>
                 <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-                  <SelectTrigger>
+                  <SelectTrigger id="provider-select">
                     <SelectValue placeholder="Select a provider..." />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
@@ -468,16 +474,23 @@ export default function ManualBillExtraction() {
 
       {/* Table */}
       <div className="rounded-lg border border-border bg-card overflow-hidden shadow-sm">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : error ? (
-          <div className="flex items-center justify-center py-12 text-destructive">
-            Failed to load bills. Please try again.
-          </div>
-        ) : (
-          <Table>
+        {(() => {
+          if (isLoading) {
+            return (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            );
+          }
+          if (error) {
+            return (
+              <div className="flex items-center justify-center py-12 text-destructive">
+                Failed to load bills. Please try again.
+              </div>
+            );
+          }
+          return (
+            <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent border-b border-border">
                 <TableHead className="font-medium">Filename</TableHead>
@@ -505,59 +518,57 @@ export default function ManualBillExtraction() {
                   <TableCell className="text-sm text-muted-foreground">{bill.billingMonth}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {bill.status === "completed" ? (
-                        <>
-                          <TooltipProvider>
-                            <div className="flex items-center gap-1">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
-                                    onClick={() => handleDownload("json", bill)}
-                                  >
-                                    <FileJson className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Download JSON</p>
-                                </TooltipContent>
-                              </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="h-8 w-8 p-0 text-success hover:text-success hover:bg-success/10"
-                                    onClick={() => handleDownload("excel", bill)}
-                                  >
-                                    <FileSpreadsheet className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Download Excel</p>
-                                </TooltipContent>
-                              </Tooltip>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    onClick={() => handleDownload("pdf", bill)}
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Download PDF</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </div>
-                          </TooltipProvider>
-                        </>
-                      ) : null}
+                      {bill.status === "completed" && (
+                        <TooltipProvider>
+                          <div className="flex items-center gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
+                                  onClick={() => handleDownload("json", bill)}
+                                >
+                                  <FileJson className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Download JSON</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-8 w-8 p-0 text-success hover:text-success hover:bg-success/10"
+                                  onClick={() => handleDownload("excel", bill)}
+                                >
+                                  <FileSpreadsheet className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Download Excel</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => handleDownload("pdf", bill)}
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Download PDF</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TooltipProvider>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -574,7 +585,8 @@ export default function ManualBillExtraction() {
             )}
           </TableBody>
         </Table>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

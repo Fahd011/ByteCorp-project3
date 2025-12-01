@@ -188,8 +188,9 @@ export default function Dashboard() {
               <div className="space-y-6 py-4">
                 {/* Provider Selection */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Provider</label>
+                  <label htmlFor="provider-select-dialog" className="text-sm font-medium text-foreground">Provider</label>
                   <select
+                    id="provider-select-dialog"
                     value={selectedProvider}
                     onChange={(e) => setSelectedProvider(e.target.value)}
                     className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground"
@@ -205,9 +206,10 @@ export default function Dashboard() {
 
                 {/* CSV File Input */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">CSV File</label>
+                  <label htmlFor="csv-file-input" className="text-sm font-medium text-foreground">CSV File</label>
                   <div className="flex items-center gap-2">
                     <Input
+                      id="csv-file-input"
                       type="file"
                       accept=".csv"
                       onChange={handleFileChange}
