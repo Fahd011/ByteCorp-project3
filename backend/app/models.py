@@ -114,6 +114,18 @@ class AuditLogResponse(BaseModel):
     details: Optional[dict]
     message: Optional[str]
 
+class BillingResultResponse(BaseModel):
+    id: str
+    azure_blob_url: str
+    excel_blob_url: Optional[str]
+    json_blob_url: Optional[str]
+    run_time: Optional[str]
+    status: str
+    year: str
+    month: str
+    created_at: Optional[str]
+    username: str
+
 # Removed ImportResultResponse - no longer needed
 
 # SQLAlchemy models

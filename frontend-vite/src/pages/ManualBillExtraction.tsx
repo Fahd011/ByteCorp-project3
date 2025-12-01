@@ -56,7 +56,7 @@ export default function ManualBillExtraction() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState("");
+  const [selectedProviderId, setSelectedProviderId] = useState("");
   const [selectedProviderFilters, setSelectedProviderFilters] = useState<string[]>([]);
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<string[]>([]);
   const [showAllProviders, setShowAllProviders] = useState(false);
@@ -105,10 +105,10 @@ export default function ManualBillExtraction() {
     }));
   }, [manualBills]);
 
-  // Get unique providers list
+  // Get providers list with IDs
   const allProviders = useMemo(() => {
     if (!providers) return [];
-    return providers.map((p: Provider) => p.name).sort((a, b) => a.localeCompare(b));
+    return [...providers].sort((a, b) => a.name.localeCompare(b.name));
   }, [providers]);
 
   // Upload mutation
@@ -133,7 +133,7 @@ export default function ManualBillExtraction() {
       });
       setIsDialogOpen(false);
       setSelectedFiles(null);
-      setSelectedProvider("");
+      setSelectedProviderId("");
       queryClient.invalidateQueries({ queryKey: ["manual-bills"] });
     },
     onError: (error: unknown) => {
@@ -201,7 +201,7 @@ export default function ManualBillExtraction() {
       return;
     }
 
-    if (!selectedProvider) {
+    if (!selectedProviderId) {
       toast({
         title: "Provider required",
         description: "Please select a provider.",
@@ -210,18 +210,7 @@ export default function ManualBillExtraction() {
       return;
     }
 
-    // Find provider ID from name
-    const provider = providers?.find((p: Provider) => p.name === selectedProvider);
-    if (!provider) {
-      toast({
-        title: "Provider not found",
-        description: "Please select a valid provider.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    uploadMutation.mutate({ files: selectedFiles, providerId: provider.id });
+    uploadMutation.mutate({ files: selectedFiles, providerId: selectedProviderId });
   };
 
   // Helper function to create and trigger download
@@ -327,15 +316,15 @@ export default function ManualBillExtraction() {
         <div className="flex items-center gap-2 flex-wrap">
           {displayedProviders.map((provider) => (
             <button
-              key={provider}
-              onClick={() => toggleProviderFilter(provider)}
+              key={provider.id}
+              onClick={() => toggleProviderFilter(provider.name)}
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
-                selectedProviderFilters.includes(provider)
+                selectedProviderFilters.includes(provider.name)
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
               }`}
             >
-              {provider}
+              {provider.name}
             </button>
           ))}
           {allProviders.length > 5 && (
@@ -423,15 +412,15 @@ export default function ManualBillExtraction() {
               {/* Provider Select */}
               <div className="space-y-2">
                 <label htmlFor="provider-select" className="text-sm font-medium text-foreground">Provider</label>
-                <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
                   <SelectTrigger id="provider-select">
                     <SelectValue placeholder="Select a provider..." />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
                     {allProviders.length > 0 ? (
-                      allProviders.map((provider: string) => (
-                        <SelectItem key={provider} value={provider}>
-                          {provider}
+                      allProviders.map((provider: Provider) => (
+                        <SelectItem key={provider.id} value={provider.id}>
+                          {provider.name}
                         </SelectItem>
                       ))
                     ) : (
@@ -449,7 +438,7 @@ export default function ManualBillExtraction() {
                 onClick={() => {
                   setIsDialogOpen(false);
                   setSelectedFiles(null);
-                  setSelectedProvider("");
+                  setSelectedProviderId("");
                 }}
               >
                 Cancel

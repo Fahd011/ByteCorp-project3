@@ -12,6 +12,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { credentialsAPI } from "@/services/api";
 import { UserBillingCredential } from "@/types";
 import { useToast } from "@/hooks/use-toast";
@@ -177,6 +188,44 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
         variant: "destructive",
       });
     }
+  };
+
+  const DeleteConfirmationDialog = ({ credId, providerName }: { credId: string; providerName: string }) => {
+    const [isDeleting, setIsDeleting] = useState(false);
+    
+    const onConfirmDelete = async () => {
+      setIsDeleting(true);
+      await handleDelete(credId);
+      setIsDeleting(false);
+    };
+
+    return (
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Credential</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the credential for <strong>{providerName}</strong>? This action is irreversible and will permanently remove this credential.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onConfirmDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
   };
 
   const filteredProviders = transformedProviders.filter((provider) => {
@@ -414,14 +463,10 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
                         <Eye className="h-4 w-4 mr-1" />
                         View Bills
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(provider.credential?.id || provider.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <DeleteConfirmationDialog 
+                        credId={provider.credential?.id || provider.id}
+                        providerName={provider.provider}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

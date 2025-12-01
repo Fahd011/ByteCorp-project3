@@ -2,6 +2,7 @@ import hmac
 import jwt
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
 from fastapi import status, APIRouter, HTTPException, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -106,7 +107,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-def get_actual_user_id(user_id: str, db: Session) -> str:
+def get_actual_user_id(user_id: str, db: Session) -> Optional[str]:
     """
     Helper function to resolve root user email to actual user ID.
     If user_id is the root user email, look up the actual user ID from the database.
@@ -117,13 +118,13 @@ def get_actual_user_id(user_id: str, db: Session) -> str:
         db: Database session
         
     Returns:
-        The actual user ID to use for database queries
+        The actual user ID to use for database queries, or None if not found
     """
     # Check if user_id is an email (root user case)
     if user_id == config.ROOT_USER_EMAIL:
         user = db.query(User).filter(User.email == user_id).first()
         if user:
             return user.id
-        # If root user doesn't exist in DB, return empty string to indicate no user
-        return ""
+        # If root user doesn't exist in DB, return None to indicate no user
+        return None
     return user_id

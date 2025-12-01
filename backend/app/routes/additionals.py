@@ -10,9 +10,10 @@ from sqlalchemy.orm import Session
 
 from config import config
 from app.db import get_db
-from app.models import BillingResult, Provider, ProviderResponse, UserBillingCredential, AuditLog, User
+from app.models import BillingResult, Provider, ProviderResponse, UserBillingCredential, AuditLog, User, BillingResultResponse
 from app.routes.auth import verify_token, get_actual_user_id
 from app.utils import hash_password
+from typing import List
 
 router = APIRouter()
 
@@ -74,7 +75,7 @@ def get_billing_results(credential_id: str, db: Session = Depends(get_db)):
         for r in results
     ]
 
-@router.get("/api/billing-results")
+@router.get("/api/billing-results", response_model=List[BillingResultResponse])
 def get_all_billing_results(
     user_id: str = Depends(verify_token),
     db: Session = Depends(get_db)
@@ -102,18 +103,18 @@ def get_all_billing_results(
     cred_to_email = {cred.id: cred.email for cred in credentials}
     
     return [
-        {
-            "id": r.id,
-            "azure_blob_url": r.azure_blob_url,
-            "excel_blob_url": r.excel_blob_url,
-            "json_blob_url": r.json_blob_url,
-            "run_time": r.run_time.isoformat() if r.run_time else None,
-            "status": r.status,
-            "year": r.year,
-            "month": r.month,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-            "username": cred_to_email.get(r.user_billing_credential_id, "unknown")
-        }
+        BillingResultResponse(
+            id=r.id,
+            azure_blob_url=r.azure_blob_url,
+            excel_blob_url=r.excel_blob_url,
+            json_blob_url=r.json_blob_url,
+            run_time=r.run_time.isoformat() if r.run_time else None,
+            status=r.status,
+            year=r.year,
+            month=r.month,
+            created_at=r.created_at.isoformat() if r.created_at else None,
+            username=cred_to_email.get(r.user_billing_credential_id, "unknown")
+        )
         for r in results
     ]
 
