@@ -16,7 +16,7 @@ import { getStatusBadge } from "@/utils/statusBadge";
 import { formatDate, formatBillingMonth } from "@/utils/dateFormatting";
 import { extractFilename } from "@/utils/filenameExtraction";
 import { extractErrorMessage } from "@/utils/errorHandling";
-import { DEFAULT_VALUES } from "@/utils/defaultValues";
+import { getDefaultProviderFull } from "@/utils/defaultValues";
 import { EmptyState } from "@/components/EmptyState";
 
 interface BillingResult {
@@ -58,7 +58,7 @@ export default function BillingResults() {
   });
 
   const credential = credentials?.find((c: any) => c.id === credId);
-  const providerName = credential?.utility_co_name ?? DEFAULT_VALUES.PROVIDER_FULL;
+  const providerName = credential?.utility_co_name ?? getDefaultProviderFull();
 
   const handleDownload = async (type: "pdf" | "excel" | "json", blobName: string) => {
     try {

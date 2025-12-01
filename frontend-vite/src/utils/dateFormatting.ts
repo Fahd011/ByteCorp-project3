@@ -13,7 +13,7 @@ export function formatDate(
   try {
     const dateObj = typeof date === "string" ? new Date(date) : date;
     
-    if (isNaN(dateObj.getTime())) {
+    if (Number.isNaN(dateObj.getTime())) {
       return "N/A";
     }
     
@@ -35,7 +35,7 @@ export function formatDateTime(
   try {
     const dateObj = typeof date === "string" ? new Date(date) : date;
     
-    if (isNaN(dateObj.getTime())) {
+    if (Number.isNaN(dateObj.getTime())) {
       return "N/A";
     }
     

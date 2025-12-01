@@ -11,10 +11,17 @@ export const DEFAULT_VALUES = {
 } as const;
 
 /**
- * Get default value for provider name
+ * Get default value for provider name (short)
  */
-export function getDefaultProvider(full: boolean = false): string {
-  return full ? DEFAULT_VALUES.PROVIDER_FULL : DEFAULT_VALUES.PROVIDER;
+export function getDefaultProvider(): string {
+  return DEFAULT_VALUES.PROVIDER;
+}
+
+/**
+ * Get default value for provider name (full)
+ */
+export function getDefaultProviderFull(): string {
+  return DEFAULT_VALUES.PROVIDER_FULL;
 }
 
 /**
