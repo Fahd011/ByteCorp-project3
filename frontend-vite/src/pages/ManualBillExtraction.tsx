@@ -214,62 +214,73 @@ export default function ManualBillExtraction() {
     uploadMutation.mutate({ files: selectedFiles, providerId: provider.id });
   };
 
+  // Helper function to create and trigger download
+  const triggerDownload = (blob: Blob, filename: string, extension: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename.endsWith(`.${extension}`) ? filename : `${filename}.${extension}`;
+    document.body.appendChild(link);
+    link.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(link);
+  };
+
+  // Download configuration mapping
+  const downloadConfig = {
+    json: {
+      blobUrlKey: "json_blob_url" as const,
+      downloadFn: manualBillsAPI.downloadJSON,
+      mimeType: "application/json",
+      extension: "json",
+    },
+    excel: {
+      blobUrlKey: "excel_blob_url" as const,
+      downloadFn: manualBillsAPI.downloadExcel,
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      extension: "xlsx",
+    },
+    pdf: {
+      blobUrlKey: "azure_blob_url" as const,
+      downloadFn: manualBillsAPI.downloadPDF,
+      mimeType: "application/pdf",
+      extension: "pdf",
+    },
+  } as const;
+
   const handleDownload = async (type: "json" | "excel" | "pdf", bill: UploadedBill) => {
     if (!bill.originalData) return;
     
-    try {
-      let response;
-      let blobName: string | null = null;
-      
-      // Get the blob path from the original data
-      if (type === "json" && bill.originalData.json_blob_url) {
-        blobName = bill.originalData.json_blob_url;
-        response = await manualBillsAPI.downloadJSON(blobName);
-      } else if (type === "excel" && bill.originalData.excel_blob_url) {
-        blobName = bill.originalData.excel_blob_url;
-        response = await manualBillsAPI.downloadExcel(blobName);
-      } else if (type === "pdf" && bill.originalData.azure_blob_url) {
-        blobName = bill.originalData.azure_blob_url;
-        response = await manualBillsAPI.downloadPDF(blobName);
-      } else {
-        toast({
-          title: "File not available",
-          description: `${type.toUpperCase()} file is not available for this bill`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Create blob from response
-      const blob = new Blob([response.data], {
-        type: type === "json" ? "application/json" : 
-              type === "excel" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : 
-              "application/pdf"
+    const config = downloadConfig[type];
+    const blobUrl = bill.originalData[config.blobUrlKey];
+    
+    if (!blobUrl) {
+      toast({
+        title: "File not available",
+        description: `${type.toUpperCase()} file is not available for this bill`,
+        variant: "destructive",
       });
+      return;
+    }
 
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
+    try {
+      const response = await config.downloadFn(blobUrl);
+      const blob = new Blob([response.data], { type: config.mimeType });
+      const filename = blobUrl.split('/').pop() || bill.filename;
       
-      // Extract filename from blob path or use original filename
-      const filename = blobName?.split('/').pop() || bill.filename;
-      const extension = type === "json" ? "json" : type === "excel" ? "xlsx" : "pdf";
-      a.download = filename.endsWith(`.${extension}`) ? filename : `${filename}.${extension}`;
-      
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      triggerDownload(blob, filename, config.extension);
       
       toast({
         title: "Download started",
         description: `Downloading ${type.toUpperCase()} file...`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed to download file";
       toast({
         title: "Download failed",
-        description: error.response?.data?.detail || "Failed to download file",
+        description: errorMessage,
         variant: "destructive",
       });
     }
