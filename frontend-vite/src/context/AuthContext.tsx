@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from "react";
 import * as React from "react";
 import { authAPI } from "@/services/api";
 import { LoginCredentials, RegisterData, Token, User } from "@/types";
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLoading(false);
   }, []);
 
-  const login = async (credentials: LoginCredentials) => {
+  const login = useCallback(async (credentials: LoginCredentials) => {
     try {
       const response = await authAPI.login(credentials);
       const tokenData: Token = response.data;
@@ -64,9 +64,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error: unknown) {
       throw new Error(extractErrorMessage(error, "Login failed"));
     }
-  };
+  }, []);
 
-  const register = async (data: RegisterData) => {
+  const register = useCallback(async (data: RegisterData) => {
     try {
       const response = await authAPI.register(data);
       const tokenData: Token = response.data;
@@ -78,14 +78,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error: unknown) {
       throw new Error(extractErrorMessage(error, "Registration failed"));
     }
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem("token");
     setToken(null);
     setUser(null);
     // Clear any React Query cache if needed
-  };
+  }, []);
 
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo(
