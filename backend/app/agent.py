@@ -33,6 +33,7 @@ BASE_URL = 'https://api.browser-use.com/api/v2'
 # Provider-specific OTP sender email addresses
 PROVIDER_OTP_SENDERS = {
     "Duke Energy": "no-reply@verify.dukeenergy.com",
+    "CenterPoint Energy": "msonlineservicesteam@microsoftonline.com",
     # Add more providers as needed:
 }
 
@@ -345,22 +346,22 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         password = user_cred.get("password")
         credential_id = user_cred.get("credential_id")
         
-        # Normalize provider name to check if Duke Energy
-        is_duke = "duke" in provider_name.lower()
+        # Normalize provider name to check if has 2FA
+        has2FA = "duke" in provider_name.lower() or "centerpoint" in provider_name.lower()
 
         print(f"[INFO] Starting remote browser task for {provider_name}...")
         
         try:
-            # Create persistent session with proxy for Duke Energy
-            proxy_code = "us" if is_duke else None
+            # Create persistent session with proxy
+            proxy_code = "us" if has2FA else None
             session_id, live_url = create_persistent_session(signin_url, proxy_code)
             
             if not session_id:
                 raise Exception("Failed to create browser session")
             
-            if is_duke:
-                # Duke Energy: 3-task flow with 2FA
-                print("[INFO] Duke Energy detected - using 3-task flow with 2FA")
+            if has2FA:
+                # 3-task flow with 2FA
+                print(f"[INFO] {provider_name} detected - using 3-task flow with 2FA")
                 
                 # Task 1: Login and wait for 2FA page
                 print("\n=== TASK 1: Login ===")
@@ -390,7 +391,7 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
                     print("\n=== Fetching OTP from email ===")
                     otp_code = get_email_otp(
                                     user_email=email, 
-                                    provider_name=provider_name,
+                                    # provider_name=provider_name,
                                     max_wait_seconds=90
                                 )
                     if not otp_code:
