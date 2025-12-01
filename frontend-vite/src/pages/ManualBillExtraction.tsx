@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Upload, X, FileText, Trash2, Eye, ChevronRight, ExternalLink, FileJson, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Search, Upload, X, FileText, ChevronRight, ExternalLink, FileJson, FileSpreadsheet, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,10 +31,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { manualBillsAPI, providerAPI } from "@/services/api";
 import { ManualBill } from "@/types";
+import { getStatusBadge } from "@/utils/statusBadge";
+import { formatDate, formatBillingMonth } from "@/utils/dateFormatting";
+import { extractFilename } from "@/utils/filenameExtraction";
+import { extractErrorMessage } from "@/utils/errorHandling";
+import { DEFAULT_VALUES } from "@/utils/defaultValues";
+import { EmptyState } from "@/components/EmptyState";
 
 type UploadedBill = {
   id: string;
@@ -82,15 +87,15 @@ export default function ManualBillExtraction() {
     
     return manualBills.map((bill: ManualBill) => ({
       id: bill.id,
-      filename: bill.original_filename || "unknown.pdf",
-      provider: bill.provider_name || "Unknown",
+      filename: bill.original_filename ?? DEFAULT_VALUES.FILENAME,
+      provider: bill.provider_name ?? DEFAULT_VALUES.PROVIDER,
       uploadDate: bill.created_at,
       status: bill.status?.toLowerCase() === "completed" ? "completed" as const :
               bill.status?.toLowerCase() === "processing" ? "processing" as const :
               bill.status?.toLowerCase() === "failed" ? "failed" as const :
               "processing" as const,
-      billingMonth: bill.month && bill.year ? `${bill.month} ${bill.year}` : "N/A",
-      loginUrl: bill.login_url || null,
+      billingMonth: formatBillingMonth(bill.month, bill.year),
+      loginUrl: bill.login_url ?? null,
       originalData: bill,
     }));
   }, [manualBills]);
@@ -98,7 +103,7 @@ export default function ManualBillExtraction() {
   // Get unique providers list
   const allProviders = useMemo(() => {
     if (!providers) return [];
-    return providers.map((p: any) => p.name).sort();
+    return providers.map((p: any) => p.name).sort((a, b) => a.localeCompare(b));
   }, [providers]);
 
   // Upload mutation
@@ -126,10 +131,10 @@ export default function ManualBillExtraction() {
       setSelectedProvider("");
       queryClient.invalidateQueries({ queryKey: ["manual-bills"] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Upload failed",
-        description: error.response?.data?.detail || "Failed to upload bills",
+        description: extractErrorMessage(error, "Failed to upload bills"),
         variant: "destructive",
       });
     },
@@ -266,7 +271,7 @@ export default function ManualBillExtraction() {
     try {
       const response = await config.downloadFn(blobUrl);
       const blob = new Blob([response.data], { type: config.mimeType });
-      const filename = blobUrl.split('/').pop() || bill.filename;
+      const filename = extractFilename(blobUrl, bill.filename);
       
       triggerDownload(blob, filename, config.extension);
       
@@ -275,12 +280,9 @@ export default function ManualBillExtraction() {
         description: `Downloading ${type.toUpperCase()} file...`,
       });
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed to download file";
       toast({
         title: "Download failed",
-        description: errorMessage,
+        description: extractErrorMessage(error, "Failed to download file"),
         variant: "destructive",
       });
     }
@@ -302,18 +304,6 @@ export default function ManualBillExtraction() {
     return matchesSearch && matchesProvider && matchesStatus;
   });
 
-  const getStatusBadge = (status: UploadedBill["status"]) => {
-    const variants = {
-      processing: "bg-warning/10 text-warning border-warning/20",
-      completed: "bg-primary/10 text-primary border-primary/20",
-      failed: "bg-destructive/10 text-destructive border-destructive/20",
-    };
-    return (
-      <Badge variant="outline" className={variants[status]}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
-  };
 
   const displayedProviders = showAllProviders ? allProviders : allProviders.slice(0, 5);
   const statusOptions = ["processing", "completed", "failed"];
@@ -509,7 +499,7 @@ export default function ManualBillExtraction() {
                     </span>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {new Date(bill.uploadDate).toLocaleDateString()}
+                    {formatDate(bill.uploadDate)}
                   </TableCell>
                   <TableCell>{getStatusBadge(bill.status)}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{bill.billingMonth}</TableCell>
@@ -567,25 +557,18 @@ export default function ManualBillExtraction() {
                             </div>
                           </TooltipProvider>
                         </>
-                      ) : (
-                        <>
-                          <Button variant="ghost" size="sm" className="h-8 px-3">
-                            <Eye className="h-4 w-4 mr-1" />
-                            View Bills
-                          </Button>
-                        </>
-                      )}
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      ) : null}
                     </div>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                  No bills found. Upload your first bill to get started.
+                <TableCell colSpan={6}>
+                  <EmptyState
+                    title="No bills found"
+                    description="Upload your first bill to get started"
+                  />
                 </TableCell>
               </TableRow>
             )}

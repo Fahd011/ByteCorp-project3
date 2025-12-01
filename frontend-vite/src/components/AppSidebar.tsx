@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { auditLogsAPI } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { SagilityLogo } from "@/components/SagilityLogo";
+import { extractErrorMessage } from "@/utils/errorHandling";
 import {
   Sidebar,
   SidebarContent,
@@ -65,10 +66,10 @@ export function AppSidebar() {
         title: "Download started",
         description: "Audit logs CSV is being downloaded",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Download failed",
-        description: error.response?.data?.detail || "Failed to download audit logs",
+        description: extractErrorMessage(error, "Failed to download audit logs"),
         variant: "destructive",
       });
     } finally {

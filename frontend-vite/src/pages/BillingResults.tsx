@@ -10,9 +10,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { credentialsAPI } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { getStatusBadge } from "@/utils/statusBadge";
+import { formatDate, formatBillingMonth } from "@/utils/dateFormatting";
+import { extractFilename } from "@/utils/filenameExtraction";
+import { extractErrorMessage } from "@/utils/errorHandling";
+import { DEFAULT_VALUES } from "@/utils/defaultValues";
+import { EmptyState } from "@/components/EmptyState";
 
 interface BillingResult {
   id: string;
@@ -53,7 +58,7 @@ export default function BillingResults() {
   });
 
   const credential = credentials?.find((c: any) => c.id === credId);
-  const providerName = credential?.utility_co_name || "Unknown Provider";
+  const providerName = credential?.utility_co_name ?? DEFAULT_VALUES.PROVIDER_FULL;
 
   const handleDownload = async (type: "pdf" | "excel" | "json", blobName: string) => {
     try {
@@ -74,7 +79,9 @@ export default function BillingResults() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = blobName.split("/").pop() || `download.${type === "pdf" ? "pdf" : type === "excel" ? "xlsx" : "json"}`;
+      const extension = type === "pdf" ? "pdf" : type === "excel" ? "xlsx" : "json";
+      const extractedFilename = extractFilename(blobName);
+      a.download = extractedFilename.endsWith(`.${extension}`) ? extractedFilename : `${extractedFilename}.${extension}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -85,31 +92,14 @@ export default function BillingResults() {
         description: `Downloading ${type.toUpperCase()} file`,
       });
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed to download file";
       toast({
         title: "Download failed",
-        description: errorMessage,
+        description: extractErrorMessage(error, "Failed to download file"),
         variant: "destructive",
       });
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusLower = status?.toLowerCase();
-    const variants: Record<string, string> = {
-      completed: "bg-success/10 text-success border-success/20",
-      processing: "bg-warning/10 text-warning border-warning/20",
-      error: "bg-destructive/10 text-destructive border-destructive/20",
-      failed: "bg-destructive/10 text-destructive border-destructive/20",
-    };
-    return (
-      <Badge variant="outline" className={variants[statusLower] || "bg-muted text-muted-foreground border-border"}>
-        {status?.charAt(0).toUpperCase() + status?.slice(1) || "Unknown"}
-      </Badge>
-    );
-  };
 
   if (isLoading) {
     return (
@@ -146,7 +136,7 @@ export default function BillingResults() {
           <h1 className="text-3xl font-semibold text-foreground mb-2">Billing Results</h1>
           <p className="text-muted-foreground">
             Provider: <span className="font-medium">{providerName}</span>
-            {credential && (
+            {credential?.email && (
               <> • Account: <span className="font-medium">{credential.email}</span></>
             )}
           </p>
@@ -155,9 +145,10 @@ export default function BillingResults() {
         {/* Table */}
         <div className="rounded-lg border border-border bg-card overflow-hidden shadow-sm">
           {!billingResults || billingResults.length === 0 ? (
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <p>No billing results found for this credential</p>
-            </div>
+            <EmptyState
+              title="No billing results found"
+              description="No billing results found for this credential"
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -173,10 +164,10 @@ export default function BillingResults() {
                 {billingResults.map((result) => (
                   <TableRow key={result.id} className="hover:bg-muted/50 transition-colors">
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(result.run_time).toLocaleDateString()}
+                      {formatDate(result.run_time)}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {result.month} {result.year}
+                      {formatBillingMonth(result.month, result.year)}
                     </TableCell>
                     <TableCell>{getStatusBadge(result.status)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">

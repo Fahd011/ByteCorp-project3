@@ -11,11 +11,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { credentialsAPI, providerAPI } from "@/services/api";
 import { UserBillingCredential } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { getStatusBadge } from "@/utils/statusBadge";
+import { extractErrorMessage } from "@/utils/errorHandling";
+import { DEFAULT_VALUES } from "@/utils/defaultValues";
+import { EmptyState } from "@/components/EmptyState";
 
 type Provider = {
   id: string;
@@ -107,7 +110,7 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
         return {
           id: cred.id,
           email: cred.email,
-          provider: cred.utility_co_name || "Unknown",
+          provider: cred.utility_co_name ?? DEFAULT_VALUES.PROVIDER,
           utilityType,
           status,
           billCycle,
@@ -161,7 +164,7 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to delete credential",
+        description: extractErrorMessage(error, "Failed to delete credential"),
         variant: "destructive",
       });
     }
@@ -220,19 +223,6 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
     );
   }
 
-  const getStatusBadge = (status: Provider["status"]) => {
-    const variants = {
-      idle: "bg-muted text-muted-foreground border-border",
-      active: "bg-success/10 text-success border-success/20",
-      failed: "bg-destructive/10 text-destructive border-destructive/20",
-      completed: "bg-primary/10 text-primary border-primary/20",
-    };
-    return (
-      <Badge variant="outline" className={variants[status]}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
-  };
 
   const displayedProviders = showAllProviders ? allProviders : allProviders.slice(0, 5);
   
@@ -429,11 +419,11 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                  <div className="flex flex-col items-center gap-2">
-                    <p className="text-sm font-medium">No providers found</p>
-                    <p className="text-xs">Add a credential to get started</p>
-                  </div>
+                <TableCell colSpan={6}>
+                  <EmptyState
+                    title="No providers found"
+                    description="Add a credential to get started"
+                  />
                 </TableCell>
               </TableRow>
             )}

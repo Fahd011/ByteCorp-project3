@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { authAPI } from "@/services/api";
 import { LoginCredentials, RegisterData, Token } from "@/types";
+import { extractErrorMessage } from "@/utils/errorHandling";
 
 interface AuthContextType {
   user: any | null;
@@ -52,8 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         setUser({ email: credentials.email });
       }
-    } catch (error: any) {
-      throw new Error(error.response?.data?.detail || "Login failed");
+    } catch (error: unknown) {
+      throw new Error(extractErrorMessage(error, "Login failed"));
     }
   };
 
@@ -66,8 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("token", accessToken);
       setToken(accessToken);
       setUser({ email: data.email });
-    } catch (error: any) {
-      throw new Error(error.response?.data?.detail || "Registration failed");
+    } catch (error: unknown) {
+      throw new Error(extractErrorMessage(error, "Registration failed"));
     }
   };
 

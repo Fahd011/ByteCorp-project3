@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
 import { SagilityLogo } from "@/components/SagilityLogo";
+import { extractErrorMessage } from "@/utils/errorHandling";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -45,8 +46,8 @@ export default function Auth() {
       await login({ email, password });
       toast.success("Successfully logged in");
       navigate("/dashboard", { replace: true });
-    } catch (error: any) {
-      const errorMessage = error.message || "Login failed. Please check your credentials.";
+    } catch (error: unknown) {
+      const errorMessage = extractErrorMessage(error, "Login failed. Please check your credentials.");
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);

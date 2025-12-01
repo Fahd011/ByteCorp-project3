@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { credentialsAPI, providerAPI } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { extractErrorMessage } from "@/utils/errorHandling";
 
 export default function Dashboard() {
   const [statsOpen, setStatsOpen] = useState(true);
@@ -58,10 +59,10 @@ export default function Dashboard() {
       setSelectedFile(null);
       setSelectedProvider("");
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: "Error",
-        description: error.response?.data?.detail || "Failed to upload credentials",
+        description: extractErrorMessage(error, "Failed to upload credentials"),
         variant: "destructive",
       });
     },
@@ -113,13 +114,13 @@ export default function Dashboard() {
 
     const formData = new FormData();
     formData.append("csv_file", selectedFile);
-    formData.append("login_url", provider.login_url || "");
-    formData.append("billing_url", provider.billing_url || "");
+    formData.append("login_url", provider.login_url ?? "");
+    formData.append("billing_url", provider.billing_url ?? "");
 
     uploadMutation.mutate(formData);
   };
 
-  const activeCredentials = credentials?.filter((cred: any) => !cred.is_deleted) || [];
+  const activeCredentials = credentials?.filter((cred: any) => !cred.is_deleted) ?? [];
   // Count unique providers (by utility_co_name)
   const uniqueProviders = new Set(
     activeCredentials
