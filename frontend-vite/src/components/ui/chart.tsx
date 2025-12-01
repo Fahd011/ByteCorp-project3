@@ -301,8 +301,10 @@ function getPayloadConfigFromPayload(config: ChartConfig, payload: unknown, key:
     configLabelKey = payloadPayload[payloadKey] as string;
   }
 
-  const configKey = configLabelKey in config ? configLabelKey : (key as keyof typeof config);
-  return config[configKey];
+  if (configLabelKey in config) {
+    return config[configLabelKey as keyof typeof config];
+  }
+  return config[key as keyof typeof config];
 }
 
 export { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, ChartStyle };

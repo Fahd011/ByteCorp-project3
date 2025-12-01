@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { credentialsAPI, providerAPI } from "@/services/api";
+import { credentialsAPI } from "@/services/api";
 import { UserBillingCredential } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { getStatusBadge } from "@/utils/statusBadge";

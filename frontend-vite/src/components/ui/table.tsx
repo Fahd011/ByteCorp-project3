@@ -5,8 +5,12 @@ import { cn } from "@/lib/utils";
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
     <div className="relative w-full overflow-auto">
-      {/* This is a base table component - it should be used with TableHeader and TableBody for proper semantic structure */}
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} role="table" {...props} />
+      {/* 
+        Note: This is a base table component. It must be used with TableHeader (containing TableHead elements) 
+        and TableBody for proper semantic structure and accessibility compliance.
+        Example: <Table><TableHeader><TableRow><TableHead>...</TableHead></TableRow></TableHeader><TableBody>...</TableBody></Table>
+      */}
+      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   ),
 );

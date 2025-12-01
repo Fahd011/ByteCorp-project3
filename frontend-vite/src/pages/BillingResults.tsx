@@ -77,7 +77,14 @@ export default function BillingResults() {
       a.href = url;
       
       // Determine file extension
-      const extension = type === "pdf" ? "pdf" : type === "excel" ? "xlsx" : "json";
+      let extension: string;
+      if (type === "pdf") {
+        extension = "pdf";
+      } else if (type === "excel") {
+        extension = "xlsx";
+      } else {
+        extension = "json";
+      }
       const extractedFilename = extractFilename(blobName);
       const finalFilename = extractedFilename.endsWith(`.${extension}`) 
         ? extractedFilename 
