@@ -532,7 +532,10 @@ const SidebarMenuSkeleton = React.forwardRef<
   }
 >(({ className, showIcon = false, ...props }, ref) => {
   // Random width between 50 to 90%.
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
   const width = React.useMemo(() => {
+    // Math.random() is safe here - used only for UI visual variety in skeleton loader
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     return `${Math.floor(Math.random() * 40) + 50}%`;
   }, []);
 

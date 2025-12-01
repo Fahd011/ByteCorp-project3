@@ -1,4 +1,3 @@
-import httpx
 from datetime import datetime
 from app.db import get_db, get_db_context
 from app.models import BillingResult, Provider, ManualBillResponse, UserBillingCredential

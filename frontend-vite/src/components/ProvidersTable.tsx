@@ -120,7 +120,7 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
   const allProviders = useMemo(() => {
     if (!transformedProviders) return [];
     const unique = new Set(transformedProviders.map(p => p.provider));
-    return Array.from(unique).sort();
+    return Array.from(unique).sort((a, b) => a.localeCompare(b));
   }, [transformedProviders]);
 
   const handleSort = (field: keyof Provider) => {
