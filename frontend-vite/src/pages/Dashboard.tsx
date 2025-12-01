@@ -16,6 +16,7 @@ import {
 import { credentialsAPI, providerAPI } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { extractErrorMessage } from "@/utils/errorHandling";
+import { Provider, UserBillingCredential } from "@/types";
 
 export default function Dashboard() {
   const [statsOpen, setStatsOpen] = useState(true);
@@ -102,7 +103,7 @@ export default function Dashboard() {
       return;
     }
 
-    const provider = providers?.find((p: any) => p.id === selectedProvider);
+    const provider = providers?.find((p: Provider) => p.id === selectedProvider);
     if (!provider) {
       toast({
         title: "Provider not found",
@@ -120,12 +121,12 @@ export default function Dashboard() {
     uploadMutation.mutate(formData);
   };
 
-  const activeCredentials = credentials?.filter((cred: any) => !cred.is_deleted) ?? [];
+  const activeCredentials = credentials?.filter((cred: UserBillingCredential) => !cred.is_deleted) ?? [];
   // Count unique providers (by utility_co_name)
   const uniqueProviders = new Set(
     activeCredentials
-      .filter((cred: any) => cred.utility_co_name)
-      .map((cred: any) => cred.utility_co_name)
+      .filter((cred: UserBillingCredential) => cred.utility_co_name)
+      .map((cred: UserBillingCredential) => cred.utility_co_name)
   );
   const providerCount = uniqueProviders.size;
 
@@ -196,7 +197,7 @@ export default function Dashboard() {
                     className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground"
                   >
                     <option value="">Select a provider</option>
-                    {providers?.map((provider: any) => (
+                    {providers?.map((provider: Provider) => (
                       <option key={provider.id} value={provider.id}>
                         {provider.name}
                       </option>

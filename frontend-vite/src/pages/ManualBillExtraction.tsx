@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { manualBillsAPI, providerAPI } from "@/services/api";
-import { ManualBill } from "@/types";
+import { ManualBill, Provider } from "@/types";
 import { getStatusBadge } from "@/utils/statusBadge";
 import { formatDate, formatBillingMonth } from "@/utils/dateFormatting";
 import { extractFilename } from "@/utils/filenameExtraction";
@@ -108,7 +108,7 @@ export default function ManualBillExtraction() {
   // Get unique providers list
   const allProviders = useMemo(() => {
     if (!providers) return [];
-    return providers.map((p: any) => p.name).sort((a, b) => a.localeCompare(b));
+    return providers.map((p: Provider) => p.name).sort((a, b) => a.localeCompare(b));
   }, [providers]);
 
   // Upload mutation
@@ -211,7 +211,7 @@ export default function ManualBillExtraction() {
     }
 
     // Find provider ID from name
-    const provider = providers?.find((p: any) => p.name === selectedProvider);
+    const provider = providers?.find((p: Provider) => p.name === selectedProvider);
     if (!provider) {
       toast({
         title: "Provider not found",

@@ -18,19 +18,7 @@ import { extractFilename } from "@/utils/filenameExtraction";
 import { extractErrorMessage } from "@/utils/errorHandling";
 import { getDefaultProviderFull } from "@/utils/defaultValues";
 import { EmptyState } from "@/components/EmptyState";
-
-interface BillingResult {
-  id: string;
-  azure_blob_url: string;
-  excel_blob_url?: string | null;
-  json_blob_url?: string | null;
-  run_time: string;
-  status: string;
-  year: string;
-  month: string;
-  created_at: string;
-  username: string;
-}
+import { UserBillingCredential, BillingResult } from "@/types";
 
 export default function BillingResults() {
   const { credId } = useParams<{ credId: string }>();
@@ -57,7 +45,7 @@ export default function BillingResults() {
     },
   });
 
-  const credential = credentials?.find((c: any) => c.id === credId);
+  const credential = credentials?.find((c: UserBillingCredential) => c.id === credId);
   const providerName = credential?.utility_co_name ?? getDefaultProviderFull();
 
   const handleDownload = async (type: "pdf" | "excel" | "json", blobName: string) => {

@@ -1,10 +1,10 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { authAPI } from "@/services/api";
-import { LoginCredentials, RegisterData, Token } from "@/types";
+import { LoginCredentials, RegisterData, Token, User } from "@/types";
 import { extractErrorMessage } from "@/utils/errorHandling";
 
 interface AuthContextType {
-  user: any | null;
+  user: User | null;
   token: string | null;
   loading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
@@ -16,7 +16,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 

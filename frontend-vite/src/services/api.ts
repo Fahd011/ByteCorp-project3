@@ -9,6 +9,12 @@ import {
   LoginCredentials,
   RegisterData,
   AgentAction,
+  Provider,
+  ManualBill,
+  BillingResult,
+  ExtractionResult,
+  TestUserResponse,
+  HealthCheckResponse,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
@@ -53,20 +59,20 @@ export const authAPI = {
     api.post("/auth/login", credentials),
   register: (userData: RegisterData): Promise<AxiosResponse<Token>> =>
     api.post("/auth/register", userData),
-  createTestUser: (): Promise<AxiosResponse<any>> =>
+  createTestUser: (): Promise<AxiosResponse<TestUserResponse>> =>
     api.post("/create-test-user"),
 };
 
 // Provider API
 export const providerAPI = {
-  getAll: (): Promise<AxiosResponse<any[]>> => api.get("/providers"),
-  getById: (providerId: string): Promise<AxiosResponse<any>> =>
+  getAll: (): Promise<AxiosResponse<Provider[]>> => api.get("/providers"),
+  getById: (providerId: string): Promise<AxiosResponse<Provider>> =>
     api.get(`/providers/${providerId}`),
 };
 
 // Credentials API
 export const credentialsAPI = {
-  upload: (formData: FormData): Promise<AxiosResponse<any>> =>
+  upload: (formData: FormData): Promise<AxiosResponse<{ message: string }>> =>
     api.post("/credentials/upload", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
@@ -77,7 +83,7 @@ export const credentialsAPI = {
   uploadPDF: (
     credId: string,
     formData: FormData
-  ): Promise<AxiosResponse<any>> =>
+  ): Promise<AxiosResponse<{ message: string }>> =>
     api.post(`/credentials/${credId}/upload_pdf`, formData, {
       headers: {
         "Content-Type": "multipart/form-data",
@@ -86,14 +92,14 @@ export const credentialsAPI = {
   controlAgent: (
     credId: string,
     action: AgentAction
-  ): Promise<AxiosResponse<any>> =>
+  ): Promise<AxiosResponse<{ message: string }>> =>
     api.post(`/credentials/${credId}/agent`, { action }),
-  delete: (credId: string): Promise<AxiosResponse<any>> =>
+  delete: (credId: string): Promise<AxiosResponse<{ message: string }>> =>
     api.delete(`/credentials/${credId}`),
 
-  getBillingResults: (credId: string): Promise<AxiosResponse<any>> =>
+  getBillingResults: (credId: string): Promise<AxiosResponse<BillingResult[]>> =>
     api.get(`/billing-results/${credId}`),
-  getAllBillingResults: (): Promise<AxiosResponse<any>> =>
+  getAllBillingResults: (): Promise<AxiosResponse<BillingResult[]>> =>
     api.get(`/billing-results`),
 
   downloadPDF: (blobName: string): Promise<AxiosResponse<Blob>> =>
@@ -105,7 +111,7 @@ export const credentialsAPI = {
   uploadManualPDF: (
     credId: string,
     formData: FormData
-  ): Promise<AxiosResponse<any>> =>
+  ): Promise<AxiosResponse<{ message: string }>> =>
     api.post(`/credentials/${credId}/upload_pdf`, formData, {
       headers: {
         "Content-Type": "multipart/form-data",
@@ -125,11 +131,11 @@ export const credentialsAPI = {
 
 // PDF Extraction API
 export const pdfExtractionAPI = {
-  extractData: (billingResult: any): Promise<AxiosResponse<any>> =>
+  extractData: (billingResult: BillingResult): Promise<AxiosResponse<{ session_id: string; message: string }>> =>
     api.post("/pdf-extraction/upload", {
       billing_result: billingResult,
     }),
-  getResults: (sessionId: string): Promise<AxiosResponse<any>> =>
+  getResults: (sessionId: string): Promise<AxiosResponse<{ results: ExtractionResult[] }>> =>
     api.get(`/pdf-extraction/results/${sessionId}`),
   exportToExcel: (sessionId: string): Promise<AxiosResponse<Blob>> =>
     api.get(`/pdf-extraction/export/${sessionId}`, {
@@ -141,25 +147,25 @@ export const pdfExtractionAPI = {
 
 // Scheduling API
 export const schedulingAPI = {
-  scheduleWeekly: (): Promise<AxiosResponse<any>> =>
+  scheduleWeekly: (): Promise<AxiosResponse<{ message: string }>> =>
     api.post("/schedule/weekly"),
 };
 
 // Manual Bills API
 export const manualBillsAPI = {
-  upload: (formData: FormData): Promise<AxiosResponse<any>> =>
+  upload: (formData: FormData): Promise<AxiosResponse<ManualBill>> =>
     api.post("/manual-bills/upload", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
     }),
-  bulkUpload: (formData: FormData): Promise<AxiosResponse<any>> =>
+  bulkUpload: (formData: FormData): Promise<AxiosResponse<{ message: string; count: number }>> =>
     api.post("/manual-bills/bulk-upload", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
     }),
-  getAll: (): Promise<AxiosResponse<any[]>> => api.get("/manual-bills"),
+  getAll: (): Promise<AxiosResponse<ManualBill[]>> => api.get("/manual-bills"),
   downloadPDF: (blobName: string): Promise<AxiosResponse<Blob>> =>
     api.get(`/azure/download/${encodeURIComponent(blobName)}`, {
       responseType: "blob",
@@ -184,7 +190,7 @@ export const auditLogsAPI = {
 
 // Health check
 export const healthAPI = {
-  check: (): Promise<AxiosResponse<any>> => api.get("/health"),
+  check: (): Promise<AxiosResponse<HealthCheckResponse>> => api.get("/health"),
 };
 
 export default api;
