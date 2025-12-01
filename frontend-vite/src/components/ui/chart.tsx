@@ -301,10 +301,16 @@ function getPayloadConfigFromPayload(config: ChartConfig, payload: unknown, key:
     configLabelKey = payloadPayload[payloadKey] as string;
   }
 
-  if (configLabelKey in config) {
-    return config[configLabelKey as keyof typeof config];
+  // Type guard to check if key exists in config
+  const isValidConfigKey = (k: string): k is keyof typeof config => k in config;
+  
+  if (isValidConfigKey(configLabelKey)) {
+    return config[configLabelKey];
   }
-  return config[key as keyof typeof config];
+  if (isValidConfigKey(key)) {
+    return config[key];
+  }
+  return undefined;
 }
 
 export { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, ChartStyle };

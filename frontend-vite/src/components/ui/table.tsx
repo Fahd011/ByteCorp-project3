@@ -10,7 +10,13 @@ const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableE
         and TableBody for proper semantic structure and accessibility compliance.
         Example: <Table><TableHeader><TableRow><TableHead>...</TableHead></TableRow></TableHeader><TableBody>...</TableBody></Table>
       */}
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+      <table 
+        ref={ref} 
+        className={cn("w-full caption-bottom text-sm", className)} 
+        role="table"
+        aria-label="Data table"
+        {...props} 
+      />
     </div>
   ),
 );
