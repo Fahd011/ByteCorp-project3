@@ -27,7 +27,6 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 bun.lockb
-package-lock.json
 .pnpm-store/
 
 # Production builds
