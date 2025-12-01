@@ -3,22 +3,51 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      {/* 
-        Note: This is a base table component. It must be used with TableHeader (containing TableHead elements) 
-        and TableBody for proper semantic structure and accessibility compliance.
-        Example: <Table><TableHeader><TableRow><TableHead>...</TableHead></TableRow></TableHeader><TableBody>...</TableBody></Table>
-      */}
-      <table 
-        ref={ref} 
-        className={cn("w-full caption-bottom text-sm", className)} 
-        role="table"
-        aria-label="Data table"
-        {...props} 
-      />
-    </div>
-  ),
+  ({ className, children, ...props }, ref) => {
+    // Check if children already include a TableHeader component
+    // TableHeader has displayName "TableHeader" (set below) and renders a thead element
+    const childrenArray = React.Children.toArray(children);
+    const hasHeader = childrenArray.some((child) => {
+      if (React.isValidElement(child)) {
+        const childType = child.type;
+        // Check displayName for forwardRef components
+        if (typeof childType === "object" && childType !== null && "displayName" in childType) {
+          return childType.displayName === "TableHeader";
+        }
+        // Fallback: check function name (may not work for forwardRef)
+        if (typeof childType === "function") {
+          return childType.displayName === "TableHeader" || childType.name === "TableHeader";
+        }
+      }
+      return false;
+    });
+
+    return (
+      <div className="relative w-full overflow-auto">
+        {/* 
+          Note: This is a base table component. It must be used with TableHeader (containing TableHead elements) 
+          and TableBody for proper semantic structure and accessibility compliance.
+          Example: <Table><TableHeader><TableRow><TableHead>...</TableHead></TableRow></TableHeader><TableBody>...</TableBody></Table>
+        */}
+        <table 
+          ref={ref} 
+          className={cn("w-full caption-bottom text-sm", className)} 
+          role="table"
+          aria-label="Data table"
+          {...props}
+        >
+          {!hasHeader && (
+            <thead className="sr-only" aria-hidden="true">
+              <tr>
+                <th scope="col">Column</th>
+              </tr>
+            </thead>
+          )}
+          {children}
+        </table>
+      </div>
+    );
+  },
 );
 Table.displayName = "Table";
 
