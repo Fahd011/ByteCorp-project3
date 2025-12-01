@@ -15,7 +15,7 @@ import { Loader2 } from "lucide-react";
 const queryClient = new QueryClient();
 
 // Protected Route Component
-function ProtectedRoute({ children }: { children: React.ReactElement }) {
+function ProtectedRoute({ children }: Readonly<{ children: React.ReactElement }>) {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
