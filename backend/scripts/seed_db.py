@@ -23,7 +23,7 @@ PROVIDERS_DATA = [
     },
     {
         "name": "Green Mountain Energy",
-        "login_url": "https://www.greenmountainenergy.com/en/customer-service-center/my-account",
+        "login_url": "https://www.businessportal.greenmountainenergy.com/",
         "billing_url": "https://www.greenmountainenergy.com/account/billing",
         "extras": {
             "wait_text": "Billing & Payment Activity"
@@ -81,7 +81,11 @@ def seed_providers(db):
         # Check if provider already exists
         existing_provider = db.query(Provider).filter(Provider.name == provider_data["name"]).first()
         if existing_provider:
-            print(f"Provider '{provider_data['name']}' already exists.")
+            # Update fields with current data
+            existing_provider.login_url = provider_data["login_url"]
+            existing_provider.billing_url = provider_data["billing_url"]
+            existing_provider.extras = provider_data.get("extras")
+            print(f"Provider '{provider_data['name']}' updated.")
         else:
             new_provider = Provider(
                 name=provider_data["name"],
@@ -90,8 +94,8 @@ def seed_providers(db):
                 extras=provider_data.get("extras")
             )
             db.add(new_provider)
-            db.commit()
             print(f"Provider '{provider_data['name']}' created successfully.")
+        db.commit()
 
 if __name__ == "__main__":
     seed()

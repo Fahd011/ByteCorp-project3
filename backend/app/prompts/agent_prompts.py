@@ -2,88 +2,157 @@
 Provider-specific prompts for browser automation tasks
 """
 
+# Providers that require 2FA and multi-step task flow
+MULTISTEP_PROVIDERS = ["duke_energy", "centerpoint_energy"]
+
 PROVIDER_PROMPTS = {
     "duke_energy": {
         "task1_login": """
-1. Go to {signin_url}
-2. Wait for the page to fully load (this site is slow)
-3. If you don't see the login page, click the sign in button on the top right of the page
-4. Log-in with email: {email} and password: {password}
-5. Click the "Verify you are human" checkbox and wait until it is checked and says success
-6. Click the sign-in/login button
-7. Wait for the 2FA verification page to appear (look for a verification code input field)
-8 If you are redirected to the home page, go to https://businessportal2.duke-energy.com/BusinessDashboard and stop the task with status "Successfully logged in"
-9. If you are on the disambiguation page, STOP the task with status "Successfully logged in"
-10. If you see the dashboard or the home page, STOP the task with status "Successfully logged in"
-11. Once you see the 2FA code input field, use the 'done' action with output: "Ready for 2FA code"
-""",
+            1. Go to {signin_url}
+            2. Wait for the page to fully load (this site is slow)
+            3. If you don't see the login page, click the sign in button on the top right of the page
+            4. Log-in with email: {email} and password: {password}
+            5. Click the "Verify you are human" checkbox and wait until it is checked and says success
+            6. Click the sign-in/login button
+            7. Wait for the 2FA verification page to appear (look for a verification code input field)
+            8 If you are redirected to the home page, go to https://businessportal2.duke-energy.com/BusinessDashboard and stop the task with status "Successfully logged in"
+            9. If you are on the disambiguation page, STOP the task with status "Successfully logged in"
+            10. If you see the dashboard or the home page, STOP the task with status "Successfully logged in"
+            11. Once you see the 2FA code input field, use the 'done' action with output: "Ready for 2FA code"
+            """,
         "task2_2fa": """
-The browser is now on the 2FA page. If you see the dashboard or the home page, STOP the task with status "2FA completed" otherwise continue with the following steps:
-1. Find the 2FA/verification code input field
-2. Fill it with the code: {otp_code}
-3. Click the Submit or Verify button
-4. Wait for the dashboard to load and is visible
-5. Use the 'done' action with output: "2FA completed"
-""",
+            The browser is now on the 2FA page. If you see the dashboard or the home page, STOP the task with status "2FA completed" otherwise continue with the following steps:
+            1. Find the 2FA/verification code input field
+            2. Fill it with the code: {otp_code}
+            3. Click the Submit or Verify button
+            4. Wait for the dashboard to load and is visible
+            5. Use the 'done' action with output: "2FA completed"
+            """,
         "task3_download": """
-1. If you are on the disambiguation page, select Business 
-2. Wait until the dashboard is loaded and visible, DO NOT MOVE TO STEP 3 UNTIL YOU SEE THE DASHBOARD. Wait for 10 seconds and check again if necessary.
-3. Click on "Billing" and Select "Billing & Payment Activity"
-4. Wait until the text "Billing & Payment Activity" is visible
-5. If "Oops, something went wrong." appears, STOP the task with status "Failed"
-6. Click only the "View Bill" button in the FIRST row
-7. Wait until the bill PDF finishes downloading
-8. Use the 'done' action with output: "Successfully downloaded one bill"
-"""
+            1. If you are on the disambiguation page, select Business 
+            2. Wait until the dashboard is loaded and visible, DO NOT MOVE TO STEP 3 UNTIL YOU SEE THE DASHBOARD. Wait for 10 seconds and check again if necessary.
+            3. Click on "Billing" and Select "Billing & Payment Activity"
+            4. Wait until the text "Billing & Payment Activity" is visible
+            5. If "Oops, something went wrong." appears, STOP the task with status "Failed"
+            6. Click only the "View Bill" button in the FIRST row
+            7. Wait until the bill PDF finishes downloading
+            8. Use the 'done' action with output: "Successfully downloaded one bill"
+            """
     },
-    
+    "centerpoint_energy": {
+        "task1_login": """
+            1. Go to {signin_url}
+            2. Wait for the page to fully load (this site is slow)
+            3. Log-in with email: {email} and password: {password}
+            4. Select email and click continue 
+            5. If you see the dashboard or the home page, STOP the task with status "Successfully logged in"
+            6. If you see the 2FA code input field, use the 'done' action with output: "Ready for 2FA code"
+            """,
+        "task2_2fa": """
+            The browser is now on the 2FA page. If you see the dashboard or the home page, STOP the task with status "2FA completed" otherwise continue with the following steps:
+            1. Find the 2FA/verification code input field
+            2. Fill it with the code: {otp_code}
+            3. Click the Submit or Verify button
+            4. Wait for the dashboard to load and is visible
+            5. Use the 'done' action with output: "2FA completed"
+            """,
+        "task3_download": """
+            1. Expand the first account accordion if needed
+            2. Click on "View Bill"
+            3. Wait for the new tab with the PDF URL to open.
+            4. IMPORTANT: The PDF viewer is not clickable. DO NOT try to click the download button.
+            5. Instead, execute the following JavaScript code to download the file directly:
+            
+            ```javascript
+            async function downloadPDF() {{
+                const response = await fetch(window.location.href);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'CenterPoint_Bill.pdf';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }}
+            downloadPDF();
+            ```
+            
+            6. Wait 5 seconds to ensure the download starts.
+            7. Use the 'done' action with output: "Successfully downloaded one bill"
+            """,
+    },
     "xcel_energy": """
-1. Go to {signin_url}
-2. Wait for the page to fully load (this site is slow)
-3. Log-in with:
-• email : {email}
-• password : {password}
-4. If unable to login, STOP the task with status "Failed"
-5. Wait until the Billing Accounts text is visible. If not, wait 5 seconds and check again.
-6. Navigate to {billing_history_url}
-7. Wait until the text "Billing History" is visible and navigate to the statements tab
-8. If "Oops, something went wrong." appears, STOP the task with status "Failed"
-9. Click only the download button in the FIRST row
-10. Wait until the bill PDF finishes downloading
-11. Use the 'done' action to mark the task as finished with message "Successfully downloaded one bill"
-"""
+        1. Go to {signin_url}
+        2. Wait for the page to fully load (this site is slow)
+        3. Log-in with:
+        • email : {email}
+        • password : {password}
+        4. If unable to login, STOP the task with status "Failed"
+        5. Wait until the Billing Accounts text is visible. If not, wait 5 seconds and check again.
+        6. Navigate to {billing_history_url}
+        7. Wait until the text "Billing History" is visible and navigate to the statements tab
+        8. If "Oops, something went wrong." appears, STOP the task with status "Failed"
+        9. Click only the download button in the FIRST row
+        10. Wait until the bill PDF finishes downloading
+        11. Use the 'done' action to mark the task as finished with message "Successfully downloaded one bill"
+        """,
+    "green_mountain_energy": """
+        1. Go to {signin_url}
+        2. Wait for the page to fully load (this site is slow)
+        3. Log-in with:
+        • email : {email}
+        • password : {password}
+        4. If unable to login, STOP the task with status "Failed"
+        5. Click first account number
+        6. Click on the invoice number to download the pdf
+        7. Wait until the bill PDF finishes downloading
+        8. Use the 'done' action with output: "Successfully downloaded one bill"
+        """,
 }
 
-def get_provider_prompt(provider_name: str, task_step: str = None) -> str:
-    """
-    Get the appropriate prompt for a provider based on the provider name.
-    For Duke Energy, task_step can be: 'task1_login', 'task2_2fa', 'task3_download'
-    For other providers, task_step is ignored and single prompt is returned.
-    
-    Args:
-        provider_name: Name of the provider
-        task_step: Which task step for Duke Energy (task1_login, task2_2fa, task3_download)
-        
-    Returns Duke Energy prompt as default if provider not found.
-    """
-    # Normalize provider name to match our keys
+def _normalize_provider_name(provider_name: str) -> str:
+    """Normalize provider name to match dictionary keys."""
     provider_key = provider_name.lower().replace(" ", "_").replace("-", "_")
     
     # Handle common variations
     if "duke" in provider_key:
-        provider_key = "duke_energy"
+        return "duke_energy"
     elif "xcel" in provider_key:
-        provider_key = "xcel_energy"
+        return "xcel_energy"
+    elif "centerpoint" in provider_key:
+        return "centerpoint_energy"
+    elif "green_mountain" in provider_key:
+        return "green_mountain_energy"
     
-    prompt_data = PROVIDER_PROMPTS.get(provider_key, PROVIDER_PROMPTS["duke_energy"])
+    return provider_key
+
+
+def provider_has_2fa(provider_name: str) -> bool:
+    """Check if provider requires 2FA and multi-step flow."""
+    provider_key = _normalize_provider_name(provider_name)
+    return provider_key in MULTISTEP_PROVIDERS
+
+
+def get_provider_prompt(provider_name: str, task_step: str = None) -> str:
+    """
+    Get the appropriate prompt for a provider.
+    For multi-step providers, task_step can be: 'task1_login', 'task2_2fa', 'task3_download'
+    For single-step providers, task_step is ignored.
     
-    # If Duke Energy and task_step specified, return specific task
-    if provider_key == "duke_energy" and task_step and isinstance(prompt_data, dict):
-        return prompt_data.get(task_step, prompt_data.get("task1_login"))
+    Returns Xcel Energy prompt as default if provider not found.
+    """
+    provider_key = _normalize_provider_name(provider_name)
+    prompt_data = PROVIDER_PROMPTS.get(provider_key, PROVIDER_PROMPTS["xcel_energy"])
     
-    # For non-Duke providers or if dict not used, return as-is
+    # Multi-step providers return specific task
+    if isinstance(prompt_data, dict) and task_step:
+        return prompt_data.get(task_step, prompt_data.get("task1_login", ""))
+    
+    # Multi-step providers without task_step return task1 for backward compatibility
     if isinstance(prompt_data, dict):
-        # Duke Energy without task_step - return task1 for backward compatibility
-        return prompt_data.get("task1_login")
+        return prompt_data.get("task1_login", "")
     
+    # Single-step providers return the prompt string
     return prompt_data

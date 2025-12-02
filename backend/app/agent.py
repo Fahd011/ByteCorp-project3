@@ -17,7 +17,7 @@ from azure_storage_service import azure_storage_service
 from config import config
 from app.models import BillingResult, UserBillingCredential
 from app.db import get_db_context
-from app.prompts.agent_prompts import get_provider_prompt
+from app.prompts.agent_prompts import get_provider_prompt, provider_has_2fa
 from app.extraction.extractor_router import extract_bill_by_provider
 from app.audit_logger import AuditLogger
 from scripts.graphapi import GraphAPIEmailClient
@@ -33,6 +33,7 @@ BASE_URL = 'https://api.browser-use.com/api/v2'
 # Provider-specific OTP sender email addresses
 PROVIDER_OTP_SENDERS = {
     "Duke Energy": "no-reply@verify.dukeenergy.com",
+    "CenterPoint Energy": "msonlineservicesteam@microsoftonline.com",
     # Add more providers as needed:
 }
 
@@ -345,22 +346,22 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         password = user_cred.get("password")
         credential_id = user_cred.get("credential_id")
         
-        # Normalize provider name to check if Duke Energy
-        is_duke = "duke" in provider_name.lower()
+        # Check if provider requires 2FA using centralized configuration
+        has_2fa = provider_has_2fa(provider_name)
 
         print(f"[INFO] Starting remote browser task for {provider_name}...")
         
         try:
-            # Create persistent session with proxy for Duke Energy
-            proxy_code = "us" if is_duke else None
+            # Create persistent session with proxy
+            proxy_code = "us" if has_2fa else None
             session_id, live_url = create_persistent_session(signin_url, proxy_code)
             
             if not session_id:
                 raise Exception("Failed to create browser session")
             
-            if is_duke:
-                # Duke Energy: 3-task flow with 2FA
-                print("[INFO] Duke Energy detected - using 3-task flow with 2FA")
+            if has_2fa:
+                # 3-task flow with 2FA
+                print(f"[INFO] {provider_name} detected - using 3-task flow with 2FA")
                 
                 # Task 1: Login and wait for 2FA page
                 print("\n=== TASK 1: Login ===")
