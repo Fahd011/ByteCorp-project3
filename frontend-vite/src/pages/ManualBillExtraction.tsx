@@ -115,14 +115,18 @@ export default function ManualBillExtraction() {
   const uploadMutation = useMutation({
     mutationFn: async ({ files, providerId }: { files: FileList; providerId: string }) => {
       const formData = new FormData();
-      Array.from(files).forEach((file) => {
-        formData.append("files", file);
-      });
-      formData.append("provider_id", providerId);
       
       if (files.length === 1) {
+        // Single file upload - backend expects "pdf_file"
+        formData.append("pdf_file", files[0]);
+        formData.append("provider_id", providerId);
         return await manualBillsAPI.upload(formData);
       } else {
+        // Bulk upload - backend expects "pdf_files" (plural)
+        Array.from(files).forEach((file) => {
+          formData.append("pdf_files", file);
+        });
+        formData.append("provider_id", providerId);
         return await manualBillsAPI.bulkUpload(formData);
       }
     },
