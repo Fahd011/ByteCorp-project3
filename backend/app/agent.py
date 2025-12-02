@@ -347,19 +347,19 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
         credential_id = user_cred.get("credential_id")
         
         # Normalize provider name to check if has 2FA
-        has2FA = "duke" in provider_name.lower() or "centerpoint" in provider_name.lower()
+        has_2fa = "duke" in provider_name.lower() or "centerpoint" in provider_name.lower()
 
         print(f"[INFO] Starting remote browser task for {provider_name}...")
         
         try:
             # Create persistent session with proxy
-            proxy_code = "us" if has2FA else None
+            proxy_code = "us" if has_2fa else None
             session_id, live_url = create_persistent_session(signin_url, proxy_code)
             
             if not session_id:
                 raise Exception("Failed to create browser session")
             
-            if has2FA:
+            if has_2fa:
                 # 3-task flow with 2FA
                 print(f"[INFO] {provider_name} detected - using 3-task flow with 2FA")
                 
@@ -391,7 +391,7 @@ def run_agent_task(user_cred: Dict[str, str], signin_url: str, billing_history_u
                     print("\n=== Fetching OTP from email ===")
                     otp_code = get_email_otp(
                                     user_email=email, 
-                                    # provider_name=provider_name,
+                                    provider_name=provider_name,
                                     max_wait_seconds=90
                                 )
                     if not otp_code:

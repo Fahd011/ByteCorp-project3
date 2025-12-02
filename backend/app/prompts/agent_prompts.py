@@ -40,10 +40,10 @@ PROVIDER_PROMPTS = {
         "task1_login": """
             1. Go to {signin_url}
             2. Wait for the page to fully load (this site is slow)
-            4. Log-in with email: {email} and password: {password}
-            5. Select email and click continue 
-            6. If you see the dashboard or the home page, STOP the task with status "Successfully logged in"
-            7. If you see the 2FA code input field, use the 'done' action with output: "Ready for 2FA code"
+            3. Log-in with email: {email} and password: {password}
+            4. Select email and click continue 
+            5. If you see the dashboard or the home page, STOP the task with status "Successfully logged in"
+            6. If you see the 2FA code input field, use the 'done' action with output: "Ready for 2FA code"
             """,
         "task2_2fa": """
             The browser is now on the 2FA page. If you see the dashboard or the home page, STOP the task with status "2FA completed" otherwise continue with the following steps:
