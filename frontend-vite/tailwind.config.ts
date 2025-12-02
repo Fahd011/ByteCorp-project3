@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -101,13 +102,13 @@ export default {
   		},
   		fontFamily: {
   			sans: [
+				'Roboto',
   				'Work Sans',
   				'ui-sans-serif',
   				'system-ui',
   				'-apple-system',
   				'BlinkMacSystemFont',
   				'Segoe UI',
-  				'Roboto',
   				'Helvetica Neue',
   				'Arial',
   				'Noto Sans',
@@ -137,5 +138,5 @@ export default {
   	}
   },
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;

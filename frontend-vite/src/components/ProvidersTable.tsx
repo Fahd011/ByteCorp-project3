@@ -357,7 +357,7 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border">
         {[
-          { key: "all", label: "All Providers" },
+          { key: "all", label: "Scheduled Jobs" },
           { key: "idle", label: "Idle" },
           { key: "active", label: "Active" },
           { key: "completed", label: "Completed" },

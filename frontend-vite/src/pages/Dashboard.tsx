@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Plus, ChevronDown, ChevronUp, Loader2, FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { credentialsAPI, providerAPI } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { extractErrorMessage } from "@/utils/errorHandling";
@@ -44,6 +51,12 @@ export default function Dashboard() {
       return response.data;
     },
   });
+
+  // Get providers list sorted by name
+  const allProviders = useMemo(() => {
+    if (!providers) return [];
+    return [...providers].sort((a, b) => a.name.localeCompare(b.name));
+  }, [providers]);
 
   // Upload credentials mutation
   const uploadMutation = useMutation({
@@ -190,19 +203,22 @@ export default function Dashboard() {
                 {/* Provider Selection */}
                 <div className="space-y-2">
                   <label htmlFor="provider-select-dialog" className="text-sm font-medium text-foreground">Provider</label>
-                  <select
-                    id="provider-select-dialog"
-                    value={selectedProvider}
-                    onChange={(e) => setSelectedProvider(e.target.value)}
-                    className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground"
-                  >
-                    <option value="">Select a provider</option>
-                    {providers?.map((provider: Provider) => (
-                      <option key={provider.id} value={provider.id}>
-                        {provider.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                    <SelectTrigger id="provider-select-dialog">
+                      <SelectValue placeholder="Select a provider..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {allProviders.length > 0 ? (
+                        allProviders.map((provider: Provider) => (
+                          <SelectItem key={provider.id} value={provider.id}>
+                            {provider.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="loading" disabled>Loading providers...</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* CSV File Input */}
