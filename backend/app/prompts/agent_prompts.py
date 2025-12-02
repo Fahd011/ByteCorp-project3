@@ -2,6 +2,9 @@
 Provider-specific prompts for browser automation tasks
 """
 
+# Providers that require 2FA and multi-step task flow
+MULTISTEP_PROVIDERS = ["duke_energy", "centerpoint_energy"]
+
 PROVIDER_PROMPTS = {
     "duke_energy": {
         "task1_login": """
@@ -109,39 +112,47 @@ PROVIDER_PROMPTS = {
         """,
 }
 
-def get_provider_prompt(provider_name: str, task_step: str = None) -> str:
-    """
-    Get the appropriate prompt for a provider based on the provider name.
-    For Duke Energy and CenterPoint Energy, task_step can be: 'task1_login', 'task2_2fa', 'task3_download'
-    For other providers, task_step is ignored and single prompt is returned.
-    
-    Args:
-        provider_name: Name of the provider
-        task_step: Which task step for Duke Energy (task1_login, task2_2fa, task3_download)
-        
-    Returns Duke Energy prompt as default if provider not found.
-    """
-    # Normalize provider name to match our keys
+def _normalize_provider_name(provider_name: str) -> str:
+    """Normalize provider name to match dictionary keys."""
     provider_key = provider_name.lower().replace(" ", "_").replace("-", "_")
     
     # Handle common variations
     if "duke" in provider_key:
-        provider_key = "duke_energy"
+        return "duke_energy"
     elif "xcel" in provider_key:
-        provider_key = "xcel_energy"
+        return "xcel_energy"
     elif "centerpoint" in provider_key:
-        provider_key = "centerpoint_energy"
+        return "centerpoint_energy"
     elif "green_mountain" in provider_key:
-        provider_key = "green_mountain_energy"
+        return "green_mountain_energy"
     
-    prompt_data = PROVIDER_PROMPTS.get(provider_key, PROVIDER_PROMPTS["duke_energy"])
+    return provider_key
+
+
+def provider_has_2fa(provider_name: str) -> bool:
+    """Check if provider requires 2FA and multi-step flow."""
+    provider_key = _normalize_provider_name(provider_name)
+    return provider_key in MULTISTEP_PROVIDERS
+
+
+def get_provider_prompt(provider_name: str, task_step: str = None) -> str:
+    """
+    Get the appropriate prompt for a provider.
+    For multi-step providers, task_step can be: 'task1_login', 'task2_2fa', 'task3_download'
+    For single-step providers, task_step is ignored.
     
-    # If Duke Energy and task_step specified, return specific task
-    if provider_key in ["duke_energy", "centerpoint_energy"] and task_step and isinstance(prompt_data, dict):
-        return prompt_data.get(task_step, prompt_data.get("task1_login"))
+    Returns Xcel Energy prompt as default if provider not found.
+    """
+    provider_key = _normalize_provider_name(provider_name)
+    prompt_data = PROVIDER_PROMPTS.get(provider_key, PROVIDER_PROMPTS["xcel_energy"])
     
-    # For providers with dict structure but no task_step, return task1 for backward compatibility
+    # Multi-step providers return specific task
+    if isinstance(prompt_data, dict) and task_step:
+        return prompt_data.get(task_step, prompt_data.get("task1_login", ""))
+    
+    # Multi-step providers without task_step return task1 for backward compatibility
     if isinstance(prompt_data, dict):
-        return prompt_data.get("task1_login")
+        return prompt_data.get("task1_login", "")
     
+    # Single-step providers return the prompt string
     return prompt_data
