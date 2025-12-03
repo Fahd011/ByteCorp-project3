@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Plus, ChevronDown, ChevronUp, Loader2, FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { credentialsAPI, providerAPI } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { extractErrorMessage } from "@/utils/errorHandling";
 import { Provider, UserBillingCredential } from "@/types";
+import { ProviderSelect } from "@/components/ProviderSelect";
 
 export default function Dashboard() {
   const [statsOpen, setStatsOpen] = useState(true);
@@ -44,6 +45,12 @@ export default function Dashboard() {
       return response.data;
     },
   });
+
+  // Get providers list sorted by name
+  const allProviders = useMemo(() => {
+    if (!providers) return [];
+    return [...providers].sort((a, b) => a.name.localeCompare(b.name));
+  }, [providers]);
 
   // Upload credentials mutation
   const uploadMutation = useMutation({
@@ -188,22 +195,12 @@ export default function Dashboard() {
               </DialogHeader>
               <div className="space-y-6 py-4">
                 {/* Provider Selection */}
-                <div className="space-y-2">
-                  <label htmlFor="provider-select-dialog" className="text-sm font-medium text-foreground">Provider</label>
-                  <select
-                    id="provider-select-dialog"
-                    value={selectedProvider}
-                    onChange={(e) => setSelectedProvider(e.target.value)}
-                    className="w-full px-3 py-2 border border-border rounded-md bg-card text-foreground"
-                  >
-                    <option value="">Select a provider</option>
-                    {providers?.map((provider: Provider) => (
-                      <option key={provider.id} value={provider.id}>
-                        {provider.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <ProviderSelect
+                  value={selectedProvider}
+                  onValueChange={setSelectedProvider}
+                  providers={allProviders}
+                  id="provider-select-dialog"
+                />
 
                 {/* CSV File Input */}
                 <div className="space-y-2">

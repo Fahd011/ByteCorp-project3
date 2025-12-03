@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Upload, FileText, ChevronRight, FileJson, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Search, Upload, FileText, ChevronRight, FileJson, FileSpreadsheet, Loader2, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,13 +17,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -34,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { manualBillsAPI, providerAPI } from "@/services/api";
 import { ManualBill, Provider } from "@/types";
+import { ProviderSelect } from "@/components/ProviderSelect";
 import { getStatusBadge } from "@/utils/statusBadge";
 import { formatDate, formatBillingMonth } from "@/utils/dateFormatting";
 import { extractFilename } from "@/utils/filenameExtraction";
@@ -59,6 +53,8 @@ export default function ManualBillExtraction() {
   const [selectedProviderId, setSelectedProviderId] = useState("");
   const [selectedProviderFilters, setSelectedProviderFilters] = useState<string[]>([]);
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<string[]>([]);
+  const [sortField, setSortField] = useState<keyof UploadedBill>("uploadDate");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [showAllProviders, setShowAllProviders] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -286,23 +282,82 @@ export default function ManualBillExtraction() {
     }
   };
 
-  const filteredBills = uploadedBills.filter((bill) => {
-    // Search filter
-    const matchesSearch = bill.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      bill.provider.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    // Provider filter
-    const matchesProvider = selectedProviderFilters.length === 0 || 
-      selectedProviderFilters.includes(bill.provider);
-    
-    // Status filter
-    const matchesStatus = selectedStatusFilters.length === 0 || 
-      selectedStatusFilters.includes(bill.status);
-    
-    return matchesSearch && matchesProvider && matchesStatus;
-  });
+  // Filter bills
+  const filteredBills = useMemo(() => {
+    const bills = uploadedBills.filter((bill) => {
+      // Search filter
+      const matchesSearch = bill.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        bill.provider.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // Provider filter
+      const matchesProvider = selectedProviderFilters.length === 0 || 
+        selectedProviderFilters.includes(bill.provider);
+      
+      // Status filter
+      const matchesStatus = selectedStatusFilters.length === 0 || 
+        selectedStatusFilters.includes(bill.status);
+      
+      return matchesSearch && matchesProvider && matchesStatus;
+    });
+  
+    // Sort bills - create copy for immutability
+    return [...bills].sort((a, b) => {
+      if (sortField === 'billingMonth') {
+        // Handle chronological sorting for billing month
+        const aYear = a.originalData?.year ? parseInt(a.originalData.year, 10) : 0;
+        const bYear = b.originalData?.year ? parseInt(b.originalData.year, 10) : 0;
+        const aMonth = a.originalData?.month || "";
+        const bMonth = b.originalData?.month || "";
+        
+        // Convert month name to number (month is stored as "January", "February", etc.)
+        const monthNames = ["January", "February", "March", "April", "May", "June", 
+                           "July", "August", "September", "October", "November", "December"];
+        const aMonthNum = monthNames.indexOf(aMonth);
+        const bMonthNum = monthNames.indexOf(bMonth);
+        
+        // If month name not found, try parsing as number (fallback)
+        const aMonthFinal = aMonthNum >= 0 ? aMonthNum : (parseInt(aMonth, 10) - 1);
+        const bMonthFinal = bMonthNum >= 0 ? bMonthNum : (parseInt(bMonth, 10) - 1);
+        
+        // Create date objects for comparison
+        const aDate = new Date(aYear, aMonthFinal);
+        const bDate = new Date(bYear, bMonthFinal);
+        
+        if (isNaN(aDate.getTime())) return 1;
+        if (isNaN(bDate.getTime())) return -1;
+        
+        const comparison = aDate.getTime() - bDate.getTime();
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+  
+      const aValue = a[sortField];
+      const bValue = b[sortField];
+      
+      // Handle null/undefined values
+      if (aValue === null || aValue === undefined) return 1;
+      if (bValue === null || bValue === undefined) return -1;
+      
+      let comparison = 0;
+      if (typeof aValue === "string" && typeof bValue === "string") {
+        comparison = aValue.localeCompare(bValue);
+      } else if (typeof aValue === "number" && typeof bValue === "number") {
+        comparison = aValue - bValue;
+      } else {
+        comparison = String(aValue).localeCompare(String(bValue));
+      }
+      
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [uploadedBills, searchQuery, selectedProviderFilters, selectedStatusFilters, sortField, sortDirection]);
 
-
+  const handleSort = (field: keyof UploadedBill) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
   const displayedProviders = showAllProviders ? allProviders : allProviders.slice(0, 5);
   const statusOptions = ["processing", "completed", "failed"];
 
@@ -384,6 +439,14 @@ export default function ManualBillExtraction() {
               <DialogTitle>Upload Bill</DialogTitle>
             </DialogHeader>
             <div className="space-y-6 py-4">
+              {/* Provider Select */}
+              <ProviderSelect
+                value={selectedProviderId}
+                onValueChange={setSelectedProviderId}
+                providers={allProviders}
+                id="provider-select"
+              />
+              
               {/* File Input */}
               <div className="space-y-2">
                 <label htmlFor="pdf-file-input" className="text-sm font-medium text-foreground">PDF File(s)</label>
@@ -411,27 +474,6 @@ export default function ManualBillExtraction() {
                     ))}
                   </div>
                 )}
-              </div>
-
-              {/* Provider Select */}
-              <div className="space-y-2">
-                <label htmlFor="provider-select" className="text-sm font-medium text-foreground">Provider</label>
-                <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
-                  <SelectTrigger id="provider-select">
-                    <SelectValue placeholder="Select a provider..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {allProviders.length > 0 ? (
-                      allProviders.map((provider: Provider) => (
-                        <SelectItem key={provider.id} value={provider.id}>
-                          {provider.name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="loading" disabled>Loading providers...</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
               </div>
             </div>
 
@@ -484,16 +526,56 @@ export default function ManualBillExtraction() {
           }
           return (
             <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent border-b border-border">
-                <TableHead className="font-medium">Filename</TableHead>
-                <TableHead className="font-medium">Provider</TableHead>
-                <TableHead className="font-medium">Upload Date</TableHead>
-                <TableHead className="font-medium">Status</TableHead>
-                <TableHead className="font-medium">Billing Month</TableHead>
-                <TableHead className="text-right font-medium">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-b border-border">
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort("filename")}
+                      className="flex items-center gap-2 hover:text-foreground transition-colors font-medium"
+                    >
+                      Filename
+                      <ArrowUpDown className="h-4 w-4" />
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort("provider")}
+                      className="flex items-center gap-2 hover:text-foreground transition-colors font-medium"
+                    >
+                      Provider
+                      <ArrowUpDown className="h-4 w-4" />
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort("uploadDate")}
+                      className="flex items-center gap-2 hover:text-foreground transition-colors font-medium"
+                    >
+                      Upload Date
+                      <ArrowUpDown className="h-4 w-4" />
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort("status")}
+                      className="flex items-center gap-2 hover:text-foreground transition-colors font-medium"
+                    >
+                      Status
+                      <ArrowUpDown className="h-4 w-4" />
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button
+                      onClick={() => handleSort("billingMonth")}
+                      className="flex items-center gap-2 hover:text-foreground transition-colors font-medium"
+                    >
+                      Billing Month
+                      <ArrowUpDown className="h-4 w-4" />
+                    </button>
+                  </TableHead>
+                  <TableHead className="text-right font-medium">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
             <TableBody>
               {filteredBills.length > 0 ? (
               filteredBills.map((bill) => (
