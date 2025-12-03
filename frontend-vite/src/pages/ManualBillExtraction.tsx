@@ -284,7 +284,7 @@ export default function ManualBillExtraction() {
 
   // Filter bills
   const filteredBills = useMemo(() => {
-    let bills = uploadedBills.filter((bill) => {
+    const bills = uploadedBills.filter((bill) => {
       // Search filter
       const matchesSearch = bill.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
         bill.provider.toLowerCase().includes(searchQuery.toLowerCase());
@@ -299,9 +299,37 @@ export default function ManualBillExtraction() {
       
       return matchesSearch && matchesProvider && matchesStatus;
     });
-
-    // Sort bills
-    bills.sort((a, b) => {
+  
+    // Sort bills - create copy for immutability
+    return [...bills].sort((a, b) => {
+      if (sortField === 'billingMonth') {
+        // Handle chronological sorting for billing month
+        const aYear = a.originalData?.year ? parseInt(a.originalData.year, 10) : 0;
+        const bYear = b.originalData?.year ? parseInt(b.originalData.year, 10) : 0;
+        const aMonth = a.originalData?.month || "";
+        const bMonth = b.originalData?.month || "";
+        
+        // Convert month name to number (month is stored as "January", "February", etc.)
+        const monthNames = ["January", "February", "March", "April", "May", "June", 
+                           "July", "August", "September", "October", "November", "December"];
+        const aMonthNum = monthNames.indexOf(aMonth);
+        const bMonthNum = monthNames.indexOf(bMonth);
+        
+        // If month name not found, try parsing as number (fallback)
+        const aMonthFinal = aMonthNum >= 0 ? aMonthNum : (parseInt(aMonth, 10) - 1);
+        const bMonthFinal = bMonthNum >= 0 ? bMonthNum : (parseInt(bMonth, 10) - 1);
+        
+        // Create date objects for comparison
+        const aDate = new Date(aYear, aMonthFinal);
+        const bDate = new Date(bYear, bMonthFinal);
+        
+        if (isNaN(aDate.getTime())) return 1;
+        if (isNaN(bDate.getTime())) return -1;
+        
+        const comparison = aDate.getTime() - bDate.getTime();
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+  
       const aValue = a[sortField];
       const bValue = b[sortField];
       
@@ -320,8 +348,6 @@ export default function ManualBillExtraction() {
       
       return sortDirection === "asc" ? comparison : -comparison;
     });
-
-    return bills;
   }, [uploadedBills, searchQuery, selectedProviderFilters, selectedStatusFilters, sortField, sortDirection]);
 
   const handleSort = (field: keyof UploadedBill) => {

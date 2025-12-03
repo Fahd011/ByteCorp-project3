@@ -140,10 +140,20 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
           const currentDay = today.getDate();
           const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
           
-          if (currentDay <= cred.billing_cycle_day) {
-            daysUntil = cred.billing_cycle_day - currentDay;
+          // Set the target day (runs day after billing cycle day)
+          let targetRunDay = cred.billing_cycle_day + 1;
+          
+          // EDGE CASE FIX: If billing day is 31, target becomes 32. 
+          // reset the target day to the 1st of the month.
+          if (targetRunDay > 31) {
+            targetRunDay = 1;
+          }
+          
+          // Compare current day to target
+          if (currentDay <= targetRunDay) {
+            daysUntil = targetRunDay - currentDay;
           } else {
-            daysUntil = daysInMonth - currentDay + cred.billing_cycle_day;
+            daysUntil = (daysInMonth - currentDay) + targetRunDay;
           }
           
           // Format bill cycle text
