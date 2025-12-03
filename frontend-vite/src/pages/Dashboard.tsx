@@ -13,17 +13,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { credentialsAPI, providerAPI } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { extractErrorMessage } from "@/utils/errorHandling";
 import { Provider, UserBillingCredential } from "@/types";
+import { ProviderSelect } from "@/components/ProviderSelect";
 
 export default function Dashboard() {
   const [statsOpen, setStatsOpen] = useState(true);
@@ -201,25 +195,12 @@ export default function Dashboard() {
               </DialogHeader>
               <div className="space-y-6 py-4">
                 {/* Provider Selection */}
-                <div className="space-y-2">
-                  <label htmlFor="provider-select-dialog" className="text-sm font-medium text-foreground">Provider</label>
-                  <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-                    <SelectTrigger id="provider-select-dialog">
-                      <SelectValue placeholder="Select a provider..." />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {allProviders.length > 0 ? (
-                        allProviders.map((provider: Provider) => (
-                          <SelectItem key={provider.id} value={provider.id}>
-                            {provider.name}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="loading" disabled>Loading providers...</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <ProviderSelect
+                  value={selectedProvider}
+                  onValueChange={setSelectedProvider}
+                  providers={allProviders}
+                  id="provider-select-dialog"
+                />
 
                 {/* CSV File Input */}
                 <div className="space-y-2">

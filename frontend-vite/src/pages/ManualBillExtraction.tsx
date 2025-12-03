@@ -17,13 +17,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -34,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { manualBillsAPI, providerAPI } from "@/services/api";
 import { ManualBill, Provider } from "@/types";
+import { ProviderSelect } from "@/components/ProviderSelect";
 import { getStatusBadge } from "@/utils/statusBadge";
 import { formatDate, formatBillingMonth } from "@/utils/dateFormatting";
 import { extractFilename } from "@/utils/filenameExtraction";
@@ -420,25 +414,12 @@ export default function ManualBillExtraction() {
             </DialogHeader>
             <div className="space-y-6 py-4">
               {/* Provider Select */}
-              <div className="space-y-2">
-                <label htmlFor="provider-select" className="text-sm font-medium text-foreground">Provider</label>
-                <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
-                  <SelectTrigger id="provider-select">
-                    <SelectValue placeholder="Select a provider..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {allProviders.length > 0 ? (
-                      allProviders.map((provider: Provider) => (
-                        <SelectItem key={provider.id} value={provider.id}>
-                          {provider.name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="loading" disabled>Loading providers...</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+              <ProviderSelect
+                value={selectedProviderId}
+                onValueChange={setSelectedProviderId}
+                providers={allProviders}
+                id="provider-select"
+              />
               
               {/* File Input */}
               <div className="space-y-2">
