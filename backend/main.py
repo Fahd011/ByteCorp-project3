@@ -31,12 +31,18 @@ from app.audit_logger import AuditLogger
 # FastAPI app
 
 from contextlib import asynccontextmanager
+from app.job_queue import job_queue_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup
+    print("Starting up...")
+    job_queue_manager.start_worker()  # Start queue worker
     scheduler.start()
     yield
-    # Optionally: scheduler.shutdown() or other cleanup
+    # Shutdown
+    print("Shutting down...")
+    job_queue_manager.stop_worker()  # Stop queue worker
     scheduler.shutdown(wait=False)
 
 app = FastAPI(title="Sagiliti Backend", version="1.0.0", lifespan=lifespan)
@@ -228,7 +234,7 @@ scheduler.add_job(
 # 🔹 Cron job
 scheduler.add_job(
     daily_agent_job,         
-    CronTrigger(hour=14, minute=30),
+    CronTrigger(hour=12, minute=51),
     id="daily_agent_job",    
     replace_existing=True        
 )
