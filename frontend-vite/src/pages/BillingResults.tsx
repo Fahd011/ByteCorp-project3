@@ -165,7 +165,7 @@ export default function BillingResults() {
                   <TableHead className="font-medium">Date</TableHead>
                   <TableHead className="font-medium">Month/Year</TableHead>
                   <TableHead className="font-medium">Status</TableHead>
-                  <TableHead className="font-medium">Username</TableHead>
+                  <TableHead className="font-medium">Account Number</TableHead>
                   <TableHead className="text-right font-medium">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -180,7 +180,7 @@ export default function BillingResults() {
                     </TableCell>
                     <TableCell>{getStatusBadge(result.status)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {result.username}
+                      {result.account_number || "N/A"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">

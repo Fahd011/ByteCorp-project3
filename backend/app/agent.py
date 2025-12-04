@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional
 # Import Azure storage service
 from azure_storage_service import azure_storage_service
 
@@ -727,6 +727,13 @@ async def trigger_automatic_extraction(billing_result, email, provider_name):
                                 if billing_record:
                                     billing_record.excel_blob_url = uploaded_excel_name
                                     billing_record.json_blob_url = uploaded_json_name
+                                    
+                                    # Extract account number from JSON data
+                                    account_number = None
+                                    if extracted_data.get('accountData') and len(extracted_data['accountData']) > 0:
+                                        account_number = extracted_data['accountData'][0].get('accountNumber')
+                                    billing_record.account_number = account_number
+                                    
                                     db.commit()
                                     print(f"[✅] Updated BillingResult with Excel and JSON blob URLs")
                                     

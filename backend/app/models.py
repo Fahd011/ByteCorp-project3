@@ -125,6 +125,7 @@ class BillingResultResponse(BaseModel):
     month: str
     created_at: Optional[str]
     username: str
+    account_number: Optional[str]
 
 # Removed ImportResultResponse - no longer needed
 
@@ -179,6 +180,7 @@ class BillingResult(Base):
     azure_blob_url = Column(String, nullable=False)
     excel_blob_url = Column(String, nullable=True)   # Excel file
     json_blob_url = Column(String, nullable=True)    # JSON data file
+    account_number = Column(String, nullable=True)   # Account number extracted from JSON
     original_filename = Column(String, nullable=True)  # For manual uploads
     provider_name = Column(String, nullable=True)      # For manual uploads
     run_time = Column(DateTime, default=datetime.utcnow)

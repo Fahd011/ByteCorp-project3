@@ -374,6 +374,13 @@ async def trigger_manual_bill_extraction(billing_result, provider_name):
                                     billing_record.excel_blob_url = uploaded_excel_name
                                     billing_record.json_blob_url = uploaded_json_name
                                     billing_record.status = "completed"
+                                    
+                                    # Extract account number from JSON data
+                                    account_number = None
+                                    if extracted_data.get('accountData') and len(extracted_data['accountData']) > 0:
+                                        account_number = extracted_data['accountData'][0].get('accountNumber')
+                                    billing_record.account_number = account_number
+                                    
                                     db.commit()
                                     print(f"[✅] Updated BillingResult with Excel and JSON blob URLs")
                                     # Log extraction success

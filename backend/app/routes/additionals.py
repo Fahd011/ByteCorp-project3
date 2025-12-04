@@ -3,7 +3,7 @@ import io
 import csv
 import json
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -70,7 +70,8 @@ def get_billing_results(credential_id: str, db: Session = Depends(get_db)):
             "year": r.year,
             "month": r.month,
             "created_at": r.created_at,
-            "username": username
+            "username": username,
+            "account_number": r.account_number
         }
         for r in results
     ]
@@ -113,7 +114,8 @@ def get_all_billing_results(
             year=r.year,
             month=r.month,
             created_at=r.created_at.isoformat() if r.created_at else None,
-            username=cred_to_email.get(r.user_billing_credential_id, "unknown")
+            username=cred_to_email.get(r.user_billing_credential_id, "unknown"),
+            account_number=r.account_number
         )
         for r in results
     ]

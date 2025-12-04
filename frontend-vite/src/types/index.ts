@@ -73,6 +73,7 @@ export interface BillingResult {
   month: string;
   created_at: string;
   username: string;
+  account_number?: string | null;
 }
 
 export interface ExtractionResult {
