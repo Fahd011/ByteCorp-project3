@@ -30,6 +30,7 @@ import { getStatusBadge } from "@/utils/statusBadge";
 import { extractErrorMessage } from "@/utils/errorHandling";
 import { DEFAULT_VALUES } from "@/utils/defaultValues";
 import { EmptyState } from "@/components/EmptyState";
+import { formatDateTime } from "@/utils/dateFormatting";
 
 type Provider = {
   id: string;
@@ -37,6 +38,7 @@ type Provider = {
   provider: string;
   utilityType: "Electricity" | "Gas" | "Water" | "Waste/Trash";
   status: "idle" | "active" | "failed" | "completed";
+  lastRunTime: string | null;
   billCycle: string;
   daysUntil: number;
   loginUrl: string | null;
@@ -122,7 +124,7 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
     return credentials
       .filter((cred: UserBillingCredential) => !cred.is_deleted)
       .map((cred: UserBillingCredential) => {
-        // Map backend status to frontend status
+        // Map backend status to frontend status (keep for filtering)
         const statusMap: Record<string, "idle" | "active" | "failed" | "completed"> = {
           idle: "idle",
           running: "active",
@@ -187,6 +189,7 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
           provider: cred.utility_co_name ?? DEFAULT_VALUES.PROVIDER,
           utilityType,
           status,
+          lastRunTime: cred.last_run_time || null,
           billCycle,
           daysUntil,
           loginUrl: cred.login_url || null,
@@ -274,6 +277,16 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
     const aValue = a[sortField];
     const bValue = b[sortField];
     const modifier = sortDirection === "asc" ? 1 : -1;
+    
+    // Handle lastRunTime sorting (date comparison)
+    if (sortField === "lastRunTime") {
+      if (!aValue && !bValue) return 0;
+      if (!aValue) return 1; // null values go to end
+      if (!bValue) return -1;
+      const aDate = new Date(aValue as string).getTime();
+      const bDate = new Date(bValue as string).getTime();
+      return (aDate - bDate) * modifier;
+    }
     
     if (typeof aValue === "string" && typeof bValue === "string") {
       return aValue.localeCompare(bValue) * modifier;
@@ -416,10 +429,10 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
               </TableHead>
               <TableHead>
                 <button
-                  onClick={() => handleSort("status")}
+                  onClick={() => handleSort("lastRunTime")}
                   className="flex items-center gap-2 hover:text-foreground transition-colors font-medium"
                 >
-                  Status
+                  Last Run Time
                   <ArrowUpDown className="h-4 w-4" />
                 </button>
               </TableHead>
@@ -454,7 +467,19 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell>{getStatusBadge(provider.status)}</TableCell>
+                  <TableCell>
+                    <div className="text-sm text-muted-foreground">
+                      {provider.lastRunTime 
+                        ? formatDateTime(provider.lastRunTime, {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : 'Never'}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     Your bill cycle runs in {provider.billCycle}
                   </TableCell>
