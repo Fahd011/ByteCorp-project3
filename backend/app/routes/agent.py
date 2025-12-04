@@ -1,13 +1,12 @@
 from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
-import multiprocessing
 from datetime import datetime
 from pathlib import Path
 
 from app.db import get_db_context
 from app.models import AgentRequest, AgentResult, ErrorResult, UserBillingCredential, Provider
-from app.agent import run_agent_task
+from app.job_queue import job_queue_manager
 
 # Import Azure storage service
 from azure_storage_service import azure_storage_service
@@ -22,33 +21,43 @@ router = APIRouter()
 async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
     """
     POST API to run the agent for multiple users
+    Uses database-backed queue for persistence and concurrency control
     """
     
     try:
         if request.user_creds:
             first_user = request.user_creds[0]
-            # print(f"[INFO] First user ----> username: {first_user['username']}, password: {first_user['password']}")
+            credential_id = first_user.get("credential_id")
             
             with get_db_context() as db:
                 provider = db.query(Provider).filter(Provider.login_url == request.signin_url).first()
-                provider_name = provider.name
-            # # Start agent in background process with the full user_creds array
-            process = multiprocessing.Process(
-                target=run_agent_task,
-                args=(first_user, request.signin_url, request.billing_history_url, provider_name)  # one user at a time
+                provider_name = provider.name if provider else "Unknown"
+            
+            # Ensure worker is running
+            job_queue_manager.start_worker()
+            
+            # Add job to queue (saves to database automatically)
+            job_id = job_queue_manager.add_job(
+                user_cred=first_user,
+                signin_url=request.signin_url,
+                billing_history_url=request.billing_history_url,
+                provider_name=provider_name,
+                credential_id=credential_id
             )
-            process.start()
             
             return {
-                "message": f"Agent started successfully for {len(request.user_creds)} users",
-                "status": "running",
+                "message": f"Agent job queued successfully for {len(request.user_creds)} users",
+                "status": "queued",
+                "job_id": job_id,
+                "queue_size": job_queue_manager.get_queue_size(),
+                "active_sessions": job_queue_manager.get_active_sessions_count(),
                 "total_users": len(request.user_creds),
                 "users": [creds.get("username", "unknown") for creds in request.user_creds],
                 "timestamp": datetime.now().isoformat()
             }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to start agent: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to queue agent: {str(e)}")
 
 @router.post("/api/agent/stop")
 async def stop_agent():
@@ -113,6 +122,11 @@ async def get_agent_status():
         "stop_requested": "dummy",  # Placeholder, replace with actual status if needed
         "timestamp": datetime.now().isoformat()
     }
+
+@router.get("/api/agent/queue/status")
+async def get_queue_status():
+    """Get the current queue status"""
+    return job_queue_manager.get_status()
 
 @router.get("/api/azure/list")
 async def list_azure_blobs(prefix: Optional[str] = None):

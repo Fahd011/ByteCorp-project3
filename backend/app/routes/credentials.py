@@ -28,9 +28,16 @@ def upload_credentials(
     user_id: str = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
+# Get actual user ID from database (handles email -> UUID conversion)
+    actual_user_id = get_actual_user_id(user_id, db)
+    if not actual_user_id:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"User not found. Please ensure user '{user_id}' exists in the system."
+        )
     # Check if user has existing credentials
     existing_creds = db.query(UserBillingCredential).filter(
-        UserBillingCredential.user_id == user_id,
+        UserBillingCredential.user_id == actual_user_id,
         UserBillingCredential.is_deleted == False
     ).all()
     # Check if any are running
@@ -42,7 +49,7 @@ def upload_credentials(
     csv_filename = f"{uuid.uuid4()}_{csv_file.filename}"
     # Upload CSV to Azure storage
     success, csv_url, csv_blob_name = azure_storage_service.upload_manual_credential_pdf(
-        content, user_id, "csv_upload", csv_filename
+        content, actual_user_id, "csv_upload", csv_filename
     )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to upload CSV file to Azure storage")
@@ -97,7 +104,7 @@ def upload_credentials(
                 else:
                     # Create new credential
                     credential = UserBillingCredential(
-                        user_id=user_id,
+                        user_id=actual_user_id,
                         email=email,
                         password=password,
                         billing_cycle_day=int(cleaned_row.get('billing_cycle_date', 10) or 10),
@@ -233,9 +240,17 @@ def delete_credential(
     user_id: str = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
+    # Get actual user ID from database (handles email -> UUID conversion)
+    actual_user_id = get_actual_user_id(user_id, db)
+    if not actual_user_id:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"User not found. Please ensure user '{user_id}' exists in the system."
+        )
+    
     credential = db.query(UserBillingCredential).filter(
         UserBillingCredential.id == cred_id,
-        UserBillingCredential.user_id == user_id,
+        UserBillingCredential.user_id == actual_user_id,  # Use actual_user_id instead of user_id
         UserBillingCredential.is_deleted == False
     ).first()
     

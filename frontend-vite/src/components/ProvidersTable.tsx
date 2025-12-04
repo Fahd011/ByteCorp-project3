@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ArrowUpDown, ExternalLink, Trash2, Eye, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -98,6 +98,7 @@ const DeleteConfirmationDialog = ({ credId, providerName, onDelete }: DeleteConf
 
 export function ProvidersTable({ searchTerm = "", showTabs = true }: ProvidersTableProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient(); 
   const [sortField, setSortField] = useState<keyof Provider>("daysUntil");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [activeTab, setActiveTab] = useState<"all" | "idle" | "active" | "failed" | "completed">("all");
@@ -234,11 +235,12 @@ export function ProvidersTable({ searchTerm = "", showTabs = true }: ProvidersTa
   const handleDelete = async (credId: string) => {
     try {
       await credentialsAPI.delete(credId);
+      // Invalidate and refetch credentials query
+      await queryClient.invalidateQueries({ queryKey: ["credentials"] });
       toast({
         title: "Success",
         description: "Credential deleted successfully",
       });
-      // Query will refetch automatically
     } catch (error) {
       toast({
         title: "Error",
