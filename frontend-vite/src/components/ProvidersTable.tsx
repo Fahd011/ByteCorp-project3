@@ -49,6 +49,7 @@ const utilityTypes = ["Electricity", "Gas", "Water", "Waste/Trash"] as const;
 
 interface ProvidersTableProps {
   readonly searchTerm?: string;
+  readonly showTabs?: boolean;
 }
 
 interface DeleteConfirmationDialogProps {
@@ -95,7 +96,7 @@ const DeleteConfirmationDialog = ({ credId, providerName, onDelete }: DeleteConf
   );
 };
 
-export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
+export function ProvidersTable({ searchTerm = "", showTabs = true }: ProvidersTableProps) {
   const navigate = useNavigate();
   const [sortField, setSortField] = useState<keyof Provider>("daysUntil");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -248,8 +249,8 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
   };
 
   const filteredProviders = transformedProviders.filter((provider) => {
-    // Status filter
-    if (activeTab !== "all" && provider.status !== activeTab) return false;
+    // Status filter (only if tabs are shown)
+    if (showTabs && activeTab !== "all" && provider.status !== activeTab) return false;
     
     // Provider filter
     if (selectedProviders.length > 0 && !selectedProviders.includes(provider.provider)) return false;
@@ -378,30 +379,32 @@ export function ProvidersTable({ searchTerm = "" }: ProvidersTableProps) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-border">
-        {[
-          { key: "all", label: "Scheduled Jobs" },
-          { key: "idle", label: "Idle" },
-          { key: "active", label: "Active" },
-          { key: "completed", label: "Completed" },
-          { key: "failed", label: "Failed" },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key as typeof activeTab)}
-            className={`px-4 py-3 text-sm font-medium transition-colors relative ${
-              activeTab === tab.key
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-            {activeTab === tab.key && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-            )}
-          </button>
-        ))}
-      </div>
+      {showTabs && (
+        <div className="flex gap-2 border-b border-border">
+          {[
+            { key: "all", label: "Scheduled Jobs" },
+            { key: "idle", label: "Idle" },
+            { key: "active", label: "Active" },
+            { key: "completed", label: "Completed" },
+            { key: "failed", label: "Failed" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as typeof activeTab)}
+              className={`px-4 py-3 text-sm font-medium transition-colors relative ${
+                activeTab === tab.key
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+              {activeTab === tab.key && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-lg border border-border bg-card overflow-hidden shadow-sm">

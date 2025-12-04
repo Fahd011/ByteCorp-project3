@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import MainLayout from "./pages/MainLayout";
 import ManualBillExtraction from "./pages/ManualBillExtraction";
 import BillingResults from "./pages/BillingResults";
+import Credentials from "./pages/Credentials";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -47,6 +48,7 @@ const AppRoutes = () => {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="credentials" element={<Credentials />} />
         <Route path="extraction" element={<ManualBillExtraction />} />
         <Route path="billing-results/:credId" element={<BillingResults />} />
       </Route>

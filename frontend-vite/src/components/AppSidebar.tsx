@@ -1,4 +1,4 @@
-import { Home, FileText, Download, LogOut, Loader2 } from "lucide-react";
+import { Home, FileText, Download, LogOut, Loader2, Key } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -22,6 +22,7 @@ import {
 
 const menuItems = [
   { title: "Dashboard", url: "/", icon: Home },
+  { title: "Credentials", url: "/credentials", icon: Key },
   { title: "Manual Bill Extraction", url: "/extraction", icon: FileText },
 ];
 
