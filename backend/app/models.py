@@ -210,3 +210,30 @@ class AuditLog(Base):
     # Additional context
     details = Column(JSON, nullable=True)         # Store metadata (provider, errors, file paths, etc.)
     message = Column(String, nullable=True)       # Human-readable message
+
+class AgentJob(Base):
+    """Database model for queued agent jobs"""
+    __tablename__ = 'agent_jobs'
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    credential_id = Column(String, ForeignKey('user_billing_credentials.id'), nullable=True)
+    
+    # Job parameters (stored as JSON for flexibility)
+    user_cred = Column(JSON, nullable=False)  # {username, password, credential_id}
+    signin_url = Column(String, nullable=False)
+    billing_history_url = Column(String, nullable=False)
+    provider_name = Column(String, nullable=False)
+    
+    # Job status
+    status = Column(String, default="pending")  # pending, running, completed, failed, retrying
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=5)
+    error_message = Column(String, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    
+    # For tracking active sessions
+    session_id = Column(String, nullable=True)

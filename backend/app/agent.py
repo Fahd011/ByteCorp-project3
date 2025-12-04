@@ -108,7 +108,14 @@ def create_persistent_session(start_url: str, proxy_country_code: str = None, ma
                 print("[ERROR] Request timed out after all retries")
                 return None, None
         except requests.exceptions.HTTPError as http_err:
-            # Don't retry on 4xx errors (client errors)
+            # Handle 429 error specifically - raise exception to be caught by queue manager
+            if http_err.response.status_code == 429:
+                error_detail = http_err.response.json().get("detail", "")
+                print(f"[ERROR] 429 Too Many Requests: {error_detail}")
+                # Raise a specific exception that the queue manager can catch
+                raise Exception("429 Too Many Requests: Too many concurrent active sessions")
+            
+            # Don't retry on other 4xx errors (client errors)
             if http_err.response.status_code < 500:
                 print(f"[ERROR] HTTP error creating session: {http_err}")
                 print(f"Response: {http_err.response.text}")
@@ -123,6 +130,10 @@ def create_persistent_session(start_url: str, proxy_country_code: str = None, ma
                 print(f"Response: {http_err.response.text}")
                 return None, None
         except Exception as err:
+            # Re-raise 429 errors so queue manager can handle them
+            if "429" in str(err) or "Too Many Requests" in str(err):
+                raise
+            
             wait_time = 2 ** attempt
             if attempt < max_retries - 1:
                 print(f"[WARNING] Error creating session: {err}. Retrying in {wait_time} seconds...")
