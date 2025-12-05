@@ -1,16 +1,18 @@
 from fastapi.responses import StreamingResponse
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import FileResponse
 from datetime import datetime
 from pathlib import Path
+from sqlalchemy.orm import Session
 
-from app.db import get_db_context
-from app.models import AgentRequest, AgentResult, ErrorResult, UserBillingCredential, Provider
+from app.db import get_db_context, get_db
+from app.models import AgentRequest, AgentResult, ErrorResult, UserBillingCredential, Provider, AgentJob as AgentJobModel
 from app.job_queue import job_queue_manager
+from app.routes.auth import verify_token
 
 # Import Azure storage service
 from azure_storage_service import azure_storage_service
-from typing import Optional
+from typing import Optional, List
 
 import json
 import io
@@ -127,6 +129,32 @@ async def get_agent_status():
 async def get_queue_status():
     """Get the current queue status"""
     return job_queue_manager.get_status()
+
+@router.get("/api/agent/jobs")
+async def get_agent_jobs(
+    user_id: str = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Get all agent jobs with their status and details"""
+    # Get all agent jobs ordered by created_at descending
+    jobs = db.query(AgentJobModel).order_by(AgentJobModel.created_at.desc()).all()
+    
+    return [
+        {
+            "id": job.id,
+            "credential_id": job.credential_id,
+            "provider_name": job.provider_name,
+            "status": job.status,
+            "retry_count": job.retry_count,
+            "max_retries": job.max_retries,
+            "error_message": job.error_message,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "username": job.user_cred.get("username") if job.user_cred else None,
+        }
+        for job in jobs
+    ]
 
 @router.get("/api/azure/list")
 async def list_azure_blobs(prefix: Optional[str] = None):

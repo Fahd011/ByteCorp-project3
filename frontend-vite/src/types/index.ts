@@ -102,3 +102,17 @@ export interface User {
   email: string;
 }
 
+export interface AgentJob {
+  id: string;
+  credential_id?: string | null;
+  provider_name: string;
+  status: string;
+  retry_count: number;
+  max_retries: number;
+  error_message?: string | null;
+  created_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  username?: string | null;
+}
+

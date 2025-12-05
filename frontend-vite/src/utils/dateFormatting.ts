@@ -53,3 +53,28 @@ export function formatBillingMonth(month: string | null | undefined, year: strin
   return `${month} ${year}`;
 }
 
+/**
+ * Format time only (HH:MM:SS)
+ */
+export function formatTime(
+  date: string | Date | null | undefined
+): string {
+  if (!date) return "—";
+  
+  try {
+    const dateObj = typeof date === "string" ? new Date(date) : date;
+    
+    if (Number.isNaN(dateObj.getTime())) {
+      return "—";
+    }
+    
+    return dateObj.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
+}
+

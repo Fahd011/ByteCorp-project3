@@ -15,6 +15,7 @@ import {
   ExtractionResult,
   TestUserResponse,
   HealthCheckResponse,
+  AgentJob,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
@@ -186,6 +187,11 @@ export const auditLogsAPI = {
     api.get("/audit-logs/download", {
       responseType: "blob",
     }),
+};
+
+// Agent jobs API
+export const agentJobsAPI = {
+  getAll: (): Promise<AxiosResponse<AgentJob[]>> => api.get("/agent/jobs"),
 };
 
 // Health check
