@@ -215,7 +215,7 @@ class AuditLog(Base):
 
 class AgentJob(Base):
     """Database model for queued agent jobs"""
-    __tablename__ = 'agent_jobs'
+    __tablename__ = 'agent_jobs_logs'
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     credential_id = Column(String, ForeignKey('user_billing_credentials.id'), nullable=True)
