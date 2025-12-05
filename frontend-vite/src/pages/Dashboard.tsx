@@ -1,17 +1,10 @@
-import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, ChevronDown, ChevronUp, Loader2, Plus, FileText, X } from "lucide-react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Search, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DashboardStats } from "@/components/DashboardStats";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -21,21 +14,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { credentialsAPI, agentJobsAPI, providerAPI } from "@/services/api";
-import { useToast } from "@/hooks/use-toast";
-import { extractErrorMessage } from "@/utils/errorHandling";
-import { UserBillingCredential, AgentJob, Provider } from "@/types";
+import { CredentialUploadDialog } from "@/components/CredentialUploadDialog";
+import { credentialsAPI, agentJobsAPI } from "@/services/api";
+import { UserBillingCredential, AgentJob } from "@/types";
 import { formatDate, formatTime } from "@/utils/dateFormatting";
-import { ProviderSelect } from "@/components/ProviderSelect";
 
 export default function Dashboard() {
   const [statsOpen, setStatsOpen] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState("");
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   // Fetch credentials for stats
   const { data: credentials } = useQuery({
@@ -43,46 +29,6 @@ export default function Dashboard() {
     queryFn: async () => {
       const response = await credentialsAPI.getAll();
       return response.data;
-    },
-  });
-
-  // Fetch providers for the dropdown
-  const { data: providers } = useQuery({
-    queryKey: ["providers"],
-    queryFn: async () => {
-      const response = await providerAPI.getAll();
-      return response.data;
-    },
-  });
-
-  // Get providers list sorted by name
-  const allProviders = useMemo(() => {
-    if (!providers) return [];
-    return [...providers].sort((a, b) => a.name.localeCompare(b.name));
-  }, [providers]);
-
-  // Upload credentials mutation
-  const uploadMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      return await credentialsAPI.upload(formData);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Credentials uploaded successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["credentials"] });
-      queryClient.invalidateQueries({ queryKey: ["agentJobs"] });
-      setIsDialogOpen(false);
-      setSelectedFile(null);
-      setSelectedProvider("");
-    },
-    onError: (error: unknown) => {
-      toast({
-        title: "Error",
-        description: extractErrorMessage(error, "Failed to upload credentials"),
-        variant: "destructive",
-      });
     },
   });
 
@@ -95,58 +41,6 @@ export default function Dashboard() {
     },
     refetchInterval: 5000, // Refresh every 5 seconds
   });
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.name.toLowerCase().endsWith('.csv')) {
-        toast({
-          title: "Invalid file type",
-          description: "Please upload a CSV file",
-          variant: "destructive",
-        });
-        return;
-      }
-      setSelectedFile(file);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      toast({
-        title: "No file selected",
-        description: "Please select a CSV file",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!selectedProvider) {
-      toast({
-        title: "No provider selected",
-        description: "Please select a provider",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const provider = providers?.find((p: Provider) => p.id === selectedProvider);
-    if (!provider) {
-      toast({
-        title: "Provider not found",
-        description: "Selected provider is invalid",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("csv_file", selectedFile);
-    formData.append("login_url", provider.login_url ?? "");
-    formData.append("billing_url", provider.billing_url ?? "");
-
-    uploadMutation.mutate(formData);
-  };
 
   const activeCredentials = credentials?.filter((cred: UserBillingCredential) => !cred.is_deleted) ?? [];
 
@@ -222,81 +116,7 @@ export default function Dashboard() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 bg-primary hover:bg-primary-hover text-primary-foreground">
-                <Plus className="h-4 w-4" />
-                Create Session
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Create Session - Upload Credentials</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-6 py-4">
-                {/* Provider Selection */}
-                <ProviderSelect
-                  value={selectedProvider}
-                  onValueChange={setSelectedProvider}
-                  providers={allProviders}
-                  id="provider-select-dialog"
-                />
-
-                {/* CSV File Input */}
-                <div className="space-y-2">
-                  <label htmlFor="csv-file-input" className="text-sm font-medium text-foreground">CSV File</label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="csv-file-input"
-                      type="file"
-                      accept=".csv"
-                      onChange={handleFileChange}
-                      className="flex-1"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Upload a CSV file with credentials (email, password, etc.)
-                  </p>
-                  {selectedFile && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <FileText className="h-4 w-4" />
-                      <span className="truncate">{selectedFile.name}</span>
-                      <button
-                        onClick={() => setSelectedFile(null)}
-                        className="ml-auto text-destructive hover:text-destructive/80"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Upload Button */}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                    disabled={uploadMutation.isPending}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleUpload}
-                    disabled={uploadMutation.isPending || !selectedFile || !selectedProvider}
-                  >
-                    {uploadMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      "Upload Credentials"
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <CredentialUploadDialog />
         </div>
 
         {/* Agent Jobs Table */}
