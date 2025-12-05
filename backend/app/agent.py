@@ -626,12 +626,14 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id,
                     db.commit()
                     print(f"[INFO] Updated is_eligible_for_retry to true for credential {credential_id} and will be retried")
                 elif credential and credential.is_eligible_for_retry == True:
-                    print(f"[RETRY FAILED] Credential 1{credential.is_eligible_for_retry} retried and failed again")
-                    print(f"[RETRY FAILED] Credential 2{credential.last_state} retried and failed again")
-                    print(f"[RETRY FAILED] Credential 3{credential.last_error} retried and failed again")
+                    print(f"[RETRY FAILED] Credential {credential_id} retried and failed again")
                     credential.is_eligible_for_retry = False
                     credential.last_state = "Failed"
                     credential.last_error = "Unable to download the bill"
+                    # If billing_cycle_day is still null after retry failure, set to default
+                    if credential.billing_cycle_day is None:
+                        credential.billing_cycle_day = 10
+                        print(f"[INFO] Set billing_cycle_day to default (10) after retry failure")
                     db.commit()
                     print(f"[INFO] Credential {credential_id} retried and failed again")
                 else:
@@ -747,6 +749,35 @@ async def trigger_automatic_extraction(billing_result, email, provider_name):
                                     
                                     db.commit()
                                     print(f"[✅] Updated BillingResult with Excel and JSON blob URLs")
+                                    
+                                    # Extract statementDate and update billing_cycle_day if needed
+                                    if billing_result.user_billing_credential_id:
+                                        try:
+                                            credential = db.query(UserBillingCredential).filter(
+                                                UserBillingCredential.id == billing_result.user_billing_credential_id
+                                            ).first()
+                                            
+                                            if credential and credential.billing_cycle_day is None:
+                                                # Use statementDate from current extraction
+                                                statement_date_str = extracted_data.get('statementDate')
+                                                if statement_date_str:
+                                                    try:
+                                                        date_obj = datetime.strptime(statement_date_str, '%Y-%m-%d')
+                                                        credential.billing_cycle_day = date_obj.day
+                                                        db.commit()
+                                                        print(f"[✅] Updated billing_cycle_day to {date_obj.day} for credential {credential.id}")
+                                                    except Exception as e:
+                                                        print(f"[WARNING] Failed to parse statementDate: {e}")
+                                                        credential.billing_cycle_day = 10
+                                                        db.commit()
+                                                        print(f"[INFO] Set billing_cycle_day to default (10)")
+                                                else:
+                                                    # No statementDate found, use default
+                                                    credential.billing_cycle_day = 10
+                                                    db.commit()
+                                                    print(f"[INFO] No statementDate found, set billing_cycle_day to default (10)")
+                                        except Exception as e:
+                                            print(f"[ERROR] Failed to update billing_cycle_day: {e}")
                                     
                                     # Log extraction success
                                     AuditLogger.log_extraction_complete(

@@ -12,8 +12,9 @@ from azure_storage_service import azure_storage_service
 from app.agent_utils import simulate_agent_run
 from app.audit_logger import AuditLogger
 from app.db import get_db
-from app.models import AgentAction, UserBillingCredential, UserBillingCredentialResponse, User
+from app.models import AgentAction, UserBillingCredential, UserBillingCredentialResponse, BillingResult, AgentJob
 from app.routes.auth import verify_token, get_actual_user_id
+from app.job_queue import job_queue_manager
 from config import config
 
 
@@ -89,9 +90,9 @@ def upload_credentials(
                         break
                 
                 if existing_credential:
-                    # Update existing credential
+                    # Update existing credential (keep existing billing_cycle_day)
                     existing_credential.password = password
-                    existing_credential.billing_cycle_day = int(cleaned_row.get('billing_cycle_date', 10) or 10)
+                    # Don't update billing_cycle_day for existing credentials
                     existing_credential.client_name = cleaned_row.get('client_name', '')
                     existing_credential.utility_co_id = str(cleaned_row.get('utility_co_id', ''))
                     existing_credential.utility_co_name = cleaned_row.get('utility_co_name', '')
@@ -102,12 +103,12 @@ def upload_credentials(
                     updated_credentials.append(existing_credential)
                     print(f":arrows_counterclockwise: Updated existing credential for: {email}")  # Debug log
                 else:
-                    # Create new credential
+                    # Create new credential (billing_cycle_day will be set after extraction)
                     credential = UserBillingCredential(
                         user_id=actual_user_id,
                         email=email,
                         password=password,
-                        billing_cycle_day=int(cleaned_row.get('billing_cycle_date', 10) or 10),
+                        billing_cycle_day=None,  # Will be set after extraction completes
                         client_name=cleaned_row.get('client_name', ''),
                         utility_co_id=str(cleaned_row.get('utility_co_id', '')),
                         utility_co_name=cleaned_row.get('utility_co_name', ''),
@@ -128,6 +129,32 @@ def upload_credentials(
         raise HTTPException(status_code=400, detail=f"Error parsing CSV: {str(e)}")
     db.add_all(new_credentials)
     db.commit()
+    
+    # Refresh credentials to ensure IDs are populated after commit
+    for cred in new_credentials:
+        db.refresh(cred)
+    
+    # Queue agent jobs for newly created credentials
+    if new_credentials:
+        job_queue_manager.start_worker()
+        for cred in new_credentials:
+            user_cred = {
+                "username": cred.email,
+                "password": cred.password,
+                "credential_id": cred.id
+            }
+            provider_name = cred.utility_co_name or f"{login_url.split('//')[-1].split('/')[0]}"
+            try:
+                job_id = job_queue_manager.add_job(
+                    user_cred=user_cred,
+                    signin_url=login_url,
+                    billing_history_url=billing_url,
+                    provider_name=provider_name,
+                    credential_id=cred.id
+                )
+                print(f"[QUEUE] Queued agent job {job_id} for credential {cred.id} ({cred.email})")
+            except Exception as e:
+                print(f"[ERROR] Failed to queue agent job for credential {cred.id}: {e}")
     
     # Log credential bulk upload
     credential_ids = [cred.id for cred in new_credentials]
@@ -174,7 +201,6 @@ def upload_pdf(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to upload PDF to Azure storage")
     # Create BillingResult entry for manual upload
-    from app.models import BillingResult
     billing_result = BillingResult(
         user_billing_credential_id=cred_id,
         azure_blob_url=blob_name,
@@ -257,13 +283,16 @@ def delete_credential(
     if not credential:
         raise HTTPException(status_code=404, detail="Credential not found")
     
-    # Import BillingResult here
-    from app.models import BillingResult
     
     # Set foreign key to NULL in related billing results
     db.query(BillingResult).filter(
         BillingResult.user_billing_credential_id == cred_id
     ).update({BillingResult.user_billing_credential_id: None})
+    
+    # Set foreign key to NULL in related agent jobs
+    db.query(AgentJob).filter(
+        AgentJob.credential_id == cred_id
+    ).update({AgentJob.credential_id: None})
     
     # Log credential deletion
     AuditLogger.log_credential_delete(
