@@ -37,6 +37,10 @@ PROVIDER_OTP_SENDERS = {
     # Add more providers as needed:
 }
 
+class TooManyRequestsError(Exception):
+    """Raised when API returns 429 Too Many Requests error"""
+    pass
+
 # ---------------------------------------------------------------------------
 # SHARED EMAIL CLIENT (SINGLETON) -------------------------------------------
 # ---------------------------------------------------------------------------
@@ -113,7 +117,7 @@ def create_persistent_session(start_url: str, proxy_country_code: str = None, ma
                 error_detail = http_err.response.json().get("detail", "")
                 print(f"[ERROR] 429 Too Many Requests: {error_detail}")
                 # Raise a specific exception that the queue manager can catch
-                raise Exception("429 Too Many Requests: Too many concurrent active sessions")
+                raise TooManyRequestsError("429 Too Many Requests: Too many concurrent active sessions")
             
             # Don't retry on other 4xx errors (client errors)
             if http_err.response.status_code < 500:
@@ -131,7 +135,7 @@ def create_persistent_session(start_url: str, proxy_country_code: str = None, ma
                 return None, None
         except Exception as err:
             # Re-raise 429 errors so queue manager can handle them
-            if "429" in str(err) or "Too Many Requests" in str(err):
+            if "429" in str(err) or "Too Many Requests" in str(err) or isinstance(err, TooManyRequestsError):
                 raise
             
             wait_time = 2 ** attempt
@@ -633,7 +637,7 @@ async def handle_task_result(result, client, email, DOWNLOAD_DIR, credential_id,
                     # If billing_cycle_day is still null after retry failure, set to default
                     if credential.billing_cycle_day is None:
                         credential.billing_cycle_day = 10
-                        print(f"[INFO] Set billing_cycle_day to default (10) after retry failure")
+                        print("[INFO] Set billing_cycle_day to default (10) after retry failure")
                     db.commit()
                     print(f"[INFO] Credential {credential_id} retried and failed again")
                 else:
@@ -770,12 +774,12 @@ async def trigger_automatic_extraction(billing_result, email, provider_name):
                                                         print(f"[WARNING] Failed to parse statementDate: {e}")
                                                         credential.billing_cycle_day = 10
                                                         db.commit()
-                                                        print(f"[INFO] Set billing_cycle_day to default (10)")
+                                                        print("[INFO] Set billing_cycle_day to default (10)")
                                                 else:
                                                     # No statementDate found, use default
                                                     credential.billing_cycle_day = 10
                                                     db.commit()
-                                                    print(f"[INFO] No statementDate found, set billing_cycle_day to default (10)")
+                                                    print("[INFO] No statementDate found, set billing_cycle_day to default (10)")
                                         except Exception as e:
                                             print(f"[ERROR] Failed to update billing_cycle_day: {e}")
                                     

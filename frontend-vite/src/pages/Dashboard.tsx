@@ -71,6 +71,65 @@ export default function Dashboard() {
     );
   };
 
+  const renderTableContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+    if (filteredJobs.length === 0) {
+      return (
+        <div className="text-center py-12 text-muted-foreground">
+          No agent jobs found
+        </div>
+      );
+    }
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent border-b border-border">
+            <TableHead className="font-medium">Provider</TableHead>
+            <TableHead className="font-medium">Username</TableHead>
+            <TableHead className="font-medium">Status</TableHead>
+            <TableHead className="font-medium">Retries</TableHead>
+            <TableHead className="font-medium">Created</TableHead>
+            <TableHead className="font-medium">Started</TableHead>
+            <TableHead className="font-medium">Completed</TableHead>
+            <TableHead className="font-medium">Error</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filteredJobs.map((job: AgentJob) => (
+            <TableRow key={job.id} className="hover:bg-muted/50 transition-colors">
+              <TableCell className="font-medium">{job.provider_name}</TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {job.username || "N/A"}
+              </TableCell>
+              <TableCell>{getStatusBadge(job.status)}</TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {job.retry_count} / {job.max_retries}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {job.created_at ? formatDate(job.created_at) : "N/A"}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {job.started_at ? formatTime(job.started_at) : "—"}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {job.completed_at ? formatTime(job.completed_at) : "—"}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                {job.error_message || "—"}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-8 py-8">
@@ -127,56 +186,7 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-lg border border-border bg-card overflow-hidden shadow-sm">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : filteredJobs.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              No agent jobs found
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent border-b border-border">
-                  <TableHead className="font-medium">Provider</TableHead>
-                  <TableHead className="font-medium">Username</TableHead>
-                  <TableHead className="font-medium">Status</TableHead>
-                  <TableHead className="font-medium">Retries</TableHead>
-                  <TableHead className="font-medium">Created</TableHead>
-                  <TableHead className="font-medium">Started</TableHead>
-                  <TableHead className="font-medium">Completed</TableHead>
-                  <TableHead className="font-medium">Error</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredJobs.map((job: AgentJob) => (
-                  <TableRow key={job.id} className="hover:bg-muted/50 transition-colors">
-                    <TableCell className="font-medium">{job.provider_name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {job.username || "N/A"}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(job.status)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {job.retry_count} / {job.max_retries}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {job.created_at ? formatDate(job.created_at) : "N/A"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {job.started_at ? formatTime(job.started_at) : "—"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {job.completed_at ? formatTime(job.completed_at) : "—"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
-                      {job.error_message || "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          {renderTableContent()}
         </div>
       </div>
     </div>

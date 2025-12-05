@@ -2,7 +2,7 @@ import queue
 import threading
 import time
 from typing import Dict, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
@@ -122,9 +122,9 @@ class JobQueueManager:
                 job_model.session_id = session_id
                 
                 if status == "running" and not job_model.started_at:
-                    job_model.started_at = datetime.utcnow()
+                    job_model.started_at = datetime.now(timezone.utc)
                 elif status in ["completed", "failed"]:
-                    job_model.completed_at = datetime.utcnow()
+                    job_model.completed_at = datetime.now(timezone.utc)
                 
                 db.commit()
         except Exception as e:
@@ -203,7 +203,7 @@ class JobQueueManager:
             # Note: Session slot is already reserved in worker_loop, so we don't need to add it here
             
             # Run the agent task
-            result = run_agent_task(
+            run_agent_task(
                 job.user_cred,
                 job.signin_url,
                 job.billing_history_url,

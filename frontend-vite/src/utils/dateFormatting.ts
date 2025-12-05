@@ -1,11 +1,16 @@
 /**
+ * Type alias for date input - can be a string, Date object, or null/undefined
+ */
+export type DateInput = string | Date | null | undefined;
+
+/**
  * Format a date string or Date object to a localized date string
  * @param date - Date string, Date object, or null/undefined
  * @param options - Intl.DateTimeFormatOptions for customization
  * @returns Formatted date string or "N/A" if date is invalid
  */
 export function formatDate(
-  date: string | Date | null | undefined,
+  date: DateInput,
   options?: Intl.DateTimeFormatOptions
 ): string {
   if (!date) return "N/A";
@@ -27,7 +32,7 @@ export function formatDate(
  * Format a date to a full date-time string
  */
 export function formatDateTime(
-  date: string | Date | null | undefined,
+  date: DateInput,
   options?: Intl.DateTimeFormatOptions
 ): string {
   if (!date) return "N/A";
@@ -57,7 +62,7 @@ export function formatBillingMonth(month: string | null | undefined, year: strin
  * Format time only (HH:MM:SS)
  */
 export function formatTime(
-  date: string | Date | null | undefined
+  date: DateInput
 ): string {
   if (!date) return "—";
   
