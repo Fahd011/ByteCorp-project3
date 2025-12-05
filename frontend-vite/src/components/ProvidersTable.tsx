@@ -1,7 +1,9 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpDown, ExternalLink, Trash2, Eye, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowUpDown, ExternalLink, Trash2, Eye, Loader2 } from "lucide-react";
+import { FilterChips } from "@/components/FilterChips";
+import { StatusTabs } from "@/components/StatusTabs";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -104,7 +106,6 @@ export function ProvidersTable({ searchTerm = "", showTabs = true }: ProvidersTa
   const [activeTab, setActiveTab] = useState<"all" | "idle" | "active" | "failed" | "completed">("all");
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [selectedUtilityTypes, setSelectedUtilityTypes] = useState<string[]>([]);
-  const [showAllProviders, setShowAllProviders] = useState(false);
   const { toast } = useToast();
 
   // Fetch credentials from API
@@ -313,9 +314,6 @@ export function ProvidersTable({ searchTerm = "", showTabs = true }: ProvidersTa
     );
   }
 
-
-  const displayedProviders = showAllProviders ? allProviders : allProviders.slice(0, 5);
-  
   const handleViewBills = (credId: string) => {
     // Navigate to billing results page
     navigate(`/billing-results/${credId}`);
@@ -335,77 +333,34 @@ export function ProvidersTable({ searchTerm = "", showTabs = true }: ProvidersTa
 
   return (
     <div className="space-y-4">
-      {/* Filter Chips - Providers */}
+      {/* Filter Chips - Providers and Utility Types */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          {displayedProviders.map((provider) => (
-            <button
-              key={provider}
-              onClick={() => toggleProvider(provider)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
-                selectedProviders.includes(provider)
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
-              }`}
-            >
-              {provider}
-            </button>
-          ))}
-          {allProviders.length > 5 && (
-            <button
-              onClick={() => setShowAllProviders(!showAllProviders)}
-              className="px-3 py-1.5 rounded-full text-xs font-medium transition-all border bg-muted text-muted-foreground border-border hover:border-primary/50 hover:text-foreground flex items-center gap-1"
-            >
-              {showAllProviders ? "Show Less" : `Show More (${allProviders.length - 5})`}
-              <ChevronRight className={`h-3 w-3 transition-transform ${showAllProviders ? "rotate-90" : ""}`} />
-            </button>
-          )}
-        </div>
-
-        {/* Filter Chips - Utility Types */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {utilityTypes.map((type) => (
-            <button
-              key={type}
-              onClick={() => toggleUtilityType(type)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
-                selectedUtilityTypes.includes(type)
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
-              }`}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
+        <FilterChips 
+          items={allProviders}
+          selectedItems={selectedProviders}
+          onToggle={toggleProvider}
+        />
+        <FilterChips 
+          items={[...utilityTypes]}
+          selectedItems={selectedUtilityTypes}
+          onToggle={toggleUtilityType}
+        />
       </div>
 
       {/* Tabs */}
       {showTabs && (
-        <div className="flex gap-2 border-b border-border">
-          {[
+        <StatusTabs
+          tabs={[
             { key: "all", label: "Scheduled Jobs" },
             { key: "idle", label: "Idle" },
             { key: "active", label: "Active" },
             { key: "completed", label: "Completed" },
             { key: "failed", label: "Failed" },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as typeof activeTab)}
-              className={`px-4 py-3 text-sm font-medium transition-colors relative ${
-                activeTab === tab.key
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-              {activeTab === tab.key && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-              )}
-            </button>
-          ))}
-        </div>
+          ]}
+          activeTab={activeTab}
+          onTabChange={(tab) => setActiveTab(tab as typeof activeTab)}
+          className=""
+        />
       )}
 
       {/* Table */}

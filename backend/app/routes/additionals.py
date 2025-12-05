@@ -2,7 +2,7 @@
 import io
 import csv
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -109,11 +109,11 @@ def get_all_billing_results(
             azure_blob_url=r.azure_blob_url,
             excel_blob_url=r.excel_blob_url,
             json_blob_url=r.json_blob_url,
-            run_time=r.run_time.isoformat() if r.run_time else None,
+            run_time=r.run_time.replace(tzinfo=timezone.utc).isoformat() if r.run_time else None,
             status=r.status,
             year=r.year,
             month=r.month,
-            created_at=r.created_at.isoformat() if r.created_at else None,
+            created_at=r.created_at.replace(tzinfo=timezone.utc).isoformat() if r.created_at else None,
             username=cred_to_email.get(r.user_billing_credential_id, "unknown"),
             account_number=r.account_number
         )
@@ -165,7 +165,7 @@ def download_audit_logs(
             log.action,
             log.status or '',
             log.triggered_by,
-            log.timestamp.isoformat(),
+            log.timestamp.replace(tzinfo=timezone.utc).isoformat() if log.timestamp else '',
             log.message or '',
             json.dumps(log.details) if log.details else ''
         ])

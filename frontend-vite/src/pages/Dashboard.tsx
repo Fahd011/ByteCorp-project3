@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DashboardStats } from "@/components/DashboardStats";
+import { FilterChips } from "@/components/FilterChips";
+import { StatusTabs } from "@/components/StatusTabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Table,
@@ -17,11 +19,13 @@ import { Badge } from "@/components/ui/badge";
 import { CredentialUploadDialog } from "@/components/CredentialUploadDialog";
 import { credentialsAPI, agentJobsAPI } from "@/services/api";
 import { UserBillingCredential, AgentJob } from "@/types";
-import { formatDate, formatTime } from "@/utils/dateFormatting";
+import { formatDate, formatDateTime } from "@/utils/dateFormatting";
 
 export default function Dashboard() {
   const [statsOpen, setStatsOpen] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<"all" | "pending" | "running" | "completed" | "failed">("all");
+  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
 
   // Fetch credentials for stats
   const { data: credentials } = useQuery({
@@ -44,8 +48,30 @@ export default function Dashboard() {
 
   const activeCredentials = credentials?.filter((cred: UserBillingCredential) => !cred.is_deleted) ?? [];
 
-  // Filter jobs based on search
+  // Get unique providers list
+  const allProviders = useMemo(() => {
+    if (!agentJobs) return [];
+    const unique = new Set(agentJobs.map((job: AgentJob) => job.provider_name).filter(Boolean));
+    return Array.from(unique).sort((a, b) => a.localeCompare(b));
+  }, [agentJobs]);
+
+  const toggleProvider = (provider: string) => {
+    setSelectedProviders(prev => 
+      prev.includes(provider) 
+        ? prev.filter(p => p !== provider)
+        : [...prev, provider]
+    );
+  };
+
+  // Filter jobs based on provider, status tab, and search
   const filteredJobs = agentJobs?.filter((job: AgentJob) => {
+    // Provider filter
+    if (selectedProviders.length > 0 && !selectedProviders.includes(job.provider_name || "")) return false;
+    
+    // Status filter
+    if (activeTab !== "all" && job.status !== activeTab) return false;
+    
+    // Search filter
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
@@ -115,10 +141,20 @@ export default function Dashboard() {
                 {job.created_at ? formatDate(job.created_at) : "N/A"}
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
-                {job.started_at ? formatTime(job.started_at) : "—"}
+                {job.started_at ? formatDateTime(job.started_at, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : "—"}
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
-                {job.completed_at ? formatTime(job.completed_at) : "—"}
+                {job.completed_at ? formatDateTime(job.completed_at, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : "—"}
               </TableCell>
               <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
                 {job.error_message || "—"}
@@ -176,14 +212,36 @@ export default function Dashboard() {
             />
           </div>
           <CredentialUploadDialog />
+                </div>
+          {/* Agent Jobs Table */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-muted-foreground">
+              Showing {filteredJobs.length} of {agentJobs?.length || 0} agent jobs
+            </div>
+          </div>
+        {/* Provider Filter Chips */}
+        <div className="mb-6">
+          <FilterChips 
+            items={allProviders}
+            selectedItems={selectedProviders}
+            onToggle={toggleProvider}
+          />
         </div>
 
-        {/* Agent Jobs Table */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-sm text-muted-foreground">
-            Showing {filteredJobs.length} of {agentJobs?.length || 0} agent jobs
-          </div>
-        </div>
+        {/* Status Tabs */}
+        <StatusTabs
+          tabs={[
+            { key: "all", label: "All Jobs" },
+            { key: "pending", label: "Pending" },
+            { key: "running", label: "Running" },
+            { key: "completed", label: "Completed" },
+            { key: "failed", label: "Failed" },
+          ]}
+          activeTab={activeTab}
+          onTabChange={(tab) => setActiveTab(tab as typeof activeTab)}
+        />
+
+        
 
         <div className="rounded-lg border border-border bg-card overflow-hidden shadow-sm">
           {renderTableContent()}

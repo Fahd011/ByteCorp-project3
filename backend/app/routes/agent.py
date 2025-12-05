@@ -1,7 +1,7 @@
 from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import FileResponse
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from sqlalchemy.orm import Session
 
@@ -148,9 +148,10 @@ async def get_agent_jobs(
             "retry_count": job.retry_count,
             "max_retries": job.max_retries,
             "error_message": job.error_message,
-            "created_at": job.created_at.isoformat() if job.created_at else None,
-            "started_at": job.started_at.isoformat() if job.started_at else None,
-            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            # Ensure timezone-aware ISO format (UTC)
+            "created_at": job.created_at.replace(tzinfo=timezone.utc).isoformat() if job.created_at else None,
+            "started_at": job.started_at.replace(tzinfo=timezone.utc).isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.replace(tzinfo=timezone.utc).isoformat() if job.completed_at else None,
             "username": job.user_cred.get("username") if job.user_cred else None,
         }
         for job in jobs

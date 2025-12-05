@@ -4,6 +4,33 @@
 export type DateInput = string | Date | null | undefined;
 
 /**
+ * Parse a date string ensuring timezone awareness
+ * If the string doesn't have timezone info, assume it's UTC
+ */
+function parseDate(date: string | Date): Date {
+  if (date instanceof Date) {
+    return date;
+  }
+  
+  // If it's an ISO string without timezone, assume UTC
+  // ISO strings like "2024-01-01T12:00:00" (no Z or offset) are treated as local time by Date constructor
+  // We want to ensure UTC timestamps are properly recognized
+  if (typeof date === "string") {
+    const trimmed = date.trim();
+    // If it ends with Z or has timezone offset (+/-HH:MM), Date will parse it correctly
+    // If it doesn't, we'll append Z to treat it as UTC
+    if (trimmed && !trimmed.endsWith('Z') && !trimmed.match(/[+-]\d{2}:\d{2}$/)) {
+      // No timezone info - assume UTC if it looks like an ISO datetime
+      if (trimmed.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) {
+        return new Date(trimmed + 'Z');
+      }
+    }
+  }
+  
+  return new Date(date);
+}
+
+/**
  * Format a date string or Date object to a localized date string
  * @param date - Date string, Date object, or null/undefined
  * @param options - Intl.DateTimeFormatOptions for customization
@@ -16,7 +43,7 @@ export function formatDate(
   if (!date) return "N/A";
   
   try {
-    const dateObj = typeof date === "string" ? new Date(date) : date;
+    const dateObj = parseDate(date);
     
     if (Number.isNaN(dateObj.getTime())) {
       return "N/A";
@@ -38,7 +65,7 @@ export function formatDateTime(
   if (!date) return "N/A";
   
   try {
-    const dateObj = typeof date === "string" ? new Date(date) : date;
+    const dateObj = parseDate(date);
     
     if (Number.isNaN(dateObj.getTime())) {
       return "N/A";
@@ -60,6 +87,7 @@ export function formatBillingMonth(month: string | null | undefined, year: strin
 
 /**
  * Format time only (HH:MM:SS)
+ * Uses browser's local timezone for display
  */
 export function formatTime(
   date: DateInput
@@ -67,7 +95,7 @@ export function formatTime(
   if (!date) return "—";
   
   try {
-    const dateObj = typeof date === "string" ? new Date(date) : date;
+    const dateObj = parseDate(date);
     
     if (Number.isNaN(dateObj.getTime())) {
       return "—";
